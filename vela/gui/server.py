@@ -3,7 +3,7 @@
 Seguridad:
   * Solo escucha en 127.0.0.1 (o ::1). Nunca en interfaces públicas.
   * Token aleatorio por arranque, entregado en el fragmento de la URL (#t=…): el navegador no lo
-    envía en peticiones ni queda en logs. La API exige la cabecera X-OPSEC-Token.
+    envía en peticiones ni queda en logs. La API exige la cabecera X-VELA-Token.
   * Comprobación de Host/Origin contra DNS rebinding y CSRF.
   * CSP estricta sin recursos externos: todo (JS, CSS, mapa) se sirve desde aquí.
 """
@@ -31,7 +31,7 @@ CSP = ("default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' 
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "opsec-gui"
+    server_version = "vela-gui"
     sys_version = ""
 
     def log_message(self, *args):  # sin logs de peticiones (podrían contener datos sensibles)
@@ -68,7 +68,7 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def _auth(self) -> bool:
-        tok = self.headers.get("X-OPSEC-Token", "")
+        tok = self.headers.get("X-VELA-Token", "")
         return hmac.compare_digest(tok.encode(), self.server.token.encode())
 
     def do_GET(self):
@@ -109,7 +109,7 @@ class Handler(BaseHTTPRequestHandler):
             data = self.server.backend.call("export")
             body = to_html(None, data, self.server.backend.call("audit")).encode()
             self._headers(200, "text/html; charset=utf-8", len(body),
-                          {"Content-Disposition": 'attachment; filename="opsec-informe.html"'})
+                          {"Content-Disposition": 'attachment; filename="vela-informe.html"'})
             return self.wfile.write(body)
         method = path.removeprefix("/api/")
         if method not in METHODS:

@@ -1,4 +1,4 @@
-"""`opsecd`: motor de monitorización continua.
+"""`velad`: motor de monitorización continua.
 
 Sigue funcionando aunque la TUI o la GUI estén cerradas. Combina eventos (netlink para la red,
 eventos CIRC/STREAM de Tor) con sondeos de respaldo a intervalos configurables.
@@ -19,17 +19,17 @@ from .ipc import IPCServer, ping, socket_path
 from .network import NetlinkWatcher
 from .util import now, private_dir, runtime_dir, xdg_dir
 
-log = logging.getLogger("opsecd")
+log = logging.getLogger("velad")
 
 
 def pid_path():
-    return runtime_dir() / "opsecd.pid"
+    return runtime_dir() / "velad.pid"
 
 
 def run(foreground: bool = True, log_level: str = "INFO") -> int:
-    logging.basicConfig(level=log_level, format="%(asctime)s opsecd %(levelname)s %(message)s")
+    logging.basicConfig(level=log_level, format="%(asctime)s velad %(levelname)s %(message)s")
     if ping():
-        print(f"opsecd ya está en marcha ({socket_path()})", file=sys.stderr)
+        print(f"velad ya está en marcha ({socket_path()})", file=sys.stderr)
         return 1
     try:                                   # red de seguridad: más margen de descriptores
         import resource
@@ -96,20 +96,20 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
 
 
 def start_background() -> int:
-    """Lanza el daemon desacoplado de la terminal (log en ~/.local/state/opsectools/opsecd.log)."""
+    """Lanza el daemon desacoplado de la terminal (log en ~/.local/state/vela/velad.log)."""
     if ping():
-        print("opsecd ya está en marcha")
+        print("velad ya está en marcha")
         return 0
     logdir = private_dir(xdg_dir("state"))
-    logf = open(logdir / "opsecd.log", "ab")
+    logf = open(logdir / "velad.log", "ab")
     pid = os.fork()
     if pid:
         for _ in range(100):
             time.sleep(0.1)
             if ping():
-                print(f"opsecd iniciado (pid {pid}), log: {logdir / 'opsecd.log'}")
+                print(f"velad iniciado (pid {pid}), log: {logdir / 'velad.log'}")
                 return 0
-        print(f"opsecd no respondió; revisa {logdir / 'opsecd.log'}", file=sys.stderr)
+        print(f"velad no respondió; revisa {logdir / 'velad.log'}", file=sys.stderr)
         return 1
     os.setsid()
     os.dup2(logf.fileno(), 1)
@@ -123,19 +123,19 @@ def stop_daemon() -> int:
     try:
         pid = int(pid_path().read_text())
     except (OSError, ValueError):
-        print("opsecd no está en marcha")
+        print("velad no está en marcha")
         return 1
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
-        print("opsecd no está en marcha (pid obsoleto)")
+        print("velad no está en marcha (pid obsoleto)")
         return 1
     for _ in range(50):
         time.sleep(0.1)
         if not ping():
-            print("opsecd detenido")
+            print("velad detenido")
             return 0
-    print("opsecd no se detuvo a tiempo", file=sys.stderr)
+    print("velad no se detuvo a tiempo", file=sys.stderr)
     return 1
 
 

@@ -3,8 +3,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from opsectools import config, discovery, dns, geo, network, worldmap
-from opsectools.util import fmt_duration, parse_duration, redact
+from vela import config, discovery, dns, geo, network, worldmap
+from vela.util import fmt_duration, parse_duration, redact
 
 from .helpers import env, net
 
@@ -188,3 +188,10 @@ class GeoMapTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ShortDurationTests(unittest.TestCase):
+    def test_keeps_days(self):
+        from vela.util import fmt_duration_short
+        self.assertEqual(fmt_duration_short(86400 + 19 * 3600 + 53 * 60), "01d 19h 53m")
+        self.assertEqual(fmt_duration_short(19 * 3600 + 50 * 60 + 53), "19h 50m 53s")

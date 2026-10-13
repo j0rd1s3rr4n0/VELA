@@ -15,7 +15,7 @@
 *.db binary
 
 # Mapa OSM generado: no cuenta como código ni se compara
-opsectools/data/basemap-osm.bin binary -diff linguist-generated
+vela/data/basemap-osm.bin binary -diff linguist-generated
 
 # Fuera de los paquetes `git archive`
 .githooks/ export-ignore

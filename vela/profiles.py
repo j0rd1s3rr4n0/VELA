@@ -99,7 +99,7 @@ def generate(env: dict, dns_effective: dict | None = None) -> dict:
 
 
 def to_toml(profiles: dict, existing: set[str] = frozenset()) -> str:
-    lines = [f"# Perfiles generados por `opsec profiles generate` el {dt.datetime.now():%Y-%m-%d %H:%M}",
+    lines = [f"# Perfiles generados por `vela profiles generate` el {dt.datetime.now():%Y-%m-%d %H:%M}",
              "# Recuerda: separan identidades de RED; usa además un navegador/contenedor distinto por perfil."]
     for name, p in profiles.items():
         if name in existing:

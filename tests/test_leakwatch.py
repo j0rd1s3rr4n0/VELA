@@ -2,9 +2,9 @@
 
 import unittest
 
-from opsectools import leaks, leakwatch
-from opsectools.engine import Engine
-from opsectools.store import Store
+from vela import leaks, leakwatch
+from vela.engine import Engine
+from vela.store import Store
 
 from .helpers import cfg, net
 
@@ -121,7 +121,7 @@ class PublicIPTests(unittest.TestCase):
         lw = leakwatch.classify([sock("192.168.1.10", "149.154.167.92")], net(tunnel=False))
         f = leaks.check_realtime(lw, {}, {"require_vpn": True})[0]
         self.assertEqual((f["check"], f["status"], f["severity"]), ("direct_exposure", "fail", "high"))
-        from opsectools import remediation
+        from vela import remediation
         fx = remediation.fix_for(f, {})
         self.assertIn("Permanente", " ".join(s["desc"] for s in fx["steps"]))
 

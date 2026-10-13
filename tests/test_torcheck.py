@@ -2,7 +2,7 @@
 
 import unittest
 
-from opsectools import torcheck
+from vela import torcheck
 
 NS = """r hai IKi8juoSX+aFLP2FJDjK4UgmlPo AAAA 2038-01-01 00:00:00 109.70.100.13 443 0
 a [2a03:e600:100::13]:443

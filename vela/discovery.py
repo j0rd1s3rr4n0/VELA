@@ -2,13 +2,13 @@
 """Autodetección del entorno de red y anonimato.
 
 Inspecciona el sistema y decide qué collectors, drivers de rotación y kill-switch
-puede usar OPSecTools. No hace ninguna conexión fuera de 127.0.0.1: solo lee /proc,
+puede usar VELA. No hace ninguna conexión fuera de 127.0.0.1: solo lee /proc,
 /sys, ficheros de configuración, ejecuta comandos locales de solo lectura y sondea
 puertos de loopback.
 
-    python3 -m opsectools discover            # informe legible
-    python3 -m opsectools discover --json     # informe en JSON
-    python3 -m opsectools discover --write-config ~/.config/opsectools/config.toml
+    python3 -m vela discover            # informe legible
+    python3 -m vela discover --json     # informe en JSON
+    python3 -m vela discover --write-config ~/.config/vela/config.toml
 """
 
 from __future__ import annotations
@@ -649,7 +649,7 @@ def detect_privileges() -> dict:
 def detect_geoip() -> dict:
     return {
         "mmdb": expand_globs(["/usr/share/GeoIP/*.mmdb", "/var/lib/GeoIP/*.mmdb",
-                              "~/.local/share/GeoIP/*.mmdb", "~/.local/share/opsectools/*.mmdb"]),
+                              "~/.local/share/GeoIP/*.mmdb", "~/.local/share/vela/*.mmdb"]),
         "tor_geoip": [p for p in ("/usr/share/tor/geoip", "/usr/share/tor/geoip6") if os.path.exists(p)],
     }
 
@@ -1184,7 +1184,7 @@ def write_config(cfg: dict, path: Path, force: bool) -> None:
     if path.exists() and not force:
         raise SystemExit(f"{path} ya existe (usa --force para sobrescribirlo)")
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    header = [f"# Generado por `opsec discover` el {dt.datetime.now().astimezone():%Y-%m-%d %H:%M}.",
+    header = [f"# Generado por `vela discover` el {dt.datetime.now().astimezone():%Y-%m-%d %H:%M}.",
               "# Edítalo a tu gusto; vuelve a ejecutar discover si cambias de herramientas.", ""]
     fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     with os.fdopen(fd, "w") as f:
@@ -1192,7 +1192,7 @@ def write_config(cfg: dict, path: Path, force: bool) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="opsec discover",
+    ap = argparse.ArgumentParser(prog="vela discover",
                                  description="Detecta VPN, Tor, proxies, DNS y firewall disponibles en el sistema.")
     ap.add_argument("--json", action="store_true", help="salida completa en JSON")
     ap.add_argument("--write-config", metavar="RUTA", type=Path, help="genera un config.toml adaptado al sistema")

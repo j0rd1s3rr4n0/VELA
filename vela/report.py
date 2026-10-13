@@ -67,7 +67,7 @@ def doctor(engine) -> list[dict]:
         c("config", True, str(config_mod.config_path()) + (" (no existe: valores por defecto)"
                                                             if not config_mod.config_path().exists() else ""))
     except Exception as e:  # noqa: BLE001
-        c("config", False, str(e), "opsec config edit")
+        c("config", False, str(e), "vela config edit")
     if engine.store.memory:
         c("almacenamiento", True, "modo memoria (sin persistencia)")
     else:
@@ -78,7 +78,7 @@ def doctor(engine) -> list[dict]:
         c("cifrado", None if not engine.store.encrypted else True,
           "NO cifrada (SQLCipher no disponible); protegida solo por permisos", "pip install sqlcipher3 (opcional)")
     try:
-        with tempfile.NamedTemporaryFile(prefix="opsec-doctor-") as f:
+        with tempfile.NamedTemporaryFile(prefix="vela-doctor-") as f:
             f.write(b"x" * 4096)
             f.flush()
         c("directorio temporal", True, tempfile.gettempdir())
@@ -92,10 +92,10 @@ def doctor(engine) -> list[dict]:
     sock = ipc.socket_path()
     if sock.exists():
         m = stat.S_IMODE(os.stat(sock).st_mode)
-        c("daemon (IPC)", ipc.ping(), f"{sock} {oct(m)}", "opsec daemon start")
+        c("daemon (IPC)", ipc.ping(), f"{sock} {oct(m)}", "vela daemon start")
         c("permisos IPC", m == 0o600 and stat.S_IMODE(os.stat(runtime_dir()).st_mode) == 0o700, oct(m))
     else:
-        c("daemon (IPC)", None, "no está en marcha (las interfaces usan el motor local)", "opsec daemon start")
+        c("daemon (IPC)", None, "no está en marcha (las interfaces usan el motor local)", "vela daemon start")
     engine.ensure_fresh()
     tor = engine.tor or {}
     c("Tor control", tor.get("available") or (None if not engine.env["tor"]["installed"] else False),
@@ -168,7 +168,7 @@ def to_html(engine, data: dict, audit: dict | None = None) -> str:
                 for s in data["sessions"][:500]]
     counters = [{**c, "total": fmt_duration(c["total"])} for c in data["counters"][:300]]
     events = [{**e, "ts": iso(e["ts"]), "data": json.dumps(e["data"], ensure_ascii=False)[:200]} for e in data["events"][:500]]
-    parts = [f"<h1>OPSEC Command Center — informe</h1><p>Generado {iso(data['generated'])} · perfil "
+    parts = [f"<h1>VELA — informe</h1><p>Generado {iso(data['generated'])} · perfil "
              f"<b>{html.escape(data['profile'])}</b></p>"]
     if audit:
         ex = audit["summary"]["exposure"]
@@ -192,5 +192,5 @@ def to_html(engine, data: dict, audit: dict | None = None) -> str:
     css = ("body{font:14px system-ui,sans-serif;margin:24px;background:#0f1216;color:#d8dee9}"
            "table{border-collapse:collapse;width:100%;margin:8px 0 24px}th,td{border:1px solid #2b3240;padding:4px 6px;"
            "text-align:left;vertical-align:top}th{background:#1a2029}.muted{color:#8a93a3}h1,h2{color:#e6edf3}")
-    return (f"<!doctype html><html lang=es><meta charset=utf-8><title>Informe OPSEC</title><style>{css}</style>"
+    return (f"<!doctype html><html lang=es><meta charset=utf-8><title>Informe OPSEC · VELA</title><style>{css}</style>"
             f"<body>{''.join(parts)}</body></html>")

@@ -1,7 +1,7 @@
 [project]
-name = "opsectools"
-version = "0.2.0"
-description = "OPSEC Command Center: control de la identidad de red de salida (ISP, VPN, proxies, Tor, DNS)"
+name = "vela"
+version = "0.3.0"
+description = "VELA — Vigilant Egress & Leak Analyst: tu identidad de red (VPN, proxies, Tor, DNS, fugas), siempre en vela"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []          # el núcleo usa solo la biblioteca estándar
@@ -11,16 +11,16 @@ geo = ["geoip2"]           # ciudad y ASN con bases .mmdb locales
 crypto = ["sqlcipher3"]    # cifrado real de la base de datos
 
 [project.scripts]
-opsec = "opsectools.cli:main"
-opsecd = "opsectools.daemon:main"
+vela = "vela.cli:main"
+velad = "vela.daemon:main"
 
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["opsectools*"]
+include = ["vela*"]
 
 [tool.setuptools.package-data]
-"opsectools.gui" = ["static/*"]
-"opsectools" = ["data/*"]   # mapa base de OpenStreetMap incorporado (ODbL)
+"vela.gui" = ["static/*"]
+"vela" = ["data/*"]   # icono y mapa base de OpenStreetMap incorporado (ODbL)

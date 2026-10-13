@@ -1,6 +1,19 @@
-# OPSEC Command Center
+<p align="center"><img src="vela/data/vela.svg" width="112" alt="VELA"></p>
 
-Centro de control de tu identidad de red de salida. Supervisa, registra y audita:
+<h1 align="center">VELA</h1>
+<p align="center"><b>V</b>igilant <b>E</b>gress &amp; <b>L</b>eak <b>A</b>nalyst<br>
+<i>Tu identidad de red, siempre en vela.</i></p>
+
+| Letra | Qué hace |
+|---|---|
+| **V**igilant | Vigila sin descanso: daemon, vigilante de fugas cada 2 s, eventos del kernel y avisos en la bandeja |
+| **E**gress | Sigue cada salida de tu tráfico: router, VPN, proxies, Tor y DNS, con tiempos, sesiones y rotación |
+| **L**eak | Detecta lo que te expone: conexiones fuera del túnel, DNS en claro, IPv6, WebRTC, kill-switch |
+| **A**nalyst | Analiza y enriquece: geolocalización, VirusTotal, Shodan, GreyNoise, Censys, ExoneraTor y rutas |
+
+*Vela* es la llama que queda encendida cuando todo duerme: **estar en vela** es quedarse vigilando.
+
+VELA supervisa, registra y audita:
 
 - la IP local, la IP WAN del router y la IP pública;
 - los túneles VPN;
@@ -19,11 +32,12 @@ Requisitos: Linux y Python ≥ 3.10. **No necesita dependencias externas.**
 ## Instalación
 
 ```bash
-cd ~/Escritorio/OPSecTools
-python3 -m pip install --user .        # instala los comandos `opsec` y `opsecd`
+git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
+git config core.hooksPath .githooks    # guardián contra secretos y datos personales
+python3 -m pip install --user .        # instala los comandos `vela` y `velad`
 ```
 
-También funciona sin instalar, con `python3 -m opsectools <comando>`.
+También funciona sin instalar, con `python3 -m vela <comando>`.
 
 Opcionales:
 
@@ -40,40 +54,40 @@ sudo usermod -aG debian-tor $USER
 ## Uso rápido
 
 ```bash
-opsec discover          # capacidades detectadas y su estado
-opsec daemon start      # monitorización continua en segundo plano
-opsec status            # cadena, IPs, Tor, DNS, sesión, contadores, rotación, alertas
-opsec tui               # terminal interactiva (curses)
-opsec gui               # dashboard + mapa en el navegador (solo 127.0.0.1)
+vela discover          # capacidades detectadas y su estado
+vela daemon start      # monitorización continua en segundo plano
+vela status            # cadena, IPs, Tor, DNS, sesión, contadores, rotación, alertas
+vela tui               # terminal interactiva (curses)
+vela gui               # dashboard + mapa en el navegador (solo 127.0.0.1)
 ```
 
 | Comando | Qué hace |
 |---|---|
-| `opsec tray [--install \| --remove]` | **Icono en la bandeja** (AppIndicator): estado de VPN, IP, exposición y fugas; abrir la app, comprobar IP/fugas, perfil, Tor, emergencia, ajustes rápidos y notificaciones |
-| `opsec daemon enable\|disable` | Arrancar el daemon con la sesión (servicio de usuario de systemd) para no perder historial |
-| `opsec app [--install]` | **Aplicación nativa de escritorio** (GTK 4 + libadwaita); `--install` añade el lanzador al menú |
-| `opsec leakwatch [--once] [--all]` | **IP pública y fugas de IP en tiempo real**: cada conexión clasificada como protegida / fuga / directa, con el programa responsable |
-| `opsec networks [-n]` | Todas tus redes (WiFi, LAN, VPN, Docker, VMs): tráfico, gateway, SSID, dispositivos vistos, aislamiento de VMs |
-| `opsec fix` | Comandos concretos para corregir cada problema detectado (no ejecuta nada) |
-| `opsec intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre tu historial o un listado (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
-| `opsec map [status\|build]` | **Mapa propio de OpenStreetMap, incorporado en la app** (`opsectools/data/`, funciona sin conexión en la app nativa, la TUI y la GUI web). `build` lo actualiza con datos recientes: descarga por Tor o la VPN (`--via direct` solo si lo pides, `--file` para un zip ya descargado); mirar el mapa no pide teselas a nadie |
-| `opsec network` | Interfaces, direcciones clasificadas (privada, CGNAT, ULA…), rutas y policy routing |
-| `opsec vpn list` / `opsec proxy list` | VPN y proxies detectados, con su estado |
-| `opsec tor status` | Circuitos con guard, middle y exit; guards; comprobación externa |
-| `opsec dns check [--active]` | Resolvers por enlace, split DNS, DoT y fugas |
-| `opsec ip [--route tor]` | IP pública por vía (con consentimiento) e IP WAN por UPnP |
-| `opsec sessions` / `opsec counters` / `opsec history` | Sesiones, contadores `00d 00h 00m 00s` y timeline |
-| `opsec watch` | Eventos en tiempo real (requiere el daemon) |
-| `opsec rotate [tor\|proxy\|vpn] [--dry-run]` | Rotación segura o estado de la rotación |
-| `opsec leaks check [--active]` | Diagnósticos con evidencia, método, limitaciones y confianza |
-| `opsec profiles [activate X \| correlation \| generate [--write]]` | Perfiles, riesgo de correlación y generación de perfiles adaptados al sistema |
-| `opsec audit [--html f.html]` | Privacy Audit |
-| `opsec stats --period day\|week\|month` | Estadísticas y anomalías |
-| `opsec export --format json\|csv\|html --out …` | Exportar el histórico |
-| `opsec killswitch preview\|apply --yes\|release` | Kill-switch nftables (tabla propia) |
-| `opsec panic` / `opsec resume` | Modo de emergencia (no borra datos) |
-| `opsec purge --days N --yes` | Borrar el histórico antiguo |
-| `opsec config show\|init\|edit` / `opsec doctor` | Configuración y diagnóstico de la instalación |
+| `vela tray [--install \| --remove]` | **Icono en la bandeja** (AppIndicator): estado de VPN, IP, exposición y fugas; abrir la app, comprobar IP/fugas, perfil, Tor, emergencia, ajustes rápidos y notificaciones |
+| `vela daemon enable\|disable` | Arrancar el daemon con la sesión (servicio de usuario de systemd) para no perder historial |
+| `vela app [--install]` | **Aplicación nativa de escritorio** (GTK 4 + libadwaita); `--install` añade el lanzador al menú |
+| `vela leakwatch [--once] [--all]` | **IP pública y fugas de IP en tiempo real**: cada conexión clasificada como protegida / fuga / directa, con el programa responsable |
+| `vela networks [-n]` | Todas tus redes (WiFi, LAN, VPN, Docker, VMs): tráfico, gateway, SSID, dispositivos vistos, aislamiento de VMs |
+| `vela fix` | Comandos concretos para corregir cada problema detectado (no ejecuta nada) |
+| `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre tu historial o un listado (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
+| `vela map [status\|build]` | **Mapa propio de OpenStreetMap, incorporado en la app** (`vela/data/`, funciona sin conexión en la app nativa, la TUI y la GUI web). `build` lo actualiza con datos recientes: descarga por Tor o la VPN (`--via direct` solo si lo pides, `--file` para un zip ya descargado); mirar el mapa no pide teselas a nadie |
+| `vela network` | Interfaces, direcciones clasificadas (privada, CGNAT, ULA…), rutas y policy routing |
+| `vela vpn list` / `vela proxy list` | VPN y proxies detectados, con su estado |
+| `vela tor status` | Circuitos con guard, middle y exit; guards; comprobación externa |
+| `vela dns check [--active]` | Resolvers por enlace, split DNS, DoT y fugas |
+| `vela ip [--route tor]` | IP pública por vía (con consentimiento) e IP WAN por UPnP |
+| `vela sessions` / `vela counters` / `vela history` | Sesiones, contadores `00d 00h 00m 00s` y timeline |
+| `vela watch` | Eventos en tiempo real (requiere el daemon) |
+| `vela rotate [tor\|proxy\|vpn] [--dry-run]` | Rotación segura o estado de la rotación |
+| `vela leaks check [--active]` | Diagnósticos con evidencia, método, limitaciones y confianza |
+| `vela profiles [activate X \| correlation \| generate [--write]]` | Perfiles, riesgo de correlación y generación de perfiles adaptados al sistema |
+| `vela audit [--html f.html]` | Privacy Audit |
+| `vela stats --period day\|week\|month` | Estadísticas y anomalías |
+| `vela export --format json\|csv\|html --out …` | Exportar el histórico |
+| `vela killswitch preview\|apply --yes\|release` | Kill-switch nftables (tabla propia) |
+| `vela panic` / `vela resume` | Modo de emergencia (no borra datos) |
+| `vela purge --days N --yes` | Borrar el histórico antiguo |
+| `vela config show\|init\|edit` / `vela doctor` | Configuración y diagnóstico de la instalación |
 
 Cualquier comando acepta `--json`. Sin el daemon, la CLI, la TUI y la GUI usan el motor en su propio
 proceso, pero no registran sesiones.
@@ -111,13 +125,13 @@ Leyenda:
 
 | Funcionalidad | Estado | Evidencia |
 |---|---|---|
-| Descubrimiento de capacidades (5 estados) | ✅ | pruebas + `opsec discover` real |
-| Interfaces, rutas, ruta efectiva, clasificación IPv4/IPv6/CGNAT/ULA | ✅ | pruebas + `opsec network` real |
+| Descubrimiento de capacidades (5 estados) | ✅ | pruebas + `vela discover` real |
+| Interfaces, rutas, ruta efectiva, clasificación IPv4/IPv6/CGNAT/ULA | ✅ | pruebas + `vela network` real |
 | Eventos netlink | ✅ | daemon real: "netlink: eventos activos" |
 | Tor: SAFECOOKIE, circuitos, guard/middle/exit, streams, guards | ✅ | servidor falso + 22 circuitos reales |
 | Tor: IP de salida vía check.torproject.org (IsTor) | ✅ | real: 185.220.101.140 confirmado |
 | Tor: NEWNYM con rate-limit y no repetición de exit | ✅ / 🟡 | probado con mocks y dry-run real; NEWNYM real no ejecutado (sin consentimiento) |
-| DNS por enlace (systemd-resolved), split DNS, DoT | ✅ | pruebas + `opsec dns check` real |
+| DNS por enlace (systemd-resolved), split DNS, DoT | ✅ | pruebas + `vela dns check` real |
 | DNS efectivo y cifrado: WARP DoH, cloudflared, dnscrypt/stubby, DoT, DoH de Firefox/Chromium; ruta del DoH | ✅ | pruebas + real: WARP DoH por `proton0` |
 | Kill-switch de clientes (ProtonVPN, Mullvad, NordVPN) + verificación por rutas «¿y si cae el túnel?» | ✅ / 🟡 | ProtonVPN real verificado (IPv4/IPv6); Mullvad/NordVPN sin validar (no instalados) |
 | Clientes VPN en snap/flatpak (ProtonVPN) y servidor VPN desde el nombre de la conexión | ✅ | real: `ProtonVPN CH-DE#2` |
@@ -127,7 +141,7 @@ Leyenda:
 | IP pública solo por túnel (`public_ip.require_tunnel`) | ✅ | pruebas + real: omitida al caer la VPN |
 | IP pública en tiempo real (cada 60 s con túnel + inmediata al cambiar la ruta) y detección de «Internet ve tu IP real» | ✅ / 🟡 | pruebas; validación real pendiente de reconectar la VPN |
 | Vigilante de fugas en tiempo real (sockets del kernel cada 2 s, programa responsable, fugas DNS, reacción automática con kill-switch) | ✅ | pruebas + real: 29 conexiones directas detectadas con la VPN caída |
-| Remediación con comandos (`opsec fix`, GUI con botón copiar) | ✅ | pruebas + ejecución real |
+| Remediación con comandos (`vela fix`, GUI con botón copiar) | ✅ | pruebas + ejecución real |
 | Threat intel: GreyNoise | ✅ | pruebas + consulta real vía Tor |
 | Threat intel: VirusTotal / Shodan | ✅ | validados con las claves reales del usuario (puntuación VT, puertos Shodan) |
 | Threat intel: Censys | 🟡 | implementado y probado con respuestas simuladas; sin clave para validar |
@@ -150,7 +164,7 @@ Leyenda:
 | CLI | ✅ | todos los comandos ejecutados contra el sistema real |
 | TUI (curses) | ✅ / 🟡 | arranque y renderizado reales; navegación interactiva no verificada por mí |
 | GUI (token, Host/Origin, CSP, dashboard, mapa, timeline) | ✅ | pruebas + navegador real sin errores de consola |
-| Rutas del tráfico (programa → proxy/Tor/directo → VPN → destino), `opsec routes` + diagrama en Tiempo real | ✅ / 🟡 | pruebas + datos reales (Tor y directo sin VPN); proxy local real y proxy encadenado solo con pruebas simuladas (no hay proxy en el equipo) |
+| Rutas del tráfico (programa → proxy/Tor/directo → VPN → destino), `vela routes` + diagrama en Tiempo real | ✅ / 🟡 | pruebas + datos reales (Tor y directo sin VPN); proxy local real y proxy encadenado solo con pruebas simuladas (no hay proxy en el equipo) |
 | Proxy HTTP vs servidor web (sonda CONNECT) | ✅ | pruebas + :8080 real identificado como servidor web |
 | Mapa base OpenStreetMap incorporado (Mercator, 4 niveles de detalle, costa, países, capitales y ciudades; offline; también TUI y GUI web) | ✅ | pruebas + datos OSM reales descargados por Tor y capturas de la app nativa; GUI web comprobada solo con pruebas y `node --check` |
 | Fronteras entre países en el mapa | ⏳ | no incluidas (los datos de fronteras de OSM pesan cientos de MB) |
@@ -168,7 +182,7 @@ Leyenda:
 
 ## Repositorio git seguro
 
-El repositorio trae un guardián (`opsectools/gitguard.py`) que se ejecuta solo con los hooks de `.githooks/`
+El repositorio trae un guardián (`vela/gitguard.py`) que se ejecuta solo con los hooks de `.githooks/`
 (`git config core.hooksPath .githooks` tras clonar):
 
 - **pre-commit**: bloquea ficheros personales (`.devlogs/`, bases de datos, `secrets.toml`, `config.toml`,
@@ -177,7 +191,14 @@ El repositorio trae un guardián (`opsectools/gitguard.py`) que se ejecuta solo 
   equipo**: tus claves de API y tus IPs reales, sin guardarlos en ningún sitio.
 - **pre-push**: revisa cada commit que se va a publicar (también lo borrado después, porque sigue en el
   historial) y bloquea si el correo del autor no es anónimo (`…@users.noreply.github.com`).
-- `python3 -m opsectools.gitguard all`: revisa todo lo que ya está en el repositorio.
+- `python3 -m vela.gitguard all`: revisa todo lo que ya está en el repositorio.
 
 Nunca muestra el secreto encontrado, solo fichero, línea y tipo. `user.useConfigOnly=true` impide que git
 invente tu identidad a partir del usuario y el nombre del equipo.
+
+## Migración desde OPSecTools
+
+VELA se llamaba *OPSecTools* (comandos `opsec`/`opsecd`). El primer comando de `vela` mueve tus datos
+(`~/.config`, `~/.local/share`, `~/.local/state` y `~/.cache` de `opsectools` a `vela`, con `opsec.db` → `vela.db`),
+sustituye el servicio `opsecd` por `velad` si estaba habilitado y renueva el autoarranque de la bandeja y el
+lanzador. Nunca sobrescribe datos nuevos y no actúa mientras el daemon antiguo siga en marcha.

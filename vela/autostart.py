@@ -1,4 +1,4 @@
-"""Arranque automático de `opsecd` con la sesión (servicio de usuario de systemd).
+"""Arranque automático de `velad` con la sesión (servicio de usuario de systemd).
 
 Así la monitorización y el historial siguen guardándose aunque la app o la terminal estén cerradas.
 No requiere root: el servicio vive en ~/.config/systemd/user/.
@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .util import run, which
 
-UNIT = "opsecd.service"
+UNIT = "velad.service"
 
 
 def unit_path() -> Path:
@@ -21,13 +21,13 @@ def unit_path() -> Path:
 def unit_text() -> str:
     root = Path(__file__).resolve().parents[1]
     return f"""[Unit]
-Description=OPSEC Command Center (monitorización de red y fugas)
+Description=VELA (monitorización de red y fugas)
 After=network-online.target graphical-session.target
 
 [Service]
 Type=simple
 Environment=PYTHONPATH={root}
-ExecStart={sys.executable} -m opsectools daemon run
+ExecStart={sys.executable} -m vela daemon run
 Restart=on-failure
 RestartSec=5
 
@@ -66,10 +66,10 @@ def disable() -> dict:
 
 TRAY_DESKTOP = """[Desktop Entry]
 Type=Application
-Name=OPSEC Command Center (bandeja)
+Name=VELA (bandeja)
 Comment=Icono de bandeja con el estado de la VPN, la IP y las fugas
-Exec=env PYTHONPATH={root} {exe} -m opsectools tray
-Icon=security-high
+Exec=env PYTHONPATH={root} {exe} -m vela tray
+Icon={root}/vela/data/vela.svg
 Terminal=false
 X-GNOME-Autostart-enabled=true
 """
@@ -91,7 +91,7 @@ def tray_running() -> bool:
 
 
 def tray_autostart_path() -> Path:
-    return Path.home() / ".config/autostart/opsec-tray.desktop"
+    return Path.home() / ".config/autostart/vela-tray.desktop"
 
 
 def tray_autostart_enabled() -> bool:
@@ -106,7 +106,7 @@ def tray_enable(start_now: bool = True) -> str:
     root = Path(__file__).resolve().parents[1]
     p.write_text(TRAY_DESKTOP.format(root=root, exe=sys.executable))
     if start_now and not tray_running():
-        subprocess.Popen([sys.executable, "-m", "opsectools", "tray"], env={**os.environ, "PYTHONPATH": str(root)},
+        subprocess.Popen([sys.executable, "-m", "vela", "tray"], env={**os.environ, "PYTHONPATH": str(root)},
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
     return str(p)
 

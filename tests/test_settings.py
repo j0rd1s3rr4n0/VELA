@@ -6,9 +6,9 @@ import tomllib
 import unittest
 from pathlib import Path
 
-from opsectools import autostart, config, intel
-from opsectools.engine import Engine
-from opsectools.store import Store
+from vela import autostart, config, intel
+from vela.engine import Engine
+from vela.store import Store
 
 from .helpers import cfg
 
@@ -18,13 +18,13 @@ TMP = os.environ.get("TMPDIR") or None
 class SettingsTests(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp(dir=TMP))
-        os.environ["OPSEC_SETTINGS"] = str(self.dir / "app-settings.toml")
-        os.environ["OPSEC_CONFIG"] = str(self.dir / "config.toml")
+        os.environ["VELA_SETTINGS"] = str(self.dir / "app-settings.toml")
+        os.environ["VELA_CONFIG"] = str(self.dir / "config.toml")
         (self.dir / "config.toml").write_text("# mi comentario\n[consent]\ntor_ip_checks = true\n")
 
     def tearDown(self):
-        del os.environ["OPSEC_SETTINGS"]
-        del os.environ["OPSEC_CONFIG"]
+        del os.environ["VELA_SETTINGS"]
+        del os.environ["VELA_CONFIG"]
 
     def test_coerce_and_whitelist(self):
         self.assertTrue(config.coerce_setting("consent.allow_killswitch", True))
@@ -85,7 +85,7 @@ class KeysAndAutostartTests(unittest.TestCase):
         try:
             p = autostart.tray_enable(start_now=False)
             text = Path(p).read_text()
-            self.assertIn("-m opsectools tray", text)
+            self.assertIn("-m vela tray", text)
             self.assertTrue(autostart.tray_autostart_enabled())
             autostart.tray_disable(stop_now=False)
             self.assertFalse(autostart.tray_autostart_enabled())
@@ -94,7 +94,7 @@ class KeysAndAutostartTests(unittest.TestCase):
 
     def test_unit_text(self):
         t = autostart.unit_text()
-        self.assertIn("-m opsectools daemon run", t)
+        self.assertIn("-m vela daemon run", t)
         self.assertIn("WantedBy=default.target", t)
         self.assertIn("Restart=on-failure", t)
 

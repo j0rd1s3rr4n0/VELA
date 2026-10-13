@@ -2,7 +2,7 @@
 
 import copy
 
-from opsectools import config
+from vela import config
 
 
 def cfg(**over):

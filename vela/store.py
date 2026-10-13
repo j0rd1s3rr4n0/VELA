@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);
 
 
 def default_path() -> Path:
-    return xdg_dir("data") / "opsec.db"
+    return xdg_dir("data") / "vela.db"
 
 
 class Store:

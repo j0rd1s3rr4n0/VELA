@@ -9,13 +9,13 @@ import threading
 import unittest
 from pathlib import Path
 
-from opsectools import analytics, killswitch, leaks, torctl
-from opsectools.forwarder import ProxyForwarder, parse_proxy
-from opsectools.publicip import PublicIPChecker, extract_ip, open_socks5
-from opsectools.rotation import Policy, RotationEngine, SimulatedAdapter, Target, choose
-from opsectools.sessions import SessionTracker, needs_new_session
-from opsectools.store import Store
-from opsectools.util import now
+from vela import analytics, killswitch, leaks, torctl
+from vela.forwarder import ProxyForwarder, parse_proxy
+from vela.publicip import PublicIPChecker, extract_ip, open_socks5
+from vela.rotation import Policy, RotationEngine, SimulatedAdapter, Target, choose
+from vela.sessions import SessionTracker, needs_new_session
+from vela.store import Store
+from vela.util import now
 
 from .helpers import cfg, dns, env, net
 
@@ -465,7 +465,7 @@ class CorrelationTests(unittest.TestCase):
 class KillSwitchTests(unittest.TestCase):
     def test_ruleset(self):
         rs = killswitch.build_ruleset(["wg0"], ["198.51.100.1:51820", "vpn.example:443", "[2001:db8::1]:1194"], True, ["root"])
-        self.assertIn("table inet opsec_ks", rs)
+        self.assertIn("table inet vela_ks", rs)
         self.assertIn("policy drop", rs)
         self.assertIn('oifname { "wg0" } accept', rs)
         self.assertIn("ip daddr 198.51.100.1 udp dport 51820 accept", rs)

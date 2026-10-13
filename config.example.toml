@@ -1,5 +1,5 @@
-# OPSEC Command Center — configuración de ejemplo
-# Cópialo a ~/.config/opsectools/config.toml (o usa `opsec config init` / `opsec config edit`).
+# VELA — configuración de ejemplo
+# Cópialo a ~/.config/vela/config.toml (o usa `vela config init` / `vela config edit`).
 # Todo lo que no aparezca en tu fichero toma el valor por defecto seguro.
 
 active_profile = "default"
@@ -36,7 +36,7 @@ control = "auto"                # auto | /run/tor/control | 127.0.0.1:9051
 
 [storage]
 mode = "disk"                   # "memory" = sin persistencia
-path = ""                       # vacío = ~/.local/share/opsectools/opsec.db
+path = ""                       # vacío = ~/.local/share/vela/vela.db
 retention_days = 90
 
 # ── Políticas de rotación ──

@@ -4,9 +4,9 @@ Fuentes (© OpenStreetMap contributors, ODbL — la atribución se muestra en el
   * tierra y costa: «simplified land polygons» de osmdata.openstreetmap.de (derivado de OSM, EPSG:3857);
   * países, capitales y grandes ciudades: nodos place=* de OSM vía Overpass API.
 
-La app trae el mapa ya generado e incorporado (opsectools/data/basemap-osm.bin), así que funciona
+La app trae el mapa ya generado e incorporado (vela/data/basemap-osm.bin), así que funciona
 nada más instalarla y sin conexión. Regenerarlo es opcional (datos más recientes); el nuevo solo se
-descarga cuando el usuario lo pide (`opsec map build` o el botón de Ajustes), por Tor si está
+descarga cuando el usuario lo pide (`vela map build` o el botón de Ajustes), por Tor si está
 disponible o por la VPN; nunca por la conexión directa salvo con --via direct. Después el mapa se dibuja
 sin conexión: mirar el mapa no pide teselas a ningún servidor, así que no revela qué zonas consultas
 (que suelen ser las de tus propias IPs).
@@ -40,7 +40,7 @@ LAND_HOST = "osmdata.openstreetmap.de"
 LAND_PATH = "/download/simplified-land-polygons-complete-3857.zip"
 OVERPASS = [("overpass-api.de", "/api/interpreter"), ("overpass.private.coffee", "/api/interpreter")]
 ATTRIBUTION = "© OpenStreetMap contributors"
-USER_AGENT = "opsec-command-center/1.0 (mapa base local; descarga única)"
+USER_AGENT = "vela-command-center/1.0 (mapa base local; descarga única)"
 MAGIC = b"OPSECMAP1\n"
 R = 20037508.342789244          # semieje de Web Mercator (m)
 Q = 1 << 26                     # cuantización de [0, 1]
@@ -69,7 +69,7 @@ def cache_dir() -> Path:
 
 
 def basemap_path() -> Path:
-    """Mapa generado por el usuario (opsec map build)."""
+    """Mapa generado por el usuario (vela map build)."""
     return data_dir() / "basemap-osm.bin"
 
 
@@ -503,7 +503,7 @@ def status() -> dict:
         return {"installed": False, "path": str(p), "error": "fichero dañado"}
     h = bm.head
     return {"installed": True, "path": str(p), "bundled": p == BUNDLED,
-            "source": "incorporado en la app" if p == BUNDLED else "generado por ti (opsec map build)",
+            "source": "incorporado en la app" if p == BUNDLED else "generado por ti (vela map build)",
             "bytes": p.stat().st_size, "created": h.get("created"),
             "points": h.get("points"), "places": len(bm.places), "sources": h.get("sources"),
             "attribution": h.get("attribution")}

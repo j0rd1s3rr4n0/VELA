@@ -1,7 +1,7 @@
-"""Icono de bandeja (StatusNotifierItem / AppIndicator) para OPSEC Command Center.
+"""Icono de bandeja (StatusNotifierItem / AppIndicator) para VELA.
 
 Proceso ligero e independiente de la ventana principal (GTK 3 + AyatanaAppIndicator3, que es lo que
-muestra la extensión AppIndicator de Ubuntu/GNOME, KDE, XFCE…). Habla con `opsecd` por el socket UNIX.
+muestra la extensión AppIndicator de Ubuntu/GNOME, KDE, XFCE…). Habla con `velad` por el socket UNIX.
 
   * Icono según el estado: protegido / exposición media / alerta.
   * Menú con el estado en vivo y controles: abrir la app, comprobar IP y fugas, perfil, Tor, emergencia,
@@ -39,12 +39,12 @@ NOTIFY_KINDS = {"ip_leak", "dns_leak_live", "public_ip_is_real", "direct_exposur
 
 def notify(title: str, body: str, urgency: str = "normal"):
     if which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", "OPSEC Command Center", "-i", ICONS["alert"], "-u", urgency, title, body],
+        subprocess.Popen(["notify-send", "-a", "VELA", "-i", ICONS["alert"], "-u", urgency, title, body],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def spawn(*args: str):
-    subprocess.Popen([sys.executable, "-m", "opsectools", *args], env={**os.environ, "PYTHONPATH": str(ROOT)},
+    subprocess.Popen([sys.executable, "-m", "vela", *args], env={**os.environ, "PYTHONPATH": str(ROOT)},
                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
 
 
@@ -75,10 +75,10 @@ EVENT_TEXT = {
 class Tray:
     def __init__(self):
         self.client = Client(timeout=30)
-        self.ind = AppIndicator.Indicator.new("opsec-command-center", ICONS["off"],
+        self.ind = AppIndicator.Indicator.new("vela-command-center", ICONS["off"],
                                               AppIndicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
-        self.ind.set_title("OPSEC Command Center")
+        self.ind.set_title("VELA")
         self.status: dict | None = None
         self.leak: dict | None = None
         self.settings: dict | None = None
@@ -106,7 +106,7 @@ class Tray:
         self._sub = None
         self.info = {k: self.info_item() for k in ("vpn", "ip", "exp", "conn", "ks", "dns")}
         self.menu.append(Gtk.SeparatorMenuItem())
-        self.item("Abrir OPSEC Command Center", lambda: spawn("app"))
+        self.item("Abrir VELA", lambda: spawn("app"))
         self.item("Comprobar la IP pública ahora", self.check_ip)
         self.item("Comprobar fugas ahora", self.check_leaks)
         self.menu.append(Gtk.SeparatorMenuItem())
@@ -166,7 +166,7 @@ class Tray:
                 if done:
                     GLib.idle_add(done, r)
             except (OSError, IPCError, ValueError) as e:
-                GLib.idle_add(notify, "OPSEC Command Center", f"Error: {e}")
+                GLib.idle_add(notify, "VELA", f"Error: {e}")
         threading.Thread(target=work, daemon=True).start()
 
     def poll(self):
@@ -211,7 +211,7 @@ class Tray:
         else:
             state = "ok" if ex["level"] == "baja" else "warn"
         desc = {"ok": "protegido", "warn": "exposición media", "alert": "alerta"}[state]
-        self.ind.set_icon_full(ICONS[state], f"OPSEC: {desc}")
+        self.ind.set_icon_full(ICONS[state], f"VELA: {desc}")
         vpn = (obs.get("vpn") or {}).get("label")
         self.info["vpn"].set_label(f"{'🟢' if tunnel else '🔴'} VPN: {vpn if tunnel else 'desconectada'}")
         pub = (st.get("public") or {}).get("default") or {}
@@ -277,7 +277,7 @@ class Tray:
 
     def toggle_emergency(self):
         if (self.status or {}).get("emergency"):
-            self.bg(lambda: self.client.call("resume"), lambda r: (notify("OPSEC", "Emergencia desactivada"), self.poll()))
+            self.bg(lambda: self.client.call("resume"), lambda r: (notify("VELA", "Emergencia desactivada"), self.poll()))
             return
         dlg = Gtk.MessageDialog(message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.OK_CANCEL,
                                 text="¿Activar el modo de emergencia?")

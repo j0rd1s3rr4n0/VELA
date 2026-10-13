@@ -1,4 +1,4 @@
-"""Kill-switch con nftables en una tabla PROPIA (`inet opsec_ks`).
+"""Kill-switch con nftables en una tabla PROPIA (`inet vela_ks`).
 
 No modifica ni borra reglas existentes (ufw, firewalld, Docker…): solo crea y elimina su tabla.
 Aplicarlo requiere consent.allow_killswitch y privilegios (root, `sudo -n` o pkexec con diálogo).
@@ -14,7 +14,8 @@ import pwd
 
 from .util import now, run, which
 
-TABLE = "opsec_ks"
+TABLE = "vela_ks"
+LEGACY_TABLES = ("opsec_ks",)   # nombre anterior del proyecto: se retira si quedó aplicada
 
 
 def _endpoint_rules(endpoints: list[str]) -> list[str]:
@@ -93,7 +94,8 @@ class KillSwitch:
             return {"ok": False, "error": why}
         priv = self._priv_cmd()
         # add+delete hace la operación idempotente; todo el fichero se aplica de forma atómica
-        script = f"add table inet {TABLE}\ndelete table inet {TABLE}\n" + self.ruleset(endpoints)
+        script = "".join(f"add table inet {t}\ndelete table inet {t}\n" for t in (TABLE, *LEGACY_TABLES)) \
+            + self.ruleset(endpoints)
         code, _, err = run([*priv, "nft", "-f", "-"], timeout=60, input_text=script)
         if code:
             return {"ok": False, "error": f"nft: {err.strip()}"}
@@ -106,6 +108,8 @@ class KillSwitch:
         priv = self._priv_cmd()
         if priv is None:
             return {"ok": False, "error": "sin privilegios para retirar la tabla"}
+        for legacy in LEGACY_TABLES:
+            run([*priv, "nft", "delete", "table", "inet", legacy], timeout=60)
         code, _, err = run([*priv, "nft", "delete", "table", "inet", TABLE], timeout=60)
         if code and "No such file" not in err:
             return {"ok": False, "error": f"nft: {err.strip()}"}

@@ -64,7 +64,7 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
                               f"nmcli connection up {_q(conn)}", disruptive=True))
         steps.append(step("Para todas las conexiones futuras (global)",
                           "printf '[connection]\\nwifi.cloned-mac-address=random\\nethernet.cloned-mac-address=stable\\n"
-                          "[device]\\nwifi.scan-rand-mac-address=yes\\n' | sudo tee /etc/NetworkManager/conf.d/90-opsec-mac.conf",
+                          "[device]\\nwifi.scan-rand-mac-address=yes\\n' | sudo tee /etc/NetworkManager/conf.d/90-vela-mac.conf",
                           root=True))
         steps.append(step("Reiniciar NetworkManager (corta la red)", "sudo systemctl restart NetworkManager",
                           root=True, disruptive=True))
@@ -79,26 +79,26 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
                  step("Opción B — mantener Cloudflare de forma consciente: no hay nada que corregir, solo asumir que "
                       "Cloudflare ve los dominios (y los asocia a tu registro de WARP)", manual=True)]
         return {"title": "Elegir quién resuelve tus DNS", "steps": steps,
-                "verify": "opsec dns check   # 'Resolver efectivo' debe mostrar el DNS de la VPN"}
+                "verify": "vela dns check   # 'Resolver efectivo' debe mostrar el DNS de la VPN"}
 
     if chk == "dns_plaintext" and f["status"] == "warn":
         conf = "[Resolve]\\nDNS=1.1.1.1#cloudflare-dns.com 9.9.9.9#dns.quad9.net\\nDNSOverTLS=yes\\n"
         return {"title": "Cifrar el DNS del sistema (DoT en systemd-resolved)", "steps": [
             step("Crear la configuración de DoT", f"sudo mkdir -p /etc/systemd/resolved.conf.d && printf '{conf}' | "
-                 "sudo tee /etc/systemd/resolved.conf.d/90-opsec-dot.conf", root=True),
+                 "sudo tee /etc/systemd/resolved.conf.d/90-vela-dot.conf", root=True),
             step("Aplicar", "sudo systemctl restart systemd-resolved", root=True, disruptive=True),
             step("Si usas VPN, prefiere su DNS (evita que un tercero vea tus consultas)", manual=True)],
             "verify": "resolvectl status | grep -i DNSOverTLS   # debe aparecer +DNSOverTLS"}
 
     if chk == "dns_leak_config" and f["status"] == "fail":
         return {"title": "Que el DNS vaya por el túnel", "steps": [
-            step("Ver qué resolver se usa y por dónde sale", "opsec dns check"),
+            step("Ver qué resolver se usa y por dónde sale", "vela dns check"),
             step("Enrutar todas las consultas por la interfaz del túnel (sustituye <tun> por tu interfaz VPN)",
                  "sudo resolvectl domain <tun> '~.' && sudo resolvectl default-route <tun> yes", root=True),
             step("Quitar la ruta DNS por defecto de la interfaz física",
                  f"sudo resolvectl default-route {((ctx.get('net') or {}).get('routes') or {}).get('ipv4_default', [{}])[0].get('dev', '<iface>')} no",
                  root=True)],
-            "verify": "opsec leaks check --active   # con consent.active_dns_leak_test = true"}
+            "verify": "vela leaks check --active   # con consent.active_dns_leak_test = true"}
 
     if chk == "killswitch" and f["status"] in ("warn", "pass") and "permanente" in (f.get("recommendation") or ""):
         return {"title": "Kill-switch permanente en ProtonVPN", "steps": [
@@ -107,23 +107,23 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
             step("Comprobar que la app lo ha guardado (2 = permanente)",
                  "python3 -c \"import json,os;print(json.load(open(os.path.expanduser("
                  "'~/snap/proton-vpn/current/.config/Proton/VPN/settings.json')))['killswitch'])\"")],
-            "verify": "opsec status   # 'Kill-switch: ProtonVPN · si cae el túnel: IPv4 bloqueado'"}
+            "verify": "vela status   # 'Kill-switch: ProtonVPN · si cae el túnel: IPv4 bloqueado'"}
 
     if chk == "killswitch" and f["status"] == "warn":
         return {"title": "Activar un kill-switch", "steps": [
             step("Actívalo en tu cliente VPN (opción preferible)", manual=True),
-            step("O usa el de OPSEC Command Center: revisa las reglas", "opsec killswitch preview"),
-            step("Permitirlo en la configuración: [consent] allow_killswitch = true", "opsec config edit"),
-            step("Aplicarlo (bloquea toda salida salvo túneles, Tor y LAN)", "opsec killswitch apply --yes",
+            step("O usa el de VELA: revisa las reglas", "vela killswitch preview"),
+            step("Permitirlo en la configuración: [consent] allow_killswitch = true", "vela config edit"),
+            step("Aplicarlo (bloquea toda salida salvo túneles, Tor y LAN)", "vela killswitch apply --yes",
                  root=True, disruptive=True)],
-            "verify": "opsec status"}
+            "verify": "vela status"}
 
     if chk == "ipv6_leak" and f["status"] == "fail":
         dev = (ev.get("egress_ipv6") or {}).get("dev", "<iface>")
         return {"title": "Cerrar la fuga IPv6", "steps": [
             step("Desactivar IPv6 en la interfaz física (temporal)", f"sudo sysctl -w net.ipv6.conf.{dev}.disable_ipv6=1",
                  root=True, disruptive=True),
-            step("Hacerlo permanente", f"echo 'net.ipv6.conf.{dev}.disable_ipv6 = 1' | sudo tee /etc/sysctl.d/90-opsec-ipv6.conf",
+            step("Hacerlo permanente", f"echo 'net.ipv6.conf.{dev}.disable_ipv6 = 1' | sudo tee /etc/sysctl.d/90-vela-ipv6.conf",
                  root=True),
             step("O activa la protección IPv6 de tu cliente VPN", manual=True)],
             "verify": "ip -6 route get 2606:4700:4700::1111"}
@@ -134,18 +134,18 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
             steps.append(step("Cambia de servidor VPN a un país permitido por el perfil (ProtonVPN: elige el país en "
                               "la app; con Secure Core, el país de SALIDA es el segundo: CH-DE sale por DE)", manual=True))
             steps.append(step("Si el país lo marca el exit de Tor: pide circuitos nuevos (prueba primero)",
-                              "opsec rotate tor --dry-run"))
+                              "vela rotate tor --dry-run"))
         if chk == "tunnel_bypass":
             steps.append(step("Conecta la VPN antes de operar con este perfil", manual=True))
         if chk == "profile_killswitch":
             steps.append(step("Conecta la VPN: el kill-switch estándar de ProtonVPN solo se activa al conectar "
                               "(el permanente bloquea siempre; ProtonVPN → Configuración → Kill switch)", manual=True))
-            steps.append(step("O usa el kill-switch propio (revisa las reglas antes)", "opsec killswitch preview"))
+            steps.append(step("O usa el kill-switch propio (revisa las reglas antes)", "vela killswitch preview"))
         if chk == "profile_dns":
-            steps.append(step("Ver el resolver efectivo y si va cifrado/por el túnel", "opsec dns check"))
-        steps.append(step("O cambia a un perfil cuyas reglas cumplas", "opsec profiles"))
+            steps.append(step("Ver el resolver efectivo y si va cifrado/por el túnel", "vela dns check"))
+        steps.append(step("O cambia a un perfil cuyas reglas cumplas", "vela profiles"))
         return {"title": f"Cumplir la política del perfil «{ctx.get('profile_name')}»", "steps": steps,
-                "verify": "opsec leaks check"}
+                "verify": "vela leaks check"}
 
     if chk == "tz_mismatch":
         return {"title": "Que la zona horaria no te delate", "steps": [
@@ -158,13 +158,13 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
         return {"title": "Recuperar Tor", "steps": [
             step("Arrancar el servicio", "sudo systemctl start tor@default", root=True),
             step("Ver por qué no conecta", "journalctl -u tor@default -n 50 --no-pager", root=True)],
-            "verify": "opsec tor status"}
+            "verify": "vela tor status"}
 
     if chk == "tor_control_auth":
         return {"title": "Proteger el ControlPort de Tor", "steps": [
             step("Activar autenticación por cookie", "echo 'CookieAuthentication 1' | sudo tee -a /etc/tor/torrc", root=True),
             step("Recargar Tor", "sudo systemctl reload tor@default", root=True)],
-            "verify": "opsec discover | grep tor.control"}
+            "verify": "vela discover | grep tor.control"}
 
     if chk == "vm_isolation":
         name = ev.get("name", "<red>")
@@ -175,7 +175,7 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
             step("Reiniciar la red (las VMs conectadas perderán red un momento)",
                  f"virsh -c qemu:///system net-destroy {_q(name)} && virsh -c qemu:///system net-start {_q(name)}",
                  disruptive=True)],
-            "verify": "opsec networks"}
+            "verify": "vela networks"}
 
     if chk in ("ip_leak_live", "direct_exposure", "public_real_ip") and f["status"] in ("fail", "warn"):
         flows = ev.get("flows") or []
@@ -189,9 +189,9 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
             step("Desactiva el split tunneling de ProtonVPN si no lo necesitas (deja programas fuera del túnel)",
                  manual=True),
             step("Alternativa/refuerzo: kill-switch propio (solo deja salir por túneles, Tor y LAN) — revisa las reglas",
-                 "opsec killswitch preview"),
+                 "vela killswitch preview"),
             step("Permitirlo y aplicarlo automáticamente al detectar una fuga: [consent] allow_killswitch = true y "
-                 "[leakwatch] on_leak = \"killswitch\"", "opsec config edit"),
+                 "[leakwatch] on_leak = \"killswitch\"", "vela config edit"),
             step("Si la conexión es IPv6, desactívalo en la interfaz física",
                  "sudo sysctl -w net.ipv6.conf.all.disable_ipv6=1", root=True, disruptive=True),
         ]
@@ -200,12 +200,12 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
                 steps.append(step(f"Ver qué está haciendo «{p}» y si fuerza una interfaz (bind) o tiene proxy propio",
                                   f"ss -tunp | grep -F {_q(p)}"))
         return {"title": "Evitar que tu IP real salga fuera de la VPN", "steps": steps,
-                "verify": "opsec leakwatch   # 'fugas: 0' con la VPN conectada"}
+                "verify": "vela leakwatch   # 'fugas: 0' con la VPN conectada"}
 
     if chk == "tor_guard_churn":
         return {"title": "Guards de Tor", "steps": [
             step("No hay que hacer nada salvo NO forzar cambios: no borres /var/lib/tor ni uses EntryNodes", manual=True)],
-            "verify": "opsec tor status"}
+            "verify": "vela tor status"}
 
     if chk == "webrtc" and f["status"] == "fail":
         return {"title": "Evitar que WebRTC revele tus IPs", "steps": [
@@ -225,17 +225,17 @@ def status_fixes(ctx: dict) -> list[dict]:
             out.append({"check": "public_ip", "title": "Ver la IP pública por la que sales",
                         "why": pub.get("error"), "steps": [
                             step("Permitir la comprobación (solo se hace si el tráfico va por el túnel)",
-                                 "opsec config edit   # [consent] direct_ip_checks = true"),
-                            step("Comprobar ahora", "opsec ip")], "verify": "opsec status"})
+                                 "vela config edit   # [consent] direct_ip_checks = true"),
+                            step("Comprobar ahora", "vela ip")], "verify": "vela status"})
         elif pub.get("skipped"):
             out.append({"check": "public_ip", "title": "IP pública omitida para no exponer tu IP real",
                         "why": pub.get("error"), "steps": [
                             step("Conecta la VPN; la comprobación se hará sola", manual=True),
                             step("Si de verdad quieres ver tu IP real (el servicio de eco la verá)",
-                                 "opsec config edit   # [public_ip] require_tunnel = false")], "verify": "opsec ip"})
+                                 "vela config edit   # [public_ip] require_tunnel = false")], "verify": "vela ip"})
         elif pub.get("error"):
             out.append({"check": "public_ip", "title": "La comprobación de IP pública falló", "why": pub.get("error"),
-                        "steps": [step("Reintentar", "opsec ip --route default")], "verify": "opsec status"})
+                        "steps": [step("Reintentar", "vela ip --route default")], "verify": "vela status"})
     wan = ctx.get("wan") or {}
     if wan and not wan.get("ok"):
         out.append({"check": "router_wan", "title": "IP WAN del router desconocida (UPnP desactivado)",

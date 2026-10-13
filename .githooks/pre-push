@@ -1,4 +1,4 @@
 #!/bin/sh
-# Revisa cada commit que se va a publicar y el correo de su autor (opsectools/gitguard.py)
+# Revisa cada commit que se va a publicar y el correo de su autor (vela/gitguard.py)
 cd "$(git rev-parse --show-toplevel)" || exit 1
-exec python3 -m opsectools.gitguard pre-push
+exec python3 -m vela.gitguard pre-push

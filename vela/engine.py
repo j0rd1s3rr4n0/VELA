@@ -1,6 +1,6 @@
-"""Motor central de OPSEC Command Center.
+"""Motor central de VELA.
 
-Una única clase compartida por el daemon (`opsecd`) y por la CLI cuando el daemon no está en
+Una única clase compartida por el daemon (`velad`) y por la CLI cuando el daemon no está en
 marcha. Es síncrona y thread-safe; el daemon la ejecuta en hilos y la expone por IPC.
 """
 
@@ -907,7 +907,7 @@ class Engine:
                 {"ok": False, "error": self.ks.can_apply()[1]}
             self.store.audit(self.actor, "panic", {"killswitch": ks})
             self.emit("emergency", "critical", {"rotations": "detenidas", "killswitch": ks})
-        _notify("OPSEC: modo de emergencia", "Rotaciones detenidas. Kill-switch: " +
+        _notify("VELA: modo de emergencia", "Rotaciones detenidas. Kill-switch: " +
                 ("activo" if ks.get("ok") else f"NO aplicado ({ks.get('error')})"))
         return {"emergency": True, "killswitch": ks}
 

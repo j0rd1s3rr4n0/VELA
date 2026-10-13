@@ -2,9 +2,9 @@
 
 import unittest
 
-from opsectools import intel, leakwatch
-from opsectools.engine import Engine
-from opsectools.store import Store
+from vela import intel, leakwatch
+from vela.engine import Engine
+from vela.store import Store
 
 from .helpers import cfg, net
 from .test_leakwatch import sock

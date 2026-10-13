@@ -80,7 +80,7 @@ DEFAULTS: dict = {
     "dns": {"leak_test_url": "https://bash.ws"},
     "storage": {
         "mode": "disk",                # "disk" o "memory" (sin persistencia)
-        "path": "",                    # vacío = ~/.local/share/opsectools/opsec.db
+        "path": "",                    # vacío = ~/.local/share/vela/vela.db
         "retention_days": 90,
     },
     "rotation": {
@@ -122,7 +122,7 @@ def deep_merge(base: dict, override: dict) -> dict:
 
 
 def config_path() -> Path:
-    return Path(os.environ.get("OPSEC_CONFIG") or xdg_dir("config") / "config.toml")
+    return Path(os.environ.get("VELA_CONFIG") or os.environ.get("OPSEC_CONFIG") or xdg_dir("config") / "config.toml")
 
 
 def validate(cfg: dict) -> list[str]:
@@ -160,7 +160,7 @@ SETTINGS_KEYS: dict[str, object] = {
 
 
 def settings_path() -> Path:
-    return Path(os.environ.get("OPSEC_SETTINGS") or xdg_dir("config") / "app-settings.toml")
+    return Path(os.environ.get("VELA_SETTINGS") or os.environ.get("OPSEC_SETTINGS") or xdg_dir("config") / "app-settings.toml")
 
 
 def load_overlay() -> dict:
@@ -214,7 +214,7 @@ def _toml_scalar(v) -> str:
 
 
 def save_overlay(overlay: dict) -> Path:
-    lines = ["# Ajustes guardados desde la app OPSEC Command Center (se aplican sobre config.toml)."]
+    lines = ["# Ajustes guardados desde la app VELA (se aplican sobre config.toml)."]
     for section in sorted(overlay):
         lines.append(f"\n[{section}]")
         for k in sorted(overlay[section]):

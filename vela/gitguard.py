@@ -3,7 +3,7 @@
 Se ejecuta desde los hooks versionados en .githooks/ (core.hooksPath):
   * pre-commit: revisa los ficheros preparados (git add);
   * pre-push: revisa cada commit que se va a enviar y el correo de su autor;
-  * `python3 -m opsectools.gitguard all`: revisa todo lo que ya está en el repositorio.
+  * `python3 -m vela.gitguard all`: revisa todo lo que ya está en el repositorio.
 
 Qué bloquea:
   1. Valores EXACTOS de este equipo: tus claves de API (secrets.toml / variables de entorno) y tus IPs
@@ -156,11 +156,12 @@ def report(found, what: str) -> int:
 def email_problem(email: str) -> str | None:
     if not email:
         return None
-    if NOREPLY.search(email) or git("config", "--bool", "opsec.allowEmail", check=False).strip() == "true":
+    if NOREPLY.search(email) or "true" in (git("config", "--bool", "vela.allowEmail", check=False).strip(),
+                                         git("config", "--bool", "opsec.allowEmail", check=False).strip()):
         return None
     return (f"el correo del autor ({email}) quedará publicado en cada commit. Usa uno sin datos personales, p. ej. "
             "git config user.email \"<id>+<usuario>@users.noreply.github.com\" (o permite el tuyo con "
-            "git config opsec.allowEmail true)")
+            "git config vela.allowEmail true)")
 
 
 def pre_commit() -> int:

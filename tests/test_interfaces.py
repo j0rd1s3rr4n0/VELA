@@ -9,10 +9,10 @@ import threading
 import unittest
 from pathlib import Path
 
-from opsectools import cli, ipc
-from opsectools.engine import Engine
-from opsectools.gui.server import GUIServer
-from opsectools.store import Store
+from vela import cli, ipc
+from vela.engine import Engine
+from vela.gui.server import GUIServer
+from vela.store import Store
 
 from .helpers import cfg
 
@@ -23,7 +23,7 @@ class IPCTests(unittest.TestCase):
     def setUp(self):
         self.dir = Path(tempfile.mkdtemp(dir=TMP))
         self.engine = Engine(cfg(), store=Store(memory=True), actor="test", track=True)
-        self.srv = ipc.IPCServer(self.engine, self.dir / "s" / "opsecd.sock").start()
+        self.srv = ipc.IPCServer(self.engine, self.dir / "s" / "velad.sock").start()
         self.client = ipc.Client(self.srv.path, timeout=10)
 
     def tearDown(self):
@@ -110,30 +110,30 @@ class GUITests(unittest.TestCase):
     def test_static_and_csp(self):
         code, body, headers = self.req("GET", "/")
         self.assertEqual(code, 200)
-        self.assertIn(b"OPSEC Command Center", body)
+        self.assertIn(b"VELA", body)
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
         self.assertNotIn(b"http://", body.replace(b"http://www.w3.org", b""))     # sin recursos externos
         self.assertEqual(self.req("GET", "/../server.py")[0], 404)
 
     def test_token_required(self):
         self.assertEqual(self.req("POST", "/api/status")[0], 401)
-        self.assertEqual(self.req("POST", "/api/status", headers={"X-OPSEC-Token": "malo"})[0], 401)
-        code, body, _ = self.req("POST", "/api/status", {"x": 1}, {"X-OPSEC-Token": self.srv.token})
+        self.assertEqual(self.req("POST", "/api/status", headers={"X-VELA-Token": "malo"})[0], 401)
+        code, body, _ = self.req("POST", "/api/status", {"x": 1}, {"X-VELA-Token": self.srv.token})
         self.assertEqual(code, 200)
         self.assertEqual(json.loads(body)["result"], {"method": "status", "params": {"x": 1}})
 
     def test_dns_rebinding_and_csrf(self):
-        tok = {"X-OPSEC-Token": self.srv.token}
+        tok = {"X-VELA-Token": self.srv.token}
         self.assertEqual(self.req("POST", "/api/status", headers={**tok, "Host": "evil.example"})[0], 403)
         self.assertEqual(self.req("POST", "/api/status", headers={**tok, "Origin": "http://evil.example"})[0], 403)
 
     def test_unknown_method_and_get_api(self):
-        tok = {"X-OPSEC-Token": self.srv.token}
+        tok = {"X-VELA-Token": self.srv.token}
         self.assertEqual(self.req("POST", "/api/nope", headers=tok)[0], 404)
         self.assertEqual(self.req("GET", "/api/status")[0], 405)
 
     def test_loopback_only(self):
-        from opsectools.gui.server import serve
+        from vela.gui.server import serve
         with self.assertRaises(ValueError):
             serve(FakeBackend(), host="0.0.0.0", open_browser=False)
 

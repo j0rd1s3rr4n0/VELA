@@ -1,4 +1,4 @@
-"""`opsec`: interfaz de línea de comandos.
+"""`vela`: interfaz de línea de comandos.
 
 Habla con el daemon por IPC si está en marcha; si no, usa el mismo motor en proceso.
 `--json` en cualquier comando devuelve los datos crudos para automatización.
@@ -12,7 +12,7 @@ import os
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import TAGLINE, __version__
 from .util import fmt_duration, iso, now, parse_duration
 
 SEV_COLOR = {"critical": "1;31", "high": "31", "medium": "33", "warning": "33", "low": "36", "info": "37"}
@@ -52,9 +52,9 @@ def cmd_status(b, a):
     obs = s["obs"] or {}
     net = s["net"]
     e4 = net["egress"].get("ipv4") or {}
-    print(bold(f"OPSEC Command Center — perfil «{s['profile']}»") +
+    print(bold(f"VELA — perfil «{s['profile']}»") +
           (c("  [MODO EMERGENCIA]", "1;31") if s["emergency"] else "") +
-          ("" if b.remote else c("  (motor local: arranca `opsec daemon start` para monitorizar)", "90")))
+          ("" if b.remote else c("  (motor local: arranca `vela daemon start` para monitorizar)", "90")))
     ex = s["exposure"]
     print(f"Exposición observable: {c(str(ex['score']) + '/100 ' + ex['level'], {'baja': '32', 'media': '33', 'alta': '31'}[ex['level']])}"
           f"  (indicador orientativo, no mide anonimato)")
@@ -219,7 +219,7 @@ def cmd_networks(b, a):
     table([[s["name"], s["type"], iso(s["last_used"]) if s["last_used"] else "nunca", "sí" if s["autoconnect"] else "no"]
            for s in n["saved"]], ["nombre", "tipo", "último uso", "autoconexión"])
     if n.get("known"):
-        print(f"\n{bold('Redes vistas por OPSEC Command Center')} (huella: SSID + MAC del gateway)")
+        print(f"\n{bold('Redes vistas por VELA')} (huella: SSID + MAC del gateway)")
         table([[k["label"], k["subnet"], k["gateway"], k["gateway_mac"], k["devices"], iso(k["first"]), iso(k["last"])]
                for k in n["known"]], ["red", "subred", "gateway", "MAC gateway", "dispositivos", "primera vez", "última vez"])
     return None
@@ -232,7 +232,7 @@ def _leak_screen(r, show_all):
     pub = (r.get("public") or {}).get("default") or {}
     e4 = (r.get("egress") or {}).get("ipv4") or {}
     s = r["summary"]
-    lines = [bold("OPSEC · IP y fugas en tiempo real") + c(f"   {iso(r['ts'])}   (Ctrl-C para salir)", "90")]
+    lines = [bold("VELA · IP y fugas en tiempo real") + c(f"   {iso(r['ts'])}   (Ctrl-C para salir)", "90")]
     tun = c(f"túnel {', '.join(r['tunnels'])}", "32") if r["tunnel_up"] else c("SIN TÚNEL (VPN desconectada)", "1;31")
     lines.append(f"Salida: {e4.get('dev')} · {tun}")
     if pub.get("ok"):
@@ -266,7 +266,7 @@ def _leak_screen(r, show_all):
     lines.append(c(f"VirusTotal automático: {live.get('status', '—')} · cola {live.get('queued', 0)} · "
                    f"hoy {live.get('today', 0)}/{live.get('limit', '—')}", "90"))
     if not r["tunnel_up"] and s.get("directas"):
-        lines.append(c("\nSin VPN, todas estas conexiones muestran tu IP real. Para evitarlo: `opsec fix`.", "33"))
+        lines.append(c("\nSin VPN, todas estas conexiones muestran tu IP real. Para evitarlo: `vela fix`.", "33"))
     return "\n".join(lines)
 
 
@@ -492,7 +492,7 @@ def cmd_profiles(b, a):
             w = r["written"]
             print(f"\nAñadidos a {w['path']}: {', '.join(w['written']) or 'ninguno'}"
                   + (f" · ya existían: {', '.join(w['skipped'])}" if w["skipped"] else ""))
-            print("Actívalo con: opsec profiles activate <nombre>")
+            print("Actívalo con: vela profiles activate <nombre>")
         else:
             print(c("\nVista previa. Repite con --write para añadirlos a tu config.toml (no sobrescribe nada).", "90"))
         return None
@@ -632,7 +632,7 @@ def cmd_fix(b, a):
     if not plan:
         print(c("Nada que corregir.", "32"))
         return None
-    print(c("Comandos para revisar y ejecutar TÚ. OPSEC Command Center no ejecuta ninguno.", "90"))
+    print(c("Comandos para revisar y ejecutar TÚ. VELA no ejecuta ninguno.", "90"))
     for i, fx in enumerate(plan, 1):
         sev = fx.get("severity", "info")
         print(f"\n{bold(str(i) + '. ' + fx['title'])}  {c(sev.upper(), SEV_COLOR.get(sev, ''))}"
@@ -659,13 +659,13 @@ def cmd_intel(b, a):
             print(f"  {p:11} {c(st, '32' if not st.startswith('falta') else '33')}")
         print(c(f"\nClaves: variables de entorno (VT_API_KEY, SHODAN_API_KEY, GREYNOISE_API_KEY, CENSYS_API_TOKEN o "
                 f"CENSYS_API_ID/CENSYS_API_SECRET) o {r['secrets_file']} (0600).\n"
-                f"Guardar una: opsec intel set-key virustotal", "90"))
+                f"Guardar una: vela intel set-key virustotal", "90"))
         print("consentimiento threat_intel_lookups: " + (c("activado", "32") if r["consent"] else c("desactivado", "33")))
         return None
     if a.action == "set-key":
         import getpass
         if not a.targets:
-            print("uso: opsec intel set-key <virustotal|shodan|greynoise|censys_token|censys_id|censys_secret|censys_org>")
+            print("uso: vela intel set-key <virustotal|shodan|greynoise|censys_token|censys_id|censys_secret|censys_org>")
             return None
         value = getpass.getpass(f"Valor para {a.targets[0]} (no se muestra): ").strip()
         if not value:
@@ -690,7 +690,7 @@ def cmd_intel(b, a):
     # scan: se ejecuta en este proceso para mostrar el progreso (comparte la base de datos con el daemon)
     cfg = cm.load()
     if not cfg["consent"].get("threat_intel_lookups"):
-        print(c("Desactivado: añade a [consent] threat_intel_lookups = true (opsec config edit).\n"
+        print(c("Desactivado: añade a [consent] threat_intel_lookups = true (vela config edit).\n"
                 "Ten en cuenta que cada servicio sabrá qué IPs consultas y desde qué IP.", "33"))
         return None
     st_net = b.call("status")["net"]
@@ -824,7 +824,7 @@ def cmd_daemon(b, a):
               if r["ok"] else f"systemd: {r['error']}")
         return None
     from .ipc import ping
-    print("opsecd: " + (c("en marcha", "32") if ping() else c("detenido", "90")))
+    print("velad: " + (c("en marcha", "32") if ping() else c("detenido", "90")))
 
 
 def cmd_tui(b, a):
@@ -837,10 +837,10 @@ def cmd_app(b, a):
         from .native import app as native
     except (ImportError, ValueError) as e:
         print(c(f"GUI nativa no disponible ({e}). Necesita GTK 4 y libadwaita: "
-                "sudo apt install gir1.2-adw-1 python3-gi. Alternativa: opsec gui", "31"))
+                "sudo apt install gir1.2-adw-1 python3-gi. Alternativa: vela gui", "31"))
         return None
     if a.install:
-        print(f"lanzador instalado en {native.install_desktop()} (búscalo como «OPSEC Command Center»)")
+        print(f"lanzador instalado en {native.install_desktop()} (búscalo como «VELA»)")
         return None
     native.run(b)
     return None
@@ -871,7 +871,7 @@ def cmd_map(b, a):
         if a.json:
             return st
         if not st["installed"]:
-            print(f"Mapa OSM: no instalado ({st.get('error') or 'usa: opsec map build'}). La app usa el contorno básico.")
+            print(f"Mapa OSM: no instalado ({st.get('error') or 'usa: vela map build'}). La app usa el contorno básico.")
             return None
         pts = ", ".join(f"z{k}: {v}" for k, v in (st.get("points") or {}).items())
         print(f"Mapa OSM en uso ({st['source']}): {st['path']} ({st['bytes'] / 1e6:.1f} MB · {st['places']} lugares · puntos {pts})")
@@ -897,8 +897,8 @@ def cmd_map(b, a):
     if res.get("downloaded"):
         print(f"Descargado por {res['route']}: {', '.join(res['downloaded'])}")
     else:
-        print("Sin descargas: datos reutilizados de la caché (~/.cache/opsectools/map). Para datos nuevos de OSM: "
-              "opsec map build --refresh")
+        print("Sin descargas: datos reutilizados de la caché (~/.cache/vela/map). Para datos nuevos de OSM: "
+              "vela map build --refresh")
     if res.get("places_error"):
         print(c(f"Sin nombres de lugares: {res['places_error']}", "33"))
     print("Reabre la app para verlo. Datos © OpenStreetMap contributors (ODbL).")
@@ -910,7 +910,7 @@ def cmd_gui(b, a):
     serve(b, open_browser=not a.no_browser, port=a.port)
 
 
-EXAMPLE_CONFIG = """# OPSEC Command Center — configuración (ver config.example.toml para todas las opciones)
+EXAMPLE_CONFIG = """# VELA — configuración (ver config.example.toml para todas las opciones)
 
 [consent]
 direct_ip_checks = false        # consultar tu IP pública por la ruta por defecto (expone tu IP al servicio)
@@ -934,8 +934,8 @@ use_tor = false
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="opsec", description="OPSEC Command Center")
-    p.add_argument("--version", action="version", version=f"opsec {__version__}")
+    p = argparse.ArgumentParser(prog="vela", description=f"VELA — Vigilant Egress & Leak Analyst. {TAGLINE}")
+    p.add_argument("--version", action="version", version=f"vela {__version__}")
     p.add_argument("--json", action="store_true", help="salida JSON")
     p.add_argument("--local", action="store_true", help="no usar el daemon aunque esté en marcha")
     sub = p.add_subparsers(dest="cmd")
@@ -1036,7 +1036,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("config", cmd_config, "configuración")
     sp.add_argument("action", nargs="?", default="show", choices=["show", "path", "init", "edit"])
     sp.add_argument("--force", action="store_true")
-    sp = add("daemon", cmd_daemon, "gestionar opsecd")
+    sp = add("daemon", cmd_daemon, "gestionar velad")
     sp.add_argument("action", nargs="?", default="status", choices=["status", "start", "stop", "run", "enable", "disable"])
     add("tui", cmd_tui, "interfaz de terminal")
     sp = add("tray", cmd_tray, "icono en la bandeja del sistema con estado y controles")
@@ -1057,6 +1057,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.print_help()
         return 0
     a.json = a.json or getattr(a, "json_sub", False)
+    if not os.environ.get("VELA_NO_MIGRATE"):
+        from . import migrate
+        for msg in migrate.migrate():                 # una sola vez: datos del nombre anterior (opsectools)
+            print(c(f"migración a VELA: {msg}", "36"), file=sys.stderr)
     if a.cmd == "daemon":
         cmd_daemon(None, a)
         return 0

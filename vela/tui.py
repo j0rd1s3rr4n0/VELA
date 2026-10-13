@@ -207,7 +207,7 @@ class App:
             err = self.poller.error
         st = d.get("status") or {}
         ex = st.get("exposure") or {}
-        title = " OPSEC Command Center "
+        title = " VELA "
         self.put(0, 0, " " * (w - 1), curses.A_REVERSE)
         self.put(0, 0, title, curses.A_REVERSE | curses.A_BOLD)
         info = (f"perfil {st.get('profile', '?')} · exposición {ex.get('score', '?')}/100 {ex.get('level', '')} · "

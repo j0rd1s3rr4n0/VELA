@@ -1,6 +1,6 @@
-"""OPSEC Command Center — aplicación nativa GTK 4 + libadwaita (diseño corporativo).
+"""VELA — aplicación nativa GTK 4 + libadwaita (diseño corporativo).
 
-Ventana de escritorio propia (sin navegador ni servidor web): habla con `opsecd` por el socket UNIX
+Ventana de escritorio propia (sin navegador ni servidor web): habla con `velad` por el socket UNIX
 (o con el motor local si el daemon no está en marcha). Las consultas se hacen en hilos de fondo y la
 interfaz se actualiza con GLib.idle_add. El panel de mando usa widgets persistentes que solo cambian
 sus datos (sin parpadeo); las demás páginas se reconstruyen solo cuando cambian sus datos.
@@ -25,12 +25,14 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 
 import cairo  # noqa: E402
 
-from .. import osmmap, worldmap  # noqa: E402
+from .. import ACRONYM, TAGLINE, osmmap, worldmap  # noqa: E402
+from .. import APP_ID as VELA_APP_ID  # noqa: E402
 from ..ipc import connect  # noqa: E402
-from ..util import fmt_duration, iso  # noqa: E402
+from ..util import fmt_duration, fmt_duration_short, iso  # noqa: E402
 from .charts import P, STATUS, Columns, Donut, Gauge, HBars, LineChart, Sankey, measure, set_rgb, text  # noqa: E402
 
-APP_ID = "org.opsectools.CommandCenter"
+APP_ID = VELA_APP_ID
+ICON = Path(__file__).resolve().parents[1] / "data" / "vela.svg"
 SEV_STATUS = {"critical": "critical", "high": "critical", "medium": "serious", "warning": "warning",
               "low": "warning", "info": "neutral"}
 VERDICT = {"fuga": ("critical", "Fuga"), "directa": ("serious", "Directa"), "protegida": ("good", "Protegida"),
@@ -40,39 +42,39 @@ VERDICT_COLOR = {"fuga": P["critical"], "directa": P["serious"], "protegida": P[
 CATEGORY_ORDER = ["wifi", "lan", "vpn", "bloqueo", "máquinas virtuales", "contenedores", "virtual"]
 
 CSS = f"""
-window.opsec, window.opsec .content-bg {{ background-color: {P['page']}; }}
-.opsec .sidebar-pane {{ background-color: #141517; }}
-.opsec .navlist {{ background: transparent; }}
-.opsec .navlist row {{ border-radius: 8px; margin: 1px 8px; padding: 6px 8px; min-height: 0; }}
-.opsec .navlist row:selected {{ background-color: alpha({P['s1']}, 0.18); }}
-.opsec .brand {{ font-weight: 800; font-size: 12pt; letter-spacing: 0.02em; }}
-.opsec .brand-sub {{ font-size: 8pt; color: {P['muted']}; }}
-.opsec .card {{ background-color: {P['surface']}; border: 1px solid rgba(255,255,255,0.08);
+window.vela, window.vela .content-bg {{ background-color: {P['page']}; }}
+.vela .sidebar-pane {{ background-color: #141517; }}
+.vela .navlist {{ background: transparent; }}
+.vela .navlist row {{ border-radius: 8px; margin: 1px 8px; padding: 6px 8px; min-height: 0; }}
+.vela .navlist row:selected {{ background-color: alpha({P['s1']}, 0.18); }}
+.vela .brand {{ font-weight: 800; font-size: 12pt; letter-spacing: 0.02em; }}
+.vela .brand-sub {{ font-size: 8pt; color: {P['muted']}; }}
+.vela .card {{ background-color: {P['surface']}; border: 1px solid rgba(255,255,255,0.08);
                 border-radius: 10px; padding: 12px 14px; box-shadow: none; }}
-.opsec .card-title {{ font-size: 8pt; font-weight: 700; letter-spacing: 0.08em; color: {P['muted']}; }}
-.opsec .kpi-value {{ font-size: 15pt; font-weight: 700; color: {P['ink']}; }}
-.opsec .kpi-sub {{ font-size: 8.5pt; color: {P['ink2']}; }}
-.opsec .pill {{ font-size: 8pt; font-weight: 700; border-radius: 99px; padding: 1px 8px; }}
-.opsec .pill-good {{ color: {P['good']}; background-color: alpha({P['good']}, 0.14); }}
-.opsec .pill-warning {{ color: {P['warning']}; background-color: alpha({P['warning']}, 0.14); }}
-.opsec .pill-serious {{ color: {P['serious']}; background-color: alpha({P['serious']}, 0.14); }}
-.opsec .pill-critical {{ color: #ff6b6b; background-color: alpha({P['critical']}, 0.18); }}
-.opsec .pill-neutral {{ color: {P['ink2']}; background-color: rgba(255,255,255,0.07); }}
-.opsec .th {{ font-size: 8pt; font-weight: 700; color: {P['muted']}; letter-spacing: 0.05em; }}
-.opsec .td {{ font-size: 9pt; color: {P['ink2']}; }}
-.opsec .td-strong {{ font-size: 9pt; color: {P['ink']}; font-weight: 600; }}
-.opsec .rowsep {{ background-color: rgba(255,255,255,0.05); min-height: 1px; }}
-.opsec .hop {{ background-color: {P['surface2']}; border-radius: 8px; padding: 6px 10px;
+.vela .card-title {{ font-size: 8pt; font-weight: 700; letter-spacing: 0.08em; color: {P['muted']}; }}
+.vela .kpi-value {{ font-size: 15pt; font-weight: 700; color: {P['ink']}; }}
+.vela .kpi-sub {{ font-size: 8.5pt; color: {P['ink2']}; }}
+.vela .pill {{ font-size: 8pt; font-weight: 700; border-radius: 99px; padding: 1px 8px; }}
+.vela .pill-good {{ color: {P['good']}; background-color: alpha({P['good']}, 0.14); }}
+.vela .pill-warning {{ color: {P['warning']}; background-color: alpha({P['warning']}, 0.14); }}
+.vela .pill-serious {{ color: {P['serious']}; background-color: alpha({P['serious']}, 0.14); }}
+.vela .pill-critical {{ color: #ff6b6b; background-color: alpha({P['critical']}, 0.18); }}
+.vela .pill-neutral {{ color: {P['ink2']}; background-color: rgba(255,255,255,0.07); }}
+.vela .th {{ font-size: 8pt; font-weight: 700; color: {P['muted']}; letter-spacing: 0.05em; }}
+.vela .td {{ font-size: 9pt; color: {P['ink2']}; }}
+.vela .td-strong {{ font-size: 9pt; color: {P['ink']}; font-weight: 600; }}
+.vela .rowsep {{ background-color: rgba(255,255,255,0.05); min-height: 1px; }}
+.vela .hop {{ background-color: {P['surface2']}; border-radius: 8px; padding: 6px 10px;
                border-left: 3px solid {P['s1']}; }}
-.opsec .hop-tor {{ border-left-color: #9085e9; }}
-.opsec .hop-home {{ border-left-color: {P['ink2']}; }}
-.opsec .hop-vpn {{ border-left-color: {P['good']}; }}
-.opsec .legend {{ font-size: 8.5pt; color: {P['ink2']}; }}
-.opsec .page-title {{ font-size: 13pt; font-weight: 700; }}
-.opsec .cmd {{ font-family: monospace; font-size: 8.5pt; color: {P['ink']}; background-color: #101113;
+.vela .hop-tor {{ border-left-color: #9085e9; }}
+.vela .hop-home {{ border-left-color: {P['ink2']}; }}
+.vela .hop-vpn {{ border-left-color: {P['good']}; }}
+.vela .legend {{ font-size: 8.5pt; color: {P['ink2']}; }}
+.vela .page-title {{ font-size: 13pt; font-weight: 700; }}
+.vela .cmd {{ font-family: monospace; font-size: 8.5pt; color: {P['ink']}; background-color: #101113;
                border-radius: 6px; padding: 4px 8px; }}
-.opsec .mini {{ min-height: 18px; min-width: 18px; padding: 1px 4px; }}
-.opsec .badge {{ font-size: 7.5pt; font-weight: 800; color: #fff; background-color: {P['critical']};
+.vela .mini {{ min-height: 18px; min-width: 18px; padding: 1px 4px; }}
+.vela .badge {{ font-size: 7.5pt; font-weight: 800; color: #fff; background-color: {P['critical']};
                  border-radius: 99px; padding: 0 6px; }}
 """
 
@@ -793,14 +795,14 @@ def save_state(st: dict):
 
 
 def ensure_daemon(timeout: float = 10) -> bool:
-    """Si opsecd no está en marcha lo arranca: sin daemon no se guarda historial."""
+    """Si velad no está en marcha lo arranca: sin daemon no se guarda historial."""
     import os
     import subprocess
     from ..ipc import ping
     if ping():
         return True
     root = Path(__file__).resolve().parents[2]
-    subprocess.Popen([sys.executable, "-m", "opsectools", "daemon", "start"],
+    subprocess.Popen([sys.executable, "-m", "vela", "daemon", "start"],
                      env={**os.environ, "PYTHONPATH": str(root)}, stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL, start_new_session=True)
     t0 = time.monotonic()
@@ -813,8 +815,8 @@ def ensure_daemon(timeout: float = 10) -> bool:
 
 class Window(Adw.ApplicationWindow):
     def __init__(self, app, backend):
-        super().__init__(application=app, title="OPSEC Command Center")
-        self.add_css_class("opsec")
+        super().__init__(application=app, title="VELA")
+        self.add_css_class("vela")
         self.state = load_state()
         self.set_default_size(self.state.get("width", 1360), self.state.get("height", 880))
         if self.state.get("maximized"):
@@ -829,12 +831,19 @@ class Window(Adw.ApplicationWindow):
 
         # barra lateral
         side = vbox(0)
-        brand = vbox(1)
+        brand = hbox(10)
         brand.set_margin_top(4)
-        brand.set_margin_start(18)
+        brand.set_margin_start(16)
         brand.set_margin_bottom(14)
-        brand.append(lbl("◈ OPSEC", "brand"))
-        brand.append(lbl("Command Center", "brand-sub"))
+        brand.set_tooltip_text(f"VELA — {ACRONYM}\n{TAGLINE}")
+        logo = Gtk.Image.new_from_file(str(ICON))
+        logo.set_pixel_size(34)
+        brand.append(logo)
+        names = vbox(0)
+        names.set_valign(Gtk.Align.CENTER)
+        names.append(lbl("VELA", "brand"))
+        names.append(lbl(ACRONYM, "brand-sub"))
+        brand.append(names)
         side.append(brand)
         self.nav = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
         self.nav.add_css_class("navlist")
@@ -898,7 +907,7 @@ class Window(Adw.ApplicationWindow):
         content_tv.add_css_class("content-bg")
 
         split = Adw.NavigationSplitView(min_sidebar_width=210, max_sidebar_width=240)
-        split.set_sidebar(Adw.NavigationPage(child=side_tv, title="OPSEC"))
+        split.set_sidebar(Adw.NavigationPage(child=side_tv, title="VELA"))
         split.set_content(Adw.NavigationPage(child=content_tv, title="Panel"))
         self.set_content(split)
 
@@ -1034,7 +1043,7 @@ class Window(Adw.ApplicationWindow):
         if tray_running():                   # la bandeja ya notifica: evita avisos duplicados
             self.toast(f"{ev['kind']}: {json.dumps(ev['data'], ensure_ascii=False)[:110]}")
             return False
-        n = Gio.Notification.new(f"OPSEC · {ev['kind']}")
+        n = Gio.Notification.new(f"VELA · {ev['kind']}")
         n.set_body(json.dumps(ev["data"], ensure_ascii=False)[:200])
         n.set_priority(Gio.NotificationPriority.URGENT if ev["severity"] == "critical" else Gio.NotificationPriority.HIGH)
         self.get_application().send_notification(None, n)
@@ -1279,7 +1288,7 @@ class Window(Adw.ApplicationWindow):
         merged = {}
         for x in (stats.get("time_by_country") or []) + (stats.get("time_by_tor_country") or []):
             merged[x["label"]] = merged.get(x["label"], 0) + x["seconds"]
-        self.country_bars.set([(k, v, fmt_duration(v)[4:]) for k, v in sorted(merged.items(), key=lambda kv: -kv[1])[:6]])
+        self.country_bars.set([(k, v, fmt_duration_short(v)) for k, v in sorted(merged.items(), key=lambda kv: -kv[1])[:6]])
 
     # ── páginas ──
     def render_live(self):
@@ -1842,7 +1851,7 @@ class Window(Adw.ApplicationWindow):
         self._map_bar.set_visible(True)
         self._map_bar.set_fraction(0)
         self._map_bar.set_text("empezando…")
-        cmd = [sys.executable, "-m", "opsectools", "map", "build", "--via", via, "--progress", "--refresh"]
+        cmd = [sys.executable, "-m", "vela", "map", "build", "--via", via, "--progress", "--refresh"]
 
         def work():
             err, res = None, None
@@ -1946,30 +1955,53 @@ class App(Adw.Application):
             prov.load_from_string(CSS)
             Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
                                                       Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            # icono de la ventana: el SVG del paquete, visible como «<APP_ID>» para el tema de iconos
+            theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+            theme.add_search_path(str(_icon_dir()))
+            Gtk.Window.set_default_icon_name(APP_ID)
             if self.backend is None:
                 ensure_daemon()
             self.win = Window(self, self.backend or connect())
         self.win.present()
 
 
+def _icon_dir() -> Path:
+    """Carpeta con el icono nombrado como el APP_ID (lo que buscan el tema de iconos y el lanzador)."""
+    import shutil
+    from ..util import xdg_dir
+    d = xdg_dir("data") / "icons"
+    d.mkdir(parents=True, exist_ok=True)
+    dst = d / f"{APP_ID}.svg"
+    if not dst.exists() or dst.stat().st_mtime < ICON.stat().st_mtime:
+        shutil.copyfile(ICON, dst)
+    return d
+
+
 DESKTOP = """[Desktop Entry]
 Type=Application
-Name=OPSEC Command Center
-Comment=Control de tu identidad de red: VPN, Tor, DNS, redes y fugas
-Exec={exe} -m opsectools app
-Icon=security-high
+Name=VELA
+GenericName=Vigilant Egress & Leak Analyst
+Comment=Tu identidad de red, siempre en vela: VPN, proxies, Tor, DNS, redes y fugas
+Keywords=opsec;vpn;tor;proxy;dns;privacidad;fugas;
+Exec={exe} -m vela app
+Icon={icon}
 Terminal=false
 Categories=Network;Security;System;
-StartupWMClass=org.opsectools.CommandCenter
+StartupWMClass=io.github.j0rd1s3rr4n0.Vela
 """
 
 
 def install_desktop() -> str:
     import os
-    p = Path.home() / ".local/share/applications/org.opsectools.CommandCenter.desktop"
+    p = Path.home() / f".local/share/applications/{APP_ID}.desktop"
     p.parent.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parents[2]
-    p.write_text(DESKTOP.format(exe=f"env PYTHONPATH={root} {sys.executable}"))
+    # icono en el tema de iconos del usuario (hicolor) para el menú de aplicaciones
+    import shutil
+    icon_dst = Path.home() / f".local/share/icons/hicolor/scalable/apps/{APP_ID}.svg"
+    icon_dst.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(ICON, icon_dst)
+    p.write_text(DESKTOP.format(exe=f"env PYTHONPATH={root} {sys.executable}", icon=APP_ID))
     os.chmod(p, 0o644)
     return str(p)
 

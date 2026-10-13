@@ -1,4 +1,4 @@
-# OPSEC Command Center — Arquitectura
+# VELA — Arquitectura
 
 ## Principios
 
@@ -15,7 +15,7 @@
 ## Componentes
 
 ```
-                ┌──────────────────────── opsecd (daemon.py) ─────────────────────────┐
+                ┌──────────────────────── velad (daemon.py) ─────────────────────────┐
  netlink ──────▶│ NetlinkWatcher ─┐                                                   │
  Tor CIRC/STREAM▶│ TorObserver ────┤                                                   │
                 │                 ▼                                                   │
@@ -37,7 +37,7 @@
                 │   IPCServer (ipc.py) — socket UNIX 0600, SO_PEERCRED, lista blanca    │
                 └─────────────────┬───────────────────────────────────────────────────┘
           ┌───────────────────────┼─────────────────────────┐
-     opsec (cli.py)          opsec tui (tui.py)        opsec gui (gui/server.py)
+     vela (cli.py)          vela tui (tui.py)        vela gui (gui/server.py)
      argparse                curses                    HTTP 127.0.0.1 + token + CSP
                                                        SVG/JS propios, sin CDN
 ```
@@ -47,8 +47,8 @@ Si el daemon no está en marcha, la CLI, la TUI y la GUI crean el mismo `Engine`
 
 | Requisito del diseño | Módulo |
 |---|---|
-| `opsecd` | `daemon.py` |
-| `opsec-cli` / `opsec-tui` / `opsec-gui` | `cli.py` / `tui.py` / `gui/` |
+| `velad` | `daemon.py` |
+| `vela-cli` / `vela-tui` / `vela-gui` | `cli.py` / `tui.py` / `gui/` |
 | discovery | `discovery.py` |
 | network | `network.py` |
 | vpn | `rotation.py` (adaptadores NetworkManager, wg-quick, Mullvad) + `discovery.py` |
@@ -128,7 +128,7 @@ Tor Browser, si se detecta en el 9151, queda en modo solo observación.
   - modo memoria disponible;
   - los secretos se redactan antes de guardarse o mostrarse;
   - la auditoría registra los cambios de configuración y las acciones del usuario.
-- **Kill-switch:** usa su propia tabla `inet opsec_ks` y nunca toca reglas ajenas. Las reglas son
+- **Kill-switch:** usa su propia tabla `inet vela_ks` y nunca toca reglas ajenas. Las reglas son
   solo IP (nunca nombres, que necesitarían DNS). Retirarlo equivale a borrar la tabla.
-- **Emergencia** (`opsec panic`): detiene las rotaciones y aplica el kill-switch si está permitido.
+- **Emergencia** (`vela panic`): detiene las rotaciones y aplica el kill-switch si está permitido.
   No borra datos ni cambia la configuración.

@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from opsectools import config, leaks, profiles, protection
+from vela import config, leaks, profiles, protection
 
 from .helpers import dns, env, net
 
@@ -174,7 +174,7 @@ class ProfileGenerationTests(unittest.TestCase):
         d = tempfile.mkdtemp(dir=TMP)
         path = Path(d, "config.toml")
         path.write_text('[profiles.privado]\ndescription = "mío"\n')
-        os.environ["OPSEC_CONFIG"] = str(path)
+        os.environ["VELA_CONFIG"] = str(path)
         try:
             p = profiles.generate(env())
             res = profiles.write(p, config.load())
@@ -186,7 +186,7 @@ class ProfileGenerationTests(unittest.TestCase):
             self.assertEqual(os.stat(path).st_mode & 0o777, 0o600)
             self.assertEqual(profiles.write(p, cfg)["written"], [])     # idempotente
         finally:
-            del os.environ["OPSEC_CONFIG"]
+            del os.environ["VELA_CONFIG"]
 
 
 if __name__ == "__main__":
@@ -195,8 +195,8 @@ if __name__ == "__main__":
 
 class GuardChurnTests(unittest.TestCase):
     def test_primary_guards_are_not_churn(self):
-        from opsectools.store import Store
-        from opsectools.util import now
+        from vela.store import Store
+        from vela.util import now
         st = Store(memory=True)
         for i, fp in enumerate(("G1", "G2", "G3")):
             st.open_interval("s", "p", "tor_guard", fp, ts=now() - 100 * (i + 1))

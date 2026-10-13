@@ -6,10 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from opsectools import intel, networks, remediation
-from opsectools.engine import Engine
-from opsectools.store import Store
-from opsectools.util import now
+from vela import intel, networks, remediation
+from vela.engine import Engine
+from vela.store import Store
+from vela.util import now
 
 from .helpers import cfg, net
 
@@ -52,7 +52,7 @@ class NetworkTests(unittest.TestCase):
         lv = [{"name": "malware-lab", "active": True, "forward": "nat", "isolation_broken": True}]
         evs = networks.diff(None, inv(libvirt=lv), {})
         self.assertIn("vm_isolation_broken", [e["kind"] for e in evs])
-        from opsectools import leaks
+        from vela import leaks
         f = leaks.check_networks({"interfaces": [], "libvirt": lv})[0]
         self.assertEqual((f["check"], f["status"]), ("vm_isolation", "fail"))
         fx = remediation.fix_for(f, {})

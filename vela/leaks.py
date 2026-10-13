@@ -305,7 +305,7 @@ def check_killswitch(net: dict, ks_state: dict, ext: dict | None = None) -> dict
                       for c in declared)
     if ks_state.get("active"):
         return finding("killswitch", "Kill-switch propio (nftables) activo", "info", "pass", "pasiva",
-                       "estado de la tabla inet opsec_ks", ev, f"activo desde {ks_state.get('since')}",
+                       "estado de la tabla inet vela_ks", ev, f"activo desde {ks_state.get('since')}",
                        "—", "alta", "Ninguna.")
     if not net["tunnels"]:
         if ext.get("verified_ipv4"):
@@ -339,7 +339,7 @@ def check_killswitch(net: dict, ks_state: dict, ext: dict | None = None) -> dict
                    "simulación de caída del túnel sobre la tabla de rutas", ev,
                    f"Si el túnel cae, IPv4 {rp.get('ipv4', {}).get('detail', 'saldría por la ruta directa')}",
                    ext.get("limitations") or "No detecta kill-switches hechos solo con firewall.", "media",
-                   "Activa el kill-switch del cliente VPN o `opsec killswitch apply`.")
+                   "Activa el kill-switch del cliente VPN o `vela killswitch apply`.")
 
 
 

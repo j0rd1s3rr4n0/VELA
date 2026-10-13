@@ -1,6 +1,6 @@
-"""IPC local entre `opsecd` y las interfaces.
+"""IPC local entre `velad` y las interfaces.
 
-* Socket UNIX en $XDG_RUNTIME_DIR/opsectools/opsecd.sock, directorio 0700 y socket 0600.
+* Socket UNIX en $XDG_RUNTIME_DIR/vela/velad.sock, directorio 0700 y socket 0600.
 * Autenticación del cliente por SO_PEERCRED: solo el mismo UID que el daemon.
 * JSON por líneas: {"id", "method", "params"} → {"id", "result"} | {"id", "error"}.
 * Lista blanca explícita de métodos: no se expone ningún atributo arbitrario del motor.
@@ -34,7 +34,7 @@ class IPCError(Exception):
 
 
 def socket_path() -> Path:
-    return runtime_dir() / "opsecd.sock"
+    return runtime_dir() / "velad.sock"
 
 
 def peer_uid(sock: socket.socket) -> int:

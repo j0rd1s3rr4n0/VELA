@@ -1,5 +1,5 @@
 "use strict";
-// OPSEC Command Center — GUI. Sin dependencias ni recursos externos.
+// VELA — GUI. Sin dependencias ni recursos externos.
 // Todo el DOM se construye con textContent (nunca innerHTML con datos): los nombres de relays,
 // SSID u otros datos observados no pueden inyectar código.
 
@@ -36,7 +36,7 @@ function confirmBox(text) { return new Promise((res) => { const d = $("confirmDl
 function download(name, text, type) { const a = h("a", { href: URL.createObjectURL(new Blob([text], { type })), download: name }); document.body.append(a); a.click(); a.remove(); }
 
 async function api(method, params) {
-  const r = await fetch(`/api/${method}`, { method: "POST", headers: { "Content-Type": "application/json", "X-OPSEC-Token": TOKEN }, body: JSON.stringify(params || {}) });
+  const r = await fetch(`/api/${method}`, { method: "POST", headers: { "Content-Type": "application/json", "X-VELA-Token": TOKEN }, body: JSON.stringify(params || {}) });
   const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
   if (!r.ok || j.error) throw new Error(j.error || `HTTP ${r.status}`);
   return j.result;
@@ -45,15 +45,15 @@ async function api(method, params) {
 // ── arranque ───────────────────────────────────────────────────────────────
 function initToken() {
   const m = location.hash.match(/t=([\w-]+)/);
-  if (m) { TOKEN = m[1]; try { sessionStorage.setItem("opsec_t", TOKEN); } catch (e) { /* sin storage */ } history.replaceState(null, "", "/"); }
-  else { try { TOKEN = sessionStorage.getItem("opsec_t"); } catch (e) { TOKEN = null; } }
-  if (!TOKEN) document.body.prepend(h("div", { class: "emergency" }, "Falta el token de acceso: abre la URL completa que mostró `opsec gui`."));
+  if (m) { TOKEN = m[1]; try { sessionStorage.setItem("vela_t", TOKEN); } catch (e) { /* sin storage */ } history.replaceState(null, "", "/"); }
+  else { try { TOKEN = sessionStorage.getItem("vela_t"); } catch (e) { TOKEN = null; } }
+  if (!TOKEN) document.body.prepend(h("div", { class: "emergency" }, "Falta el token de acceso: abre la URL completa que mostró `vela gui`."));
 }
 
 function initTheme() {
-  let t = "dark"; try { t = localStorage.getItem("opsec_theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (e) { /* */ }
+  let t = "dark"; try { t = localStorage.getItem("vela_theme") || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"); } catch (e) { /* */ }
   document.documentElement.dataset.theme = t;
-  $("themeBtn").onclick = () => { const n = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = n; try { localStorage.setItem("opsec_theme", n); } catch (e) { /* */ } renderAll(); };
+  $("themeBtn").onclick = () => { const n = document.documentElement.dataset.theme === "dark" ? "light" : "dark"; document.documentElement.dataset.theme = n; try { localStorage.setItem("vela_theme", n); } catch (e) { /* */ } renderAll(); };
 }
 
 function initTabs() {
@@ -154,7 +154,7 @@ function tickClock() {
 async function stream() {
   while (true) {
     try {
-      const r = await fetch("/api/stream", { method: "POST", headers: { "X-OPSEC-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" });
+      const r = await fetch("/api/stream", { method: "POST", headers: { "X-VELA-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" });
       const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "";
       while (true) {
         const { value, done } = await reader.read(); if (done) break;
@@ -373,13 +373,13 @@ async function loadAudit() {
 }
 async function exportData(fmt) {
   try {
-    if (fmt === "html") { const r = await fetch("/api/export_html", { method: "POST", headers: { "X-OPSEC-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" }); download("opsec-informe.html", await r.text(), "text/html"); return; }
+    if (fmt === "html") { const r = await fetch("/api/export_html", { method: "POST", headers: { "X-VELA-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" }); download("vela-informe.html", await r.text(), "text/html"); return; }
     const d = await api("export");
-    if (fmt === "json") download("opsec-export.json", JSON.stringify(d, null, 2), "application/json");
+    if (fmt === "json") download("vela-export.json", JSON.stringify(d, null, 2), "application/json");
     else for (const k of ["sessions", "counters", "events", "rotations"]) {
       const rows = d[k]; if (!rows.length) continue; const keys = [...new Set(rows.flatMap(Object.keys))];
       const esc = (v) => { const t = typeof v === "object" && v !== null ? JSON.stringify(v) : (v ?? ""); return `"${String(t).replace(/"/g, '""')}"`; };
-      download(`opsec-${k}.csv`, [keys.join(","), ...rows.map((r) => keys.map((x) => esc(r[x])).join(","))].join("\n"), "text/csv");
+      download(`vela-${k}.csv`, [keys.join(","), ...rows.map((r) => keys.map((x) => esc(r[x])).join(","))].join("\n"), "text/csv");
     }
   } catch (e) { toast(e.message, true); }
 }

@@ -6,7 +6,7 @@ OPSEC de la propia consulta:
     resultados se cachean para no repetir consultas.
   * Requiere consent.threat_intel_lookups = true. Opcionalmente las consultas salen por Tor
     (intel.via_tor), aunque algunos servicios bloquean o limitan Tor.
-  * Las API keys se leen de variables de entorno o de ~/.config/opsectools/secrets.toml (0600);
+  * Las API keys se leen de variables de entorno o de ~/.config/vela/secrets.toml (0600);
     nunca se guardan en la base de datos, en logs ni en la salida.
 
 Interpretación: los exits de Tor y muchos servidores VPN aparecen como "maliciosos" o "scanner" por el
@@ -84,7 +84,7 @@ def save_key(name: str, value: str) -> Path:
         with open(p, "rb") as f:
             current = tomllib.load(f).get("intel") or {}
     current[name] = value
-    text = "# Claves de API de OPSEC Command Center. No compartas este fichero.\n[intel]\n" + "".join(
+    text = "# Claves de API de VELA. No compartas este fichero.\n[intel]\n" + "".join(
         f'{k} = "{str(v).replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"\n'
         for k, v in sorted(current.items()))
     tmp = p.with_suffix(".tmp")
@@ -104,7 +104,7 @@ def delete_key(name: str) -> bool:
     if name not in current:
         return False
     del current[name]
-    text = "# Claves de API de OPSEC Command Center. No compartas este fichero.\n[intel]\n" + "".join(
+    text = "# Claves de API de VELA. No compartas este fichero.\n[intel]\n" + "".join(
         f'{k} = "{str(v).replace(chr(92), chr(92) * 2).replace(chr(34), chr(92) + chr(34))}"\n'
         for k, v in sorted(current.items()))
     fd = os.open(p.with_suffix(".tmp"), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)

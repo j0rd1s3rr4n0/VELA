@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from opsectools import gitguard
+from vela import gitguard
 
 FAKE_KEY = "k" * 4 + "0123456789abcdef" * 2          # «clave de API» de este equipo (falsa)
 FAKE_IP = ".".join(["203", "0", "113", "77"])        # «IP real» (rango de documentación)
@@ -21,11 +21,11 @@ EXACT = [("tu clave de API (virustotal)", re.compile(re.escape(FAKE_KEY))),
 
 class ScanTests(unittest.TestCase):
     def test_forbidden_paths(self):
-        for p in (".devlogs/discover.json", "opsectools/__pycache__/x.pyc", "opsec.db", "opsec.db-wal",
+        for p in (".devlogs/discover.json", "vela/__pycache__/x.pyc", "vela.db", "vela.db-wal",
                   "x/secrets.toml", "config.toml", "home/app-settings.toml", "GeoLite2-City.mmdb", ".env",
                   "wg0.conf", "mi.ovpn", "tor/control_auth_cookie", "id_ed25519"):
             self.assertIsNotNone(gitguard.check_path(p), p)
-        for p in ("config.example.toml", "opsectools/data/basemap-osm.bin", "README.md", "tests/test_core.py"):
+        for p in ("config.example.toml", "vela/data/basemap-osm.bin", "README.md", "tests/test_core.py"):
             self.assertIsNone(gitguard.check_path(p), p)
 
     def test_patterns_and_exact_values(self):

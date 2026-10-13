@@ -7,7 +7,7 @@ import unittest
 import zipfile
 from pathlib import Path
 
-from opsectools import osmmap
+from vela import osmmap
 
 
 def shp_bytes(polys):
@@ -258,7 +258,7 @@ class BundledTests(unittest.TestCase):
 
 class WorldmapOSMTests(unittest.TestCase):
     def test_raster_scanline(self):
-        from opsectools import worldmap
+        from vela import worldmap
         square = [[(-10, -10), (10, -10), (10, 10), (-10, 10)]]
         hole = [[(-5, -5), (5, -5), (5, 5), (-5, 5)]]
         rows = int(worldmap.LAT_TOP - worldmap.LAT_BOTTOM)             # celdas de 1°
@@ -270,7 +270,7 @@ class WorldmapOSMTests(unittest.TestCase):
         self.assertFalse(g[lat_row(40)][col(100)])        # mar
 
     def test_ascii_and_json_use_osm(self):
-        from opsectools import worldmap
+        from vela import worldmap
         j = worldmap.as_json()
         self.assertIn("rings", j)
         self.assertEqual(j["attribution"], osmmap.ATTRIBUTION)

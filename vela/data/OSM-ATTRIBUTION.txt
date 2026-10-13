@@ -1,4 +1,4 @@
-basemap-osm.bin — mapa base de OPSEC Command Center
+basemap-osm.bin — mapa base de VELA
 
 Contiene datos de OpenStreetMap © OpenStreetMap contributors, disponibles bajo la
 Open Database License (ODbL) 1.0: https://www.openstreetmap.org/copyright
@@ -7,5 +7,5 @@ Fuentes:
   * Costas: "simplified land polygons" de https://osmdata.openstreetmap.de/
   * Países, capitales y ciudades (place=*): OpenStreetMap vía Overpass API
 
-Es una base de datos derivada (simplificada y troceada por opsectools/osmmap.py) y se
-distribuye bajo la misma licencia ODbL 1.0. Para regenerarla: `opsec map build`.
+Es una base de datos derivada (simplificada y troceada por vela/osmmap.py) y se
+distribuye bajo la misma licencia ODbL 1.0. Para regenerarla: `vela map build`.

@@ -8,9 +8,9 @@ import time
 import unittest
 from pathlib import Path
 
-from opsectools import ipc, leakwatch
-from opsectools.engine import Engine
-from opsectools.store import Store
+from vela import ipc, leakwatch
+from vela.engine import Engine
+from vela.store import Store
 
 from .helpers import cfg
 
@@ -24,7 +24,7 @@ def nfds():
 class IPCLeakTests(unittest.TestCase):
     def setUp(self):
         self.engine = Engine(cfg(), store=Store(memory=True), track=False)
-        self.srv = ipc.IPCServer(self.engine, Path(tempfile.mkdtemp(dir=TMP)) / "s" / "opsecd.sock").start()
+        self.srv = ipc.IPCServer(self.engine, Path(tempfile.mkdtemp(dir=TMP)) / "s" / "velad.sock").start()
 
     def tearDown(self):
         self.srv.stop()

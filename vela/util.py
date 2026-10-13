@@ -11,7 +11,7 @@ import subprocess
 import time
 from pathlib import Path
 
-APP = "opsectools"
+APP = "vela"
 
 
 def now() -> float:
@@ -31,6 +31,12 @@ def fmt_duration(seconds: float | None) -> str:
     h, s = divmod(s, 3600)
     m, s = divmod(s, 60)
     return f"{d:02d}d {h:02d}h {m:02d}m {s:02d}s"
+
+
+def fmt_duration_short(seconds: float | None) -> str:
+    """Compacto sin perder los días: `1d 19h 50m` o `19h 50m 53s`."""
+    full = fmt_duration(seconds)
+    return full[:-4] if not full.startswith("00d") else full[4:]
 
 
 _DUR = re.compile(r"(\d+(?:\.\d+)?)\s*([smhdw]?)")

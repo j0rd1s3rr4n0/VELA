@@ -1,4 +1,4 @@
-# OPSecTools — Plan de diseño (histórico)
+# VELA — Plan de diseño (histórico)
 
 > Este fue el plan inicial. La implementación real está descrita en [README.md](README.md)
 > (uso y estado) y [ARCHITECTURE.md](ARCHITECTURE.md) (diseño). Diferencias principales respecto a
@@ -16,7 +16,7 @@ demasiado tiempo en uso, sin repetir combinaciones recientes.
 
 ```
                     ┌──────────────────────────────────────────┐
-                    │              opsecd (daemon)             │
+                    │              velad (daemon)             │
                     │                                          │
   Collectors ──────▶│  Event bus ─▶ State engine ─▶ SQLite DB  │
   (sondas)          │                  │                       │
@@ -33,7 +33,7 @@ demasiado tiempo en uso, sin repetir combinaciones recientes.
 
 - **Un solo núcleo (daemon)** y tres interfaces delgadas: así CLI, TUI y GUI ven
   siempre los mismos datos y el demonio sigue monitorizando aunque cierres la interfaz.
-- API solo por **unix socket** (`/run/user/$UID/opsec.sock`, permisos 0600). Nada
+- API solo por **unix socket** (`/run/user/$UID/vela.sock`, permisos 0600). Nada
   escucha en TCP salvo que la GUI web lo pida, y entonces solo en `127.0.0.1` con token.
 - **Lenguaje:** Python 3.12+ (asyncio). Librerías: `stem` (Tor), `dnspython`,
   `httpx[socks]`, `textual`, `typer`, `fastapi`, `sqlite` + `sqlcipher` (opcional),
@@ -117,14 +117,14 @@ strategy = "least-recently-used"
 
 **CLI**
 ```
-opsec status                  # cadena actual, IP, país, tiempo en sesión, próxima rotación
-opsec history --since 24h     # sesiones con intervalos
-opsec stats --by country      # contadores y tiempo acumulado
-opsec rotate [vpn|tor|proxy|all]
-opsec leaktest                # DNS / IPv6 / WebRTC
-opsec policy edit
-opsec export --format json|csv
-opsec panic                   # ver §7
+vela status                  # cadena actual, IP, país, tiempo en sesión, próxima rotación
+vela history --since 24h     # sesiones con intervalos
+vela stats --by country      # contadores y tiempo acumulado
+vela rotate [vpn|tor|proxy|all]
+vela leaktest                # DNS / IPv6 / WebRTC
+vela policy edit
+vela export --format json|csv
+vela panic                   # ver §7
 ```
 
 **TUI (Textual):** paneles con la cadena en vivo, cuenta atrás de rotación, minimapa,
@@ -160,7 +160,7 @@ duración por sesión, tabla filtrable, editor de políticas.
 **Seguridad de la propia herramienta** (el log es material sensible: describe todo tu rastro)
 - Base de datos cifrada (SQLCipher) con contraseña o clave en el keyring.
 - **Retención configurable** (p. ej. borrar automáticamente lo de más de 7 días).
-- `opsec panic`: kill-switch total + borrado seguro de la DB + parar el daemon.
+- `vela panic`: kill-switch total + borrado seguro de la DB + parar el daemon.
 - Modo **amnésico**: todo en RAM (`tmpfs`), nada en disco.
 - Sin telemetría, sin peticiones a terceros salvo los ecos de IP configurados,
   hechos aleatoriamente y a través de la capa que se está midiendo.
@@ -174,7 +174,7 @@ duración por sesión, tabla filtrable, editor de políticas.
 ## 8. Estructura del repositorio
 
 ```
-opsectools/
+vela/
   core/        models.py  db.py  events.py  state.py
   collectors/  publicip.py  vpn.py  tor.py  proxy.py  dns.py  netlink.py
   rotation/    engine.py  selector.py  drivers/{wireguard,openvpn,mullvad,tor,proxy}.py
@@ -184,7 +184,7 @@ opsectools/
   ui/          cli.py  tui/  gui/ (FastAPI + static Leaflet)
   daemon.py
 config.example.toml
-systemd/opsecd.service   # unidad de usuario; solo kill-switch/rotación con privilegios vía polkit
+systemd/velad.service   # unidad de usuario; solo kill-switch/rotación con privilegios vía polkit
 tests/
 ```
 
@@ -192,7 +192,7 @@ tests/
 
 | Fase | Entregable |
 |---|---|
-| **0. Autodetección** ✅ | `opsec discover`: inventario del sistema, avisos y `config.toml` generado (§10) |
+| **0. Autodetección** ✅ | `vela discover`: inventario del sistema, avisos y `config.toml` generado (§10) |
 | **1. MVP de monitorización** | daemon, collectors de IP pública + VPN + Tor + DNS, SQLite, CLI `status/history/stats` |
 | **2. TUI** | dashboard Textual en vivo + minimapa ASCII |
 | **3. Rotación** | motor de políticas, no repetición, drivers WireGuard/Tor/proxy, kill-switch durante el cambio |
@@ -200,7 +200,7 @@ tests/
 | **5. GUI + mapa** | dashboard web local, Leaflet offline, timeline reproducible |
 | **6. Endurecimiento** | DB cifrada, retención, modo amnésico, `panic`, perfiles y contaminación cruzada |
 
-## 10. Autodetección (fase 0, implementada en `opsectools/discovery.py`)
+## 10. Autodetección (fase 0, implementada en `vela/discovery.py`)
 
 La herramienta no pregunta qué usas: lo averigua. **No hace ninguna conexión fuera
 de 127.0.0.1**: solo lee `/proc` y `/sys`, consulta ficheros de configuración, ejecuta

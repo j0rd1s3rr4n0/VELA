@@ -4,7 +4,7 @@ import socket
 import threading
 import unittest
 
-from opsectools import discovery, routes
+from vela import discovery, routes
 
 
 def flow(proc, pid, remote, iface="wg0", kind="wireguard", rport=443):
