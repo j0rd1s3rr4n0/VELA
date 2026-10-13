@@ -195,3 +195,13 @@ class ShortDurationTests(unittest.TestCase):
         from vela.util import fmt_duration_short
         self.assertEqual(fmt_duration_short(86400 + 19 * 3600 + 53 * 60), "01d 19h 53m")
         self.assertEqual(fmt_duration_short(19 * 3600 + 50 * 60 + 53), "19h 50m 53s")
+
+
+class TildeTests(unittest.TestCase):
+    def test_hides_username(self):
+        import os
+        from vela.util import tilde
+        home = os.path.expanduser("~")
+        self.assertEqual(tilde(f"{home}/.config/vela/secrets.toml"), "~/.config/vela/secrets.toml")
+        self.assertEqual(tilde("/etc/tor/torrc"), "/etc/tor/torrc")
+        self.assertEqual(tilde(home + "x/otro"), home + "x/otro")

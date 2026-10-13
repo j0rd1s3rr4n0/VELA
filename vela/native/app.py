@@ -28,7 +28,7 @@ import cairo  # noqa: E402
 from .. import ACRONYM, TAGLINE, osmmap, worldmap  # noqa: E402
 from .. import APP_ID as VELA_APP_ID  # noqa: E402
 from ..ipc import connect  # noqa: E402
-from ..util import fmt_duration, fmt_duration_short, iso  # noqa: E402
+from ..util import fmt_duration, fmt_duration_short, iso, tilde  # noqa: E402
 from .charts import P, STATUS, Columns, Donut, Gauge, HBars, LineChart, Sankey, measure, set_rgb, text  # noqa: E402
 
 APP_ID = VELA_APP_ID
@@ -1597,7 +1597,7 @@ class Window(Adw.ApplicationWindow):
         stored = intel_mod.load_keys()
         kg = Adw.PreferencesGroup(title="API keys",
                                   description="Escribe la clave y pulsa Intro o ✓ para guardarla. Se guardan solo en este "
-                                              f"equipo ({intel_mod.secrets_path()}, permisos 0600) y nunca se muestran, "
+                                              f"equipo ({tilde(intel_mod.secrets_path())}, permisos 0600) y nunca se muestran, "
                                               "ni se envían al daemon ni a los logs.")
         for name, title, provider in KEY_ROWS:
             row = Adw.PasswordEntryRow(title=title, show_apply_button=True)
@@ -1802,7 +1802,7 @@ class Window(Adw.ApplicationWindow):
         switch(g, "intel.allow_direct", "Permitir consultas sin VPN", "Saldrían desde tu IP real")
         box.append(g)
         box.append(self.map_group())
-        box.append(lbl(f"Guardado en {s['path']} (no se modifica tu config.toml)", "kpi-sub"))
+        box.append(lbl(f"Guardado en {tilde(s['path'])} (no se modifica tu config.toml)", "kpi-sub"))
 
     # ── mapa OpenStreetMap ──
     MAP_VIA = [("auto", "Automático: Tor y, si no hay, la VPN"), ("tor", "Solo por Tor"), ("vpn", "Solo por la VPN"),

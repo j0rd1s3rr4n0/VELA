@@ -1,40 +1,141 @@
-<p align="center"><img src="vela/data/vela.svg" width="112" alt="VELA"></p>
+<p align="center">
+  <img src="vela/data/vela.svg" width="120" alt="Logotipo de VELA: una llama azul">
+</p>
 
 <h1 align="center">VELA</h1>
-<p align="center"><b>V</b>igilant <b>E</b>gress &amp; <b>L</b>eak <b>A</b>nalyst<br>
-<i>Tu identidad de red, siempre en vela.</i></p>
+
+<p align="center">
+  <b>V</b>igilant <b>E</b>gress &amp; <b>L</b>eak <b>A</b>nalyst<br>
+  <i>Tu identidad de red, siempre en vela.</i>
+</p>
+
+<p align="center">
+  <img alt="Linux" src="https://img.shields.io/badge/plataforma-Linux-1a1a19?logo=linux&logoColor=white">
+  <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
+  <img alt="Sin dependencias" src="https://img.shields.io/badge/dependencias-ninguna-0ca30c">
+  <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
+  <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-165%20OK-0ca30c">
+  <img alt="Datos del mapa ODbL" src="https://img.shields.io/badge/mapa-OpenStreetMap%20(ODbL)-d95926">
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/panel.png" alt="Panel de mando de VELA" width="100%">
+</p>
+
+VELA vigila **por dónde sale tu tráfico** (router, VPN, proxies, Tor y DNS), **cuánto tiempo** usas cada
+salida, **las fugas** que te exponen y **la reputación** de las IPs con las que hablas. Todo en local, en
+Linux, sin dependencias externas: descubre solo lo que hay en tu equipo y activa únicamente lo que existe.
 
 | Letra | Qué hace |
 |---|---|
-| **V**igilant | Vigila sin descanso: daemon, vigilante de fugas cada 2 s, eventos del kernel y avisos en la bandeja |
-| **E**gress | Sigue cada salida de tu tráfico: router, VPN, proxies, Tor y DNS, con tiempos, sesiones y rotación |
-| **L**eak | Detecta lo que te expone: conexiones fuera del túnel, DNS en claro, IPv6, WebRTC, kill-switch |
-| **A**nalyst | Analiza y enriquece: geolocalización, VirusTotal, Shodan, GreyNoise, Censys, ExoneraTor y rutas |
+| **V**igilant | Daemon permanente, vigilante de fugas cada 2 s, eventos del kernel (netlink) y avisos en la bandeja |
+| **E**gress | Sigue cada salida: IP local, WAN del router, IP pública, VPN, proxies, circuitos Tor y DNS, con sesiones y contadores `00d 00h 00m 00s` y rotación sin repeticiones |
+| **L**eak | Detecta lo que te expone: conexiones fuera del túnel, DNS en claro, IPv6, WebRTC, kill-switch, redes de VMs sin aislar |
+| **A**nalyst | Enriquece y explica: geolocalización local, VirusTotal, Shodan, GreyNoise, Censys, ExoneraTor y el recorrido de cada conexión |
 
-*Vela* es la llama que queda encendida cuando todo duerme: **estar en vela** es quedarse vigilando.
+*Vela* es la llama que sigue encendida cuando todo duerme: **estar en vela** es quedarse vigilando.
 
-VELA supervisa, registra y audita:
+> Las capturas usan datos reales **anonimizados**: IPs en rangos de documentación (RFC 5737/3849),
+> MACs, nombres de WiFi, redes y relays de Tor inventados, y horas desplazadas.
 
-- la IP local, la IP WAN del router y la IP pública;
-- los túneles VPN;
-- los proxies;
-- los circuitos de Tor;
-- el DNS.
+---
 
-Guarda sesiones con tiempos y contadores, dibuja la cadena en un mapa mundial, detecta fugas y rota
-salidas según políticas, siempre con verificación y rollback.
+## Contenido
 
-**Autodescubrimiento:** al arrancar inspecciona el sistema y activa solo lo que existe. Ver
-[ARCHITECTURE.md](ARCHITECTURE.md).
+- [Funciones](#funciones)
+- [Privacidad por diseño](#privacidad-por-diseño)
+- [Instalación](#instalación)
+- [Uso](#uso)
+- [Arquitectura](#arquitectura)
+- [Estado y limitaciones](#estado-y-limitaciones)
+- [Desarrollo y seguridad del repositorio](#desarrollo-y-seguridad-del-repositorio)
 
-Requisitos: Linux y Python ≥ 3.10. **No necesita dependencias externas.**
+## Funciones
+
+### Panel de mando
+De un vistazo: túnel VPN, IP pública, kill-switch, DNS, sesión actual con su contador, la **exposición
+observable** (0–100), conexiones por estado, tráfico de la interfaz de salida, la **topología** completa
+(equipo → router → Internet → guard → middle → exit de Tor), alertas activas, procesos con más
+conexiones, eventos de las últimas 24 h y tiempo por país de salida.
+
+### Tiempo real: cómo viaja tu tráfico
+Cada conexión clasificada cada 2 s como **protegida**, **fuga** o **directa**, con el programa responsable,
+país, puntuación de VirusTotal y copia rápida. El diagrama de flujo muestra **programa → capa local
+(directo / proxy / Tor) → salida (túnel VPN o no) → lo que ve el destino**, y explica en frases qué
+significa: por ejemplo, que un proxy *local* no cambia la IP que ve el destino.
+
+<p align="center"><img src="docs/screenshots/tiempo-real.png" alt="Tiempo real: diagrama de rutas y conexiones" width="100%"></p>
+
+### Mapa propio de OpenStreetMap
+Mapa Web Mercator con datos de OSM **incorporado en la app** (costas, países, capitales y ciudades,
+4 niveles de detalle). Funciona sin conexión: mirar el mapa **no pide teselas a ningún servidor**, así que
+no revela qué zonas consultas. Capas de conexiones en vivo, cadena VPN, circuito Tor, historial y tiempo
+por país; zoom, arrastre y detalle al hacer clic.
+
+<p align="center"><img src="docs/screenshots/mapa.png" alt="Mapa de conexiones" width="100%"></p>
+
+### Threat intel con ExoneraTor
+GreyNoise, VirusTotal, Shodan y Censys sobre tu historial o un listado de IPs, con bandera, organización
+y **detección de nodos Tor** (consenso de tu propio Tor, lista oficial de exits y ExoneraTor). Las
+consultas salen solo por la VPN o por Tor; las claves se guardan en `~/.config/vela/secrets.toml` (0600).
+
+<p align="center"><img src="docs/screenshots/threat-intel.png" alt="Threat intel" width="100%"></p>
+
+### Más pantallas
+
+| Redes | Alertas y acciones |
+|---|---|
+| <img src="docs/screenshots/redes.png" alt="Redes: interfaces, dispositivos vistos, VMs y Docker"> | <img src="docs/screenshots/alertas.png" alt="Alertas con comandos para corregirlas"> |
+| WiFi, LAN, VPN, Docker y VMs; dispositivos vistos (ARP, sin escanear), aislamiento de redes de VMs y huella de redes conocidas | Cada problema con **comandos concretos** para corregirlo. VELA nunca los ejecuta: los copias, revisas y lanzas tú |
+| **Historial** | **Perfiles** |
+| <img src="docs/screenshots/historial.png" alt="Historial de sesiones"> | <img src="docs/screenshots/perfiles.png" alt="Perfiles OPSEC"> |
+| Sesiones de salida con duración, interfaz, VPN, IP pública y motivo del cierre | Perfiles generados según lo que hay en tu sistema (diario, privado, anónimo, alto riesgo, laboratorio) |
+
+<details>
+<summary><b>Ajustes y consentimientos</b></summary>
+<p align="center"><img src="docs/screenshots/ajustes.png" alt="Ajustes" width="100%"></p>
+</details>
+
+También incluye **icono en la bandeja** (estado, perfil, Tor, emergencia y notificaciones), **TUI** en
+terminal, **GUI web** local (solo 127.0.0.1, con token) y una **CLI** completa con salida `--json`.
+
+## Privacidad por diseño
+
+- **Solo observa por defecto.** Todo lo que genera tráfico hacia terceros o cambia el sistema está detrás
+  de un consentimiento explícito (`[consent]` o la página de Ajustes).
+- **Nada sale por tu IP real sin permiso:** la IP pública se comprueba por el túnel; threat intel, mapa y
+  ExoneraTor van por la VPN o por Tor.
+- **Local:** geolocalización con las bases de Tor y del sistema, mapa incorporado, sin CDN ni telemetría.
+- **Secretos:** claves en un fichero 0600 que nunca se muestra ni viaja al daemon; IPC por socket UNIX
+  0600 con comprobación del usuario (`SO_PEERCRED`).
+- **Honestidad:** la base de datos **no** está cifrada salvo que instales SQLCipher (solo permisos 0600), y
+  la geolocalización es aproximada (país).
+
+<details>
+<summary><b>Consentimientos disponibles</b></summary>
+
+Por defecto la herramienta solo observa. Estas acciones se activan en `[consent]`; ver
+[config.example.toml](config.example.toml):
+
+| Clave | Por qué está desactivada |
+|---|---|
+| `direct_ip_checks` | El servicio de eco vería tu IP real |
+| `active_dns_leak_test` | Un servicio externo ve tu IP y tus resolvers |
+| `allow_rotation_changes` | Cambia conexiones reales |
+| `allow_killswitch` | Aplica reglas nftables (con `sudo -n` o pkexec) |
+</details>
 
 ## Instalación
+
+Requisitos: **Linux** y **Python ≥ 3.10**. La app de escritorio usa GTK 4 + libadwaita (PyGObject) y la
+bandeja AyatanaAppIndicator3, ya presentes en GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 git config core.hooksPath .githooks    # guardián contra secretos y datos personales
 python3 -m pip install --user .        # instala los comandos `vela` y `velad`
+vela app --install                     # lanzador en el menú de aplicaciones
+vela daemon enable                     # monitorizar desde el inicio de sesión
 ```
 
 También funciona sin instalar, con `python3 -m vela <comando>`.
@@ -51,15 +152,18 @@ Para observar Tor hace falta poder leer su cookie de control:
 sudo usermod -aG debian-tor $USER
 ```
 
-## Uso rápido
+## Uso
 
 ```bash
-vela discover          # capacidades detectadas y su estado
-vela daemon start      # monitorización continua en segundo plano
+vela app               # aplicación de escritorio
 vela status            # cadena, IPs, Tor, DNS, sesión, contadores, rotación, alertas
-vela tui               # terminal interactiva (curses)
-vela gui               # dashboard + mapa en el navegador (solo 127.0.0.1)
+vela leakwatch         # IP pública y fugas de IP en tiempo real
+vela routes            # cómo viaja tu tráfico: programa → directo/proxy/Tor → VPN → destino
+vela tui               # terminal interactiva
 ```
+
+<details>
+<summary><b>Todos los comandos</b></summary>
 
 | Comando | Qué hace |
 |---|---|
@@ -91,30 +195,37 @@ vela gui               # dashboard + mapa en el navegador (solo 127.0.0.1)
 
 Cualquier comando acepta `--json`. Sin el daemon, la CLI, la TUI y la GUI usan el motor en su propio
 proceso, pero no registran sesiones.
+</details>
 
-## Consentimiento
+## Arquitectura
 
-Por defecto la herramienta solo observa. Estas acciones se activan en `[consent]`; ver
-[config.example.toml](config.example.toml):
-
-| Clave | Por qué está desactivada |
-|---|---|
-| `direct_ip_checks` | El servicio de eco vería tu IP real |
-| `active_dns_leak_test` | Un servicio externo ve tu IP y tus resolvers |
-| `allow_rotation_changes` | Cambia conexiones reales |
-| `allow_killswitch` | Aplica reglas nftables (con `sudo -n` o pkexec) |
-
-## Pruebas
-
-```bash
-python3 -m unittest discover -s tests -t .
+```mermaid
+flowchart LR
+  subgraph Sistema
+    K[/proc · netlink · ip · nft/]
+    T[Tor ControlPort]
+    N[NetworkManager · libvirt · Docker]
+  end
+  subgraph velad["velad (daemon)"]
+    D[Descubrimiento] --> E[Motor]
+    L[Vigilante de fugas] --> E
+    I[Threat intel · ExoneraTor] --> E
+    E --> S[(vela.db · SQLite 0600)]
+  end
+  K --> D & L
+  T --> E
+  N --> D
+  E <-->|socket UNIX 0600| A[App GTK 4]
+  E <--> B[Bandeja]
+  E <--> C[CLI · TUI · GUI web]
 ```
 
-Son 121 pruebas con mocks y backends simulados: un servidor de control de Tor falso con SAFECOOKIE
-real, adaptadores de rotación con fallos, rollback y fail-closed, fugas simuladas, IPC, la seguridad
-de la GUI y un proxy SOCKS5 falso. Ninguna prueba toca la conectividad real.
+Detalles en [ARCHITECTURE.md](ARCHITECTURE.md).
 
-## Estado (validado el 2026-10-09 en Ubuntu 26.04, Python 3.14)
+## Estado y limitaciones
+
+<details>
+<summary><b>Matriz de capacidades</b> (validado el 2026-10-09 en Ubuntu 26.04, Python 3.14)</summary>
 
 Leyenda:
 
@@ -172,15 +283,22 @@ Leyenda:
 | Cifrado de la base de datos | ⛔ | SQLCipher no instalado: la base **no** está cifrada, solo protegida por permisos 0600 |
 | Plataformas Windows y macOS | ⏳ | el núcleo es específico de Linux (/proc, /sys, netlink, nftables) |
 | Proxies PAC/WPAD: evaluación del script | ⏳ | se detecta que existen, pero no se evalúa el script PAC |
-
-## Limitaciones conocidas
+</details>
 
 - La geolocalización es local y aproximada (país). **No es la ubicación física real** de los servidores.
 - `NEWNYM` no garantiza un exit distinto. La herramienta nunca toca los guards ni fija `ExitNodes`.
 - Tor Browser, si se detecta en el puerto 9151, solo se observa: su rotación es "Nueva identidad".
 - Separar perfiles de red no evita la correlación por cookies, cuentas o la huella del navegador.
 
-## Repositorio git seguro
+## Desarrollo y seguridad del repositorio
+
+```bash
+python3 -m unittest discover -s tests -t .
+```
+
+165 pruebas con mocks y backends simulados (servidor de control de Tor falso con SAFECOOKIE real,
+rotación con fallos y rollback, fugas simuladas, IPC, seguridad de la GUI, proxy SOCKS5 falso, mapa OSM,
+migración y guardián de git). Ninguna toca la conectividad real.
 
 El repositorio trae un guardián (`vela/gitguard.py`) que se ejecuta solo con los hooks de `.githooks/`
 (`git config core.hooksPath .githooks` tras clonar):
@@ -196,9 +314,15 @@ El repositorio trae un guardián (`vela/gitguard.py`) que se ejecuta solo con lo
 Nunca muestra el secreto encontrado, solo fichero, línea y tipo. `user.useConfigOnly=true` impide que git
 invente tu identidad a partir del usuario y el nombre del equipo.
 
-## Migración desde OPSecTools
+### Migración desde OPSecTools
 
 VELA se llamaba *OPSecTools* (comandos `opsec`/`opsecd`). El primer comando de `vela` mueve tus datos
 (`~/.config`, `~/.local/share`, `~/.local/state` y `~/.cache` de `opsectools` a `vela`, con `opsec.db` → `vela.db`),
 sustituye el servicio `opsecd` por `velad` si estaba habilitado y renueva el autoarranque de la bandeja y el
 lanzador. Nunca sobrescribe datos nuevos y no actúa mientras el daemon antiguo siga en marcha.
+
+## Licencia y créditos
+
+- Datos del mapa: © OpenStreetMap contributors, [ODbL 1.0](https://www.openstreetmap.org/copyright)
+  (ver [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)).
+- Licencia del código: pendiente de elegir.

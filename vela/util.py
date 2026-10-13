@@ -33,6 +33,12 @@ def fmt_duration(seconds: float | None) -> str:
     return f"{d:02d}d {h:02d}h {m:02d}m {s:02d}s"
 
 
+def tilde(path) -> str:
+    """Ruta para mostrar en pantalla con ~ en lugar de /home/<usuario> (no enseña tu nombre de usuario)."""
+    p, home = str(path), os.path.expanduser("~")
+    return "~" + p[len(home):] if home and home != "/" and (p == home or p.startswith(home + "/")) else p
+
+
 def fmt_duration_short(seconds: float | None) -> str:
     """Compacto sin perder los días: `1d 19h 50m` o `19h 50m 53s`."""
     full = fmt_duration(seconds)
