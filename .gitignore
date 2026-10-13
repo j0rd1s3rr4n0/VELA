@@ -1,0 +1,46 @@
+# ── datos personales y de desarrollo: NUNCA al repositorio ──
+.devlogs/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.sqlite
+*.sqlite3
+secrets.toml
+config.toml
+app-settings.toml
+app-state.json
+*.mmdb
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+*.kdbx
+id_rsa*
+id_ed25519*
+cookie
+control_auth_cookie
+*.ovpn
+wg*.conf
+*.nmconnection
+*.part
+
+# ── Python ──
+__pycache__/
+*.py[co]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# ── editores y sistema ──
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

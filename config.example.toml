@@ -1,0 +1,105 @@
+# OPSEC Command Center — configuración de ejemplo
+# Cópialo a ~/.config/opsectools/config.toml (o usa `opsec config init` / `opsec config edit`).
+# Todo lo que no aparezca en tu fichero toma el valor por defecto seguro.
+
+active_profile = "default"
+
+# ── Consentimientos: todo lo que genera tráfico a terceros o modifica el sistema ──
+[consent]
+direct_ip_checks = false        # IP pública por la ruta por defecto: el servicio de eco ve tu IP real (o la de la VPN)
+proxy_ip_checks = false         # IP de salida a través de cada proxy (si el proxy no tuneliza, expone tu IP)
+tor_ip_checks = true            # IP de salida de Tor vía check.torproject.org a través de Tor (no expone tu IP)
+active_dns_leak_test = false    # test activo de fugas DNS contra un servicio externo
+allow_rotation_changes = false  # permitir que las rotaciones cambien conexiones reales
+allow_killswitch = false        # permitir aplicar el kill-switch nftables (sudo -n o pkexec)
+
+# ── Intervalos de monitorización (los cambios de red llegan además por eventos netlink) ──
+[monitor]
+network_interval = "30s"
+tor_interval = "20s"
+dns_interval = "2m"
+public_ip_interval = "15m"
+router_wan_interval = "10m"
+leak_interval = "5m"
+
+[public_ip]
+endpoints = ["https://api.ipify.org", "https://icanhazip.com", "https://ifconfig.co/ip", "https://checkip.amazonaws.com"]
+tor_endpoint = "https://check.torproject.org/api/ip"
+min_interval = "2m"             # límite de frecuencia por vía
+timeout = "10s"
+
+[router]
+upnp = true                     # IP WAN del router por UPnP-IGD (tráfico solo dentro de la LAN)
+
+[tor]
+control = "auto"                # auto | /run/tor/control | 127.0.0.1:9051
+
+[storage]
+mode = "disk"                   # "memory" = sin persistencia
+path = ""                       # vacío = ~/.local/share/opsectools/opsec.db
+retention_days = 90
+
+# ── Políticas de rotación ──
+[rotation.tor]
+enabled = false
+max_ttl = "10m"                 # tiempo máximo con el mismo circuito
+min_ttl = "2m"                  # tiempo mínimo antes de permitir otra rotación
+jitter = "3m"                   # la duración real varía entre max_ttl - jitter y max_ttl
+no_repeat = 10                  # no repetir los últimos N exits observados
+retries_on_repeat = 2           # NEWNYM adicionales si el exit nuevo se repite (respetando el rate-limit)
+max_per_hour = 6
+exclude_countries = []          # se valida sobre el exit observado; nunca se fija ExitNodes
+
+[rotation.proxy]
+enabled = false
+pool = []                       # p. ej. ["http://127.0.0.1:8118", "http://10.0.0.5:3128"] (mismo protocolo)
+listen = "127.0.0.1:1088"       # apunta tus aplicaciones aquí; el forwarder reenvía al proxy activo
+max_ttl = "20m"
+min_ttl = "2m"
+jitter = "5m"
+no_repeat = 1
+cooldown = "10m"
+max_per_hour = 6
+exclude = []
+
+[rotation.vpn]
+enabled = false
+adapter = "auto"                # auto | mullvad | networkmanager | wg-quick
+max_ttl = "45m"
+min_ttl = "5m"
+jitter = "10m"
+no_repeat = 3
+cooldown = "2h"
+max_per_hour = 2
+exclude = []                    # servidores concretos
+exclude_countries = []
+exclude_asn = []                # solo se aplica si hay alternativas con ASN verificado
+require_killswitch = true       # sin kill-switch aplicable la rotación se aborta
+# endpoints = { "vpn-se" = ["198.51.100.10:51820"] }   # IPs a permitir en el kill-switch (NetworkManager)
+
+[killswitch]
+allow_lan = true
+
+# ── Perfiles OPSEC ──
+[profiles.default]
+description = "Perfil por defecto"
+use_tor = false
+require_vpn = false
+allowed_countries = []
+forbidden_countries = []
+preferred_vpn = []
+allowed_proxies = []
+dns_policy = "any"
+retention_days = 90
+
+# [profiles.investigacion]
+# description = "Navegación de investigación"
+# use_tor = true
+# forbidden_countries = ["ES"]
+
+[correlation]
+time_similarity_threshold = 0.85
+
+[gui]
+host = "127.0.0.1"              # solo loopback
+port = 0                        # 0 = puerto aleatorio

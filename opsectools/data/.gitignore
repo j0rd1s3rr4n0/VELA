@@ -1,0 +1,6 @@
+# Solo se versiona el mapa incorporado y su licencia. Cualquier otra cosa que acabe aquí
+# (descargas de OSM, places.json, mapas de prueba) se queda fuera.
+*
+!.gitignore
+!basemap-osm.bin
+!OSM-ATTRIBUTION.txt

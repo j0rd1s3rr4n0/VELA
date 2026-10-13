@@ -1,0 +1,5 @@
+# Solo los hooks versionados
+*
+!.gitignore
+!pre-commit
+!pre-push

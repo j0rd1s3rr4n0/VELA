@@ -1,0 +1,4 @@
+#!/bin/sh
+# Bloquea secretos, IPs reales y ficheros personales antes de cada commit (opsectools/gitguard.py)
+cd "$(git rev-parse --show-toplevel)" || exit 1
+exec python3 -m opsectools.gitguard pre-commit

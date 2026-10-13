@@ -1,0 +1,6 @@
+# Solo los ficheros de la GUI web; nada de dependencias externas ni mapas de código.
+*
+!.gitignore
+!index.html
+!app.js
+!app.css

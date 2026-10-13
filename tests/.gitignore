@@ -1,0 +1,8 @@
+# Restos de las pruebas (bases temporales, cookies falsas, capturas)
+tmp*/
+*.db*
+*.png
+*.log
+.pytest_cache/
+.coverage
+htmlcov/

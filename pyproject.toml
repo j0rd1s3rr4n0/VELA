@@ -1,0 +1,26 @@
+[project]
+name = "opsectools"
+version = "0.2.0"
+description = "OPSEC Command Center: control de la identidad de red de salida (ISP, VPN, proxies, Tor, DNS)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []          # el núcleo usa solo la biblioteca estándar
+
+[project.optional-dependencies]
+geo = ["geoip2"]           # ciudad y ASN con bases .mmdb locales
+crypto = ["sqlcipher3"]    # cifrado real de la base de datos
+
+[project.scripts]
+opsec = "opsectools.cli:main"
+opsecd = "opsectools.daemon:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["opsectools*"]
+
+[tool.setuptools.package-data]
+"opsectools.gui" = ["static/*"]
+"opsectools" = ["data/*"]   # mapa base de OpenStreetMap incorporado (ODbL)

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>OPSEC Command Center</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand"><span class="logo" aria-hidden="true">◈</span> OPSEC Command Center</div>
+  <div class="topinfo">
+    <label class="sr" for="profileSel">Perfil</label>
+    <select id="profileSel" title="Perfil OPSEC activo"></select>
+    <span id="scoreBadge" class="badge" title="Exposición observable (orientativa)">—</span>
+    <span id="modeBadge" class="badge muted">—</span>
+    <span id="clock" class="muted mono"></span>
+  </div>
+  <div class="topactions">
+    <button id="themeBtn" class="ghost" title="Cambiar tema">◐</button>
+    <button id="panicBtn" class="danger" title="Detiene rotaciones y bloquea conexiones no verificadas si está permitido">Emergencia</button>
+  </div>
+</header>
+<div id="emergencyBar" class="emergency hidden">MODO EMERGENCIA ACTIVO — rotaciones detenidas. <button id="resumeBtn" class="ghost">Reanudar</button></div>
+<nav class="tabs" id="tabs">
+  <button data-tab="dash" class="active">Panel</button>
+  <button data-tab="map">Mapa</button>
+  <button data-tab="sessions">Sesiones</button>
+  <button data-tab="counters">Contadores</button>
+  <button data-tab="timeline">Timeline</button>
+  <button data-tab="rotation">Rotación</button>
+  <button data-tab="profiles">Perfiles</button>
+  <button data-tab="stats">Estadísticas</button>
+  <button data-tab="audit">Auditoría</button>
+  <button data-tab="webrtc">WebRTC</button>
+  <button data-tab="config">Políticas</button>
+</nav>
+<main>
+  <section id="tab-dash" class="tab active">
+    <div class="grid">
+      <article class="card wide" id="cardChain"><h2>Topología de salida</h2><div id="chain" class="chain"></div><div id="torChain" class="chain tor"></div></article>
+      <article class="card"><h2>Estado OPSEC</h2><div id="score"></div></article>
+      <article class="card"><h2>Identidades de red</h2><dl id="ids" class="kv"></dl></article>
+      <article class="card"><h2>Sesión</h2><dl id="session" class="kv"></dl></article>
+      <article class="card"><h2>VPN · Proxy</h2><dl id="vpnproxy" class="kv"></dl></article>
+      <article class="card"><h2>Tor</h2><dl id="tor" class="kv"></dl></article>
+      <article class="card"><h2>DNS</h2><dl id="dns" class="kv"></dl></article>
+      <article class="card"><h2>Rotación</h2><div id="rotSummary"></div></article>
+      <article class="card wide"><h2>Alertas</h2><div id="alerts"></div></article>
+      <article class="card wide"><h2>Mapa</h2><div class="mapwrap small"><svg id="miniMap" viewBox="0 0 1000 500" role="img" aria-label="Mapa de la cadena actual"></svg></div></article>
+      <article class="card wide"><h2>Eventos en directo</h2><ul id="live" class="feed"></ul></article>
+    </div>
+  </section>
+
+  <section id="tab-map" class="tab">
+    <div class="toolbar">
+      <span>Tecnologías:</span>
+      <label><input type="checkbox" data-layer="public_ip" checked> <i class="dot c-public"></i>IP pública</label>
+      <label><input type="checkbox" data-layer="wan_ip" checked> <i class="dot c-wan"></i>WAN</label>
+      <label><input type="checkbox" data-layer="vpn_server" checked> <i class="dot c-vpn"></i>VPN</label>
+      <label><input type="checkbox" data-layer="proxy" checked> <i class="dot c-proxy"></i>Proxy</label>
+      <label><input type="checkbox" data-layer="tor_exit" checked> <i class="dot c-tor"></i>Tor exit</label>
+      <label><input type="checkbox" data-layer="tor_guard" checked> <i class="dot c-guard"></i>Tor guard</label>
+      <label><input type="checkbox" id="heatToggle" checked> Heatmap</label>
+      <label>Periodo <select id="mapRange"><option value="86400">24 h</option><option value="604800" selected>7 días</option><option value="2592000">30 días</option></select></label>
+    </div>
+    <div class="mapwrap"><svg id="bigMap" viewBox="0 0 1000 500" role="img" aria-label="Mapa mundial interactivo"></svg><div id="tooltip" class="tooltip hidden"></div></div>
+    <div class="toolbar">
+      <button id="playBtn">▶ Reproducir</button>
+      <input type="range" id="timeSlider" min="0" max="1000" value="1000" aria-label="Momento del historial">
+      <span id="timeLabel" class="mono muted">ahora</span>
+    </div>
+    <div class="split"><div id="mapSelection" class="card"><h2>Selección</h2><p class="muted">Haz clic en un nodo del mapa.</p></div>
+    <div class="card"><h2>Circuitos Tor</h2><div id="circuits"></div></div></div>
+    <p class="muted small" id="mapNote"></p>
+  </section>
+
+  <section id="tab-sessions" class="tab"><div class="toolbar"><input id="sessFilter" placeholder="Filtrar…"><select id="sessRange"><option value="">Todo</option><option value="86400">24 h</option><option value="604800">7 días</option></select></div><div id="sessionsTable" class="tablewrap"></div></section>
+  <section id="tab-counters" class="tab"><div class="toolbar"><select id="cntLayer"><option value="">Todas las capas</option></select><input id="cntFilter" placeholder="Filtrar…"></div><div id="countersTable" class="tablewrap"></div></section>
+  <section id="tab-timeline" class="tab"><div class="toolbar"><select id="tlSev"><option value="">Todas</option><option value="warning">≥ aviso</option><option value="high">≥ alta</option></select><input id="tlFilter" placeholder="Filtrar…"></div><ul id="timelineList" class="feed long"></ul></section>
+  <section id="tab-rotation" class="tab"><div id="rotationCards" class="grid"></div><h2>Historial</h2><div id="rotHistory" class="tablewrap"></div></section>
+  <section id="tab-profiles" class="tab"><div class="toolbar"><button id="genPreview">Proponer perfiles para este sistema</button><button id="genWrite">Añadir propuestos a config.toml</button></div><div id="profileGen"></div><div id="profilesList" class="grid"></div><h2>Riesgo de correlación entre perfiles</h2><div id="correlation"></div></section>
+  <section id="tab-stats" class="tab"><div class="toolbar"><select id="statsPeriod"><option value="day">Día</option><option value="week" selected>Semana</option><option value="month">Mes</option></select></div><div id="statsBody" class="grid"></div></section>
+  <section id="tab-audit" class="tab"><div class="toolbar"><button id="auditRun">Ejecutar auditoría</button><button id="leaksRun">Comprobar fugas</button><button id="exportJson">Exportar JSON</button><button id="exportCsv">Exportar CSV</button><button id="exportHtml">Informe HTML</button></div><div id="auditBody"></div></section>
+  <section id="tab-webrtc" class="tab">
+    <article class="card"><h2>Prueba de exposición WebRTC</h2>
+      <p>Recoge los candidatos ICE que este navegador revelaría a una web. Sin STUN no se genera tráfico externo; con STUN se contacta con el servidor indicado (verá tu IP de salida).</p>
+      <div class="toolbar"><label><input type="checkbox" id="useStun"> Usar STUN</label><input id="stunUrl" value="stun:stun.l.google.com:19302" size="34"><button id="webrtcRun">Ejecutar prueba</button></div>
+      <div id="webrtcOut"></div></article>
+  </section>
+  <section id="tab-config" class="tab">
+    <article class="card"><h2>Editor de políticas (config.toml)</h2><p class="muted small" id="cfgPath"></p>
+      <textarea id="cfgText" spellcheck="false" rows="28"></textarea>
+      <div class="toolbar"><button id="cfgSave">Validar y guardar</button><span id="cfgMsg"></span></div>
+      <h3>Configuración efectiva</h3><pre id="cfgEffective" class="pre"></pre></article>
+  </section>
+</main>
+<div id="toast" class="toast hidden" role="status"></div>
+<dialog id="confirmDlg"><form method="dialog"><p id="confirmText"></p><menu><button value="no">Cancelar</button><button value="yes" class="danger">Confirmar</button></menu></form></dialog>
+<script src="app.js"></script>
+</body>
+</html>

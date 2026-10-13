@@ -1,0 +1,23 @@
+# Finales de línea LF en todo el texto (los hooks fallan con CRLF)
+* text=auto eol=lf
+*.py   text diff=python
+*.md   text diff=markdown
+*.toml text
+*.js   text
+*.css  text diff=css
+*.html text diff=html
+.githooks/* text eol=lf
+
+# Binarios: sin diff ni conversión
+*.bin binary
+*.png binary
+*.mmdb binary
+*.db binary
+
+# Mapa OSM generado: no cuenta como código ni se compara
+opsectools/data/basemap-osm.bin binary -diff linguist-generated
+
+# Fuera de los paquetes `git archive`
+.githooks/ export-ignore
+tests/ export-ignore
+.gitattributes export-ignore
