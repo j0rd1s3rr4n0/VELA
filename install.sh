@@ -152,4 +152,4 @@ fi
 
 echo
 ok "$(t "VELA $VERSION instalado. Ábrelo desde el menú o con «vela app»; en la terminal: «vela status»." "VELA $VERSION installed. Open it from the menu or with «vela app»; in a terminal: «vela status».")"
-say "$(t "Actualizar: vuelve a ejecutar ./install.sh · Desinstalar: ./install.sh --uninstall" "Update: run ./install.sh again · Uninstall: ./install.sh --uninstall")"
+say "$(t "Actualizar: Ajustes → Actualizaciones en la app o «vela update» · Desinstalar: ./install.sh --uninstall" "Update: Settings → Updates in the app or «vela update» · Uninstall: ./install.sh --uninstall")"
