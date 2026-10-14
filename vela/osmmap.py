@@ -506,7 +506,7 @@ def status() -> dict:
         return {"installed": False, "path": str(p), "error": _("fichero dañado")}
     h = bm.head
     return {"installed": True, "path": str(p), "bundled": p == BUNDLED,
-            "source": "incorporado en la app" if p == BUNDLED else "generado por ti (vela map build)",
+            "source": _("incorporado en la app") if p == BUNDLED else _("generado por ti (vela map build)"),
             "bytes": p.stat().st_size, "created": h.get("created"),
             "points": h.get("points"), "places": len(bm.places), "sources": h.get("sources"),
             "attribution": h.get("attribution")}

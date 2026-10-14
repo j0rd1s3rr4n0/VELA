@@ -149,11 +149,10 @@ tray uses AyatanaAppIndicator3, already present on GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-git config core.hooksPath .githooks    # guard against secrets and personal data
-python3 -m pip install --user .        # installs the `vela` and `velad` commands
-vela app --install                     # launcher in the applications menu
-vela daemon enable                     # monitor from login
+./install.sh          # installs the app, the velad service, the tray icon and the launcher (no pip, no root)
 ```
+
+Update: `git pull && ./install.sh` · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
 
 It also works without installing, with `python3 -m vela <command>`.
 

@@ -853,7 +853,7 @@ def cmd_map(b, a):
             return None
         pts = ", ".join(f"z{k}: {v}" for k, v in (st.get("points") or {}).items())
         print(_("Mapa OSM en uso ({source}): {path} ({v5:.1f} MB · {places} lugares · puntos {pts})", source=st['source'], path=st['path'], v5=st['bytes'] / 1e6, places=st['places'], pts=pts))
-        print(f"Generado {iso(st['created'])} · {st['attribution']} (ODbL)")
+        print(_("Generado {when} · {attribution} (ODbL)", when=iso(st['created']), attribution=st['attribution']))
         return None
     from . import discovery
     land = Path(a.file).expanduser() if a.file else None

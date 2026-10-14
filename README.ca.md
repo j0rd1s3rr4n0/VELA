@@ -149,11 +149,10 @@ AyatanaAppIndicator3, ja presents a GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-git config core.hooksPath .githooks    # guardià contra secrets i dades personals
-python3 -m pip install --user .        # instal·la les ordres `vela` i `velad`
-vela app --install                     # llançador al menú d'aplicacions
-vela daemon enable                     # monitorar des de l'inici de la sessió
+./install.sh          # instal·la l'app, el servei velad, la icona de la safata i el llançador (sense pip ni root)
 ```
+
+Actualitzar: `git pull && ./install.sh` · Desinstal·lar: `./install.sh --uninstall` (`--purge` també esborra les teves dades). Detecta els paquets del sistema que faltin (apt, dnf, pacman, zypper) i pregunta abans d'instal·lar-los; vegeu `./install.sh --help`.
 
 També funciona sense instal·lar, amb `python3 -m vela <ordre>`.
 

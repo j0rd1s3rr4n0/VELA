@@ -151,11 +151,10 @@ AyatanaAppIndicator3 — beides unter GNOME/Ubuntu bereits vorhanden.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-git config core.hooksPath .githooks    # Wächter gegen Geheimnisse und persönliche Daten
-python3 -m pip install --user .        # installiert die Befehle `vela` und `velad`
-vela app --install                     # Starter im Anwendungsmenü
-vela daemon enable                     # ab der Anmeldung überwachen
+./install.sh          # installiert App, velad-Dienst, Tray-Symbol und Starter (ohne pip, ohne Root)
 ```
+
+Aktualisieren: `git pull && ./install.sh` · Deinstallieren: `./install.sh --uninstall` (`--purge` löscht auch deine Daten). Fehlende Systempakete (apt, dnf, pacman, zypper) werden erkannt und erst nach Rückfrage installiert; siehe `./install.sh --help`.
 
 Funktioniert auch ohne Installation, mit `python3 -m vela <Befehl>`.
 

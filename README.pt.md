@@ -149,11 +149,10 @@ bandeja AyatanaAppIndicator3, já presentes no GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-git config core.hooksPath .githooks    # guarda contra segredos e dados pessoais
-python3 -m pip install --user .        # instala os comandos `vela` e `velad`
-vela app --install                     # lançador no menu de aplicações
-vela daemon enable                     # monitorizar desde o início de sessão
+./install.sh          # instala a app, o serviço velad, o ícone da bandeja e o lançador (sem pip nem root)
 ```
+
+Atualizar: `git pull && ./install.sh` · Desinstalar: `./install.sh --uninstall` (`--purge` apaga também os seus dados). Deteta os pacotes do sistema em falta (apt, dnf, pacman, zypper) e pergunta antes de os instalar; veja `./install.sh --help`.
 
 Também funciona sem instalar, com `python3 -m vela <comando>`.
 
