@@ -106,6 +106,8 @@ cp -r "$SRC/vela" "$PREFIX/vela.new"
 find "$PREFIX/vela.new" -name __pycache__ -type d -prune -exec rm -rf {} +
 rm -rf "$PREFIX/vela" && mv "$PREFIX/vela.new" "$PREFIX/vela"
 ok "$(t "Programa copiado a $PREFIX" "Program copied to $PREFIX")"
+# de dónde y qué versión se instaló: lo usa «vela update» (Ajustes → Actualizaciones)
+env PYTHONPATH="$PREFIX" python3 -m vela.updater write-manifest "$PREFIX" "$SRC" 2>/dev/null || true
 
 cat > "$BIN/vela" <<EOF
 #!/bin/sh

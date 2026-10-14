@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 from . import TAGLINE, __version__
-from .util import fmt_duration, iso, now, parse_duration
+from .util import fmt_duration, iso, now, parse_duration, tilde
 
 SEV_COLOR = {"critical": "1;31", "high": "31", "medium": "33", "warning": "33", "low": "36", "info": "37"}
 STATUS_COLOR = {"fail": "31", "warn": "33", "pass": "32", "unknown": "90", "ok": "32",
@@ -841,6 +841,89 @@ def cmd_tray(b, a):
     sys.exit(tray.run())
 
 
+def cmd_update(b, a):
+    """Actualizar VELA desde su clon git: solo bajo petición, por Tor/VPN y solo avanzando (fast-forward)."""
+    from . import updater
+    as_json = a.json or getattr(a, "json_sub", False)
+
+    def out(obj, code=0):
+        if a.progress:
+            print("result " + json.dumps(obj, ensure_ascii=False, default=str), flush=True)
+        elif as_json:
+            print(json.dumps(obj, indent=2, ensure_ascii=False, default=str))
+        return code
+
+    def fail(e):
+        if a.progress:
+            print(f"error {e}", flush=True)
+        else:
+            print(c(f"error: {e}", "31"), file=sys.stderr)
+        return 1
+    if a.status:
+        st = updater.status()
+        if as_json or a.progress:
+            return out(st)
+        print(_("VELA {v} instalado{c} · origen: {src}", v=st["installed_version"],
+                c=f" ({st['installed_commit'][:7]})" if st.get("installed_commit") else "",
+                src=tilde(st["source"]) if st.get("source") else "—"))
+        if st.get("hint"):
+            print(c(st["hint"], "33"))
+        elif st.get("pending_install"):
+            print(c(_("El clon tiene cambios ya descargados sin instalar: vela update"), "33"))
+        return 0
+    try:
+        res = updater.check(a.via)
+    except (updater.UpdateError, OSError, ValueError) as e:
+        return fail(e)
+    if a.check or not res["available"]:
+        if as_json or a.progress:
+            return out(res)
+        if not res["available"]:
+            print(c(_("Ya tienes la última versión ({v}, {cm}). Consultado por {route}.", v=res["installed_version"],
+                      cm=res["source_commit"][:7], route=res["route"]), "32"))
+            return 0
+        _print_update(res)
+        return 0
+    if not a.progress and not as_json:
+        _print_update(res)
+        if not a.yes:
+            if not sys.stdin.isatty():
+                return fail(_("sin terminal para confirmar: usa --yes"))
+            if input(_("¿Instalar ahora? Se reiniciará el servicio velad unos segundos [s/N] ")).strip().lower() not in ("s", "si", "sí", "y", "yes", "o", "oui", "j", "ja"):
+                print(_("Cancelado: no se ha cambiado nada."))
+                return 0
+    say = (lambda f, m: print(f"progress {f:.2f} {m}", flush=True)) if a.progress else \
+        (lambda f, m: None if as_json else print(f"  [{f * 100:3.0f}%] {m}", flush=True))
+    try:
+        res = updater.apply(a.via, progress=say)
+    except (updater.UpdateError, OSError, ValueError) as e:
+        return fail(e)
+    if as_json or a.progress:
+        return out(res)
+    print(c(res["message"], "32"))
+    if res.get("updated"):
+        print(_("Volver atrás: {cmd}", cmd=res["rollback"]))
+    return 0
+
+
+def _print_update(res):
+    if res["behind"]:
+        print(c(_("Hay {n} cambios nuevos en {u}{v} (consultado por {route}):", n=res["behind"], u=res["upstream"],
+                  v=f" · versión {res['new_version']}" if res.get("new_version") else "", route=res["route"]), "36"))
+        for cm in res["commits"][:20]:
+            print(f"  {cm['id']}  {cm['date']}  {cm['subject']}")
+        if len(res["commits"]) > 20:
+            print(_("  … y {n} más", n=len(res["commits"]) - 20))
+    elif res.get("pending_install"):
+        print(c(_("El clon ya tiene una versión más nueva que la instalada: se reinstalará."), "36"))
+    if res["dirty"]:
+        print(c(_("Tienes cambios sin guardar en {src}: no se puede actualizar hasta guardarlos o descartarlos.",
+                  src=tilde(res["source"])), "33"))
+    if res["ahead"]:
+        print(c(_("Tu rama tiene {n} commits propios que no están en {u}: resuélvelo con git antes de actualizar.",
+                  n=res["ahead"], u=res["upstream"]), "33"))
+
+
 def cmd_map(b, a):
     """Mapa base propio a partir de OpenStreetMap (se genera una vez y se dibuja sin conexión)."""
     from . import osmmap
@@ -938,6 +1021,13 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--file", metavar="ZIP", help=_("usar un simplified-land-polygons-complete-3857.zip ya descargado"))
     sp.add_argument("--no-places", action="store_true", help=_("sin nombres de países y ciudades (no consulta Overpass)"))
     sp.add_argument("--refresh", action="store_true", help=_("volver a descargar los datos de OSM en vez de usar la caché"))
+    sp.add_argument("--progress", action="store_true", help=argparse.SUPPRESS)
+    sp = add("update", cmd_update, _("buscar e instalar actualizaciones de VELA desde su repositorio git (por Tor/VPN)"))
+    sp.add_argument("--check", action="store_true", help=_("solo buscar: no cambia nada"))
+    sp.add_argument("--status", action="store_true", help=_("versión instalada y estado del clon, sin conexión"))
+    sp.add_argument("--via", default="auto", choices=["auto", "tor", "vpn", "direct"],
+                    help=_("por dónde contactar con el servidor git (auto: Tor si hay, si no la VPN; nunca directo salvo que lo pidas)"))
+    sp.add_argument("--yes", "-y", action="store_true", help=_("no pedir confirmación antes de instalar"))
     sp.add_argument("--progress", action="store_true", help=argparse.SUPPRESS)
     add("routes", cmd_routes, _("cómo viaja tu tráfico: programa → directo/proxy/Tor → VPN → lo que ve el destino"))
     sp = add("leakwatch", cmd_leakwatch, _("IP pública y fugas de IP en tiempo real (conexiones fuera del túnel)"))
@@ -1066,6 +1156,8 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "tray":
         cmd_tray(None, a)
         return 0
+    if a.cmd == "update":
+        return cmd_update(None, a)
     from .ipc import IPCError, LocalBackend, connect
     try:
         b = LocalBackend() if a.local else connect()

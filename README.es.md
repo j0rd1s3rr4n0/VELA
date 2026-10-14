@@ -172,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # instala la app, el servicio velad, el icono de bandeja y el lanzador (sin pip ni root)
 ```
 
-Actualizar: `git pull && ./install.sh` · Desinstalar: `./install.sh --uninstall` (`--purge` borra también tus datos). Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
+Actualizar: **Ajustes → Actualizaciones** en la app o `vela update` (consulta el remoto de tu clon por Tor o por la VPN, nunca por su cuenta, enseña los commits nuevos y solo avanza; `vela update --check` no cambia nada) · Desinstalar: `./install.sh --uninstall` (`--purge` borra también tus datos). Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
 
 También funciona sin instalar, con `python3 -m vela <comando>`.
 
@@ -211,6 +211,7 @@ vela tui               # terminal interactiva
 | `vela fix` | Comandos concretos para corregir cada problema detectado (no ejecuta nada) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre tu historial o un listado (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Mapa propio de OpenStreetMap, incorporado en la app** (`vela/data/`, funciona sin conexión en la app nativa, la TUI y la GUI web). `build` lo actualiza con datos recientes: descarga por Tor o la VPN (`--via direct` solo si lo pides, `--file` para un zip ya descargado); mirar el mapa no pide teselas a nadie |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Actualizar desde tu clon git: solo cuando lo pides, por Tor o la VPN, solo avanzando y enseñando antes los commits nuevos |
 | `vela network` | Interfaces, direcciones clasificadas (privada, CGNAT, ULA…), rutas y policy routing |
 | `vela vpn list` / `vela proxy list` | VPN y proxies detectados, con su estado |
 | `vela tor status` | Circuitos con guard, middle y exit; guards; comprobación externa |

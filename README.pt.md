@@ -172,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # instala a app, o serviço velad, o ícone da bandeja e o lançador (sem pip nem root)
 ```
 
-Atualizar: `git pull && ./install.sh` · Desinstalar: `./install.sh --uninstall` (`--purge` apaga também os seus dados). Deteta os pacotes do sistema em falta (apt, dnf, pacman, zypper) e pergunta antes de os instalar; veja `./install.sh --help`.
+Atualizar: **Definições → Atualizações** na app ou `vela update` (consulta o remoto do seu clone por Tor ou pela VPN, nunca por iniciativa própria, mostra os commits novos e só avança; `vela update --check` não altera nada) · Desinstalar: `./install.sh --uninstall` (`--purge` apaga também os seus dados). Deteta os pacotes do sistema em falta (apt, dnf, pacman, zypper) e pergunta antes de os instalar; veja `./install.sh --help`.
 
 Também funciona sem instalar, com `python3 -m vela <comando>`.
 
@@ -210,6 +210,7 @@ vela tui               # terminal interativo
 | `vela fix` | Comandos concretos para corrigir cada problema detetado (não executa nada) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre o seu histórico ou uma lista (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Mapa próprio do OpenStreetMap, incorporado na app** (`vela/data/`, funciona sem ligação na app nativa, na TUI e na GUI web). `build` atualiza-o com dados recentes: descarga via Tor ou VPN (`--via direct` só se o pedir, `--file` para um zip já descarregado); ver o mapa não pede mosaicos a ninguém |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Atualizar a partir do seu clone git: só quando pede, por Tor ou VPN, só avançando e mostrando antes os commits novos |
 | `vela network` | Interfaces, endereços classificados (privado, CGNAT, ULA…), rotas e policy routing |
 | `vela vpn list` / `vela proxy list` | VPNs e proxies detetados, com o seu estado |
 | `vela tor status` | Circuitos com guard, middle e exit; guards; verificação externa |

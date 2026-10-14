@@ -175,7 +175,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installe l'app, le service velad, l'icône de la barre et le lanceur (sans pip ni root)
 ```
 
-Mettre à jour : `git pull && ./install.sh` · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
+Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
 
 Fonctionne aussi sans installation, avec `python3 -m vela <commande>`.
 
@@ -213,6 +213,7 @@ vela tui               # terminal interactif
 | `vela fix` | Commandes précises pour corriger chaque problème détecté (n'exécute rien) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sur votre historique ou une liste (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Carte OpenStreetMap propre, intégrée à l'app** (`vela/data/`, fonctionne hors ligne dans l'app native, la TUI et la GUI web). `build` la met à jour avec des données récentes : téléchargement via Tor ou le VPN (`--via direct` uniquement si vous le demandez, `--file` pour un zip déjà téléchargé) ; consulter la carte ne demande aucune tuile à personne |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Mettre à jour depuis votre clone git : seulement à la demande, via Tor ou le VPN, en fast-forward uniquement, après avoir montré les nouveaux commits |
 | `vela network` | Interfaces, adresses classées (privée, CGNAT, ULA…), routes et policy routing |
 | `vela vpn list` / `vela proxy list` | VPN et proxies détectés, avec leur état |
 | `vela tor status` | Circuits avec guard, middle et exit ; guards ; vérification externe |

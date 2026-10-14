@@ -2025,6 +2025,7 @@ class Window(Adw.ApplicationWindow):
         switch(g, "intel.allow_direct", _("Permitir consultas sin VPN"), _("Saldrían desde tu IP real"))
         box.append(g)
         box.append(self.map_group())
+        box.append(self.update_group())
         box.append(lbl(_("Guardado en {v1} (no se modifica tu config.toml)", v1=tilde(s['path'])), "kpi-sub"))
 
     # ── mapa OpenStreetMap ──
@@ -2039,7 +2040,7 @@ class Window(Adw.ApplicationWindow):
         g = Adw.PreferencesGroup(
             title=_("Mapa (OpenStreetMap)"),
             description=_("Mapa propio hecho con datos de OpenStreetMap e incorporado en la app: costas, países, "
-                        "capitales y ciudades, con estilo oscuro y más detalle al acercar. Funciona sin conexión: "
+                        "capitales y ciudades, con los colores del tema y más detalle al acercar. Funciona sin conexión: "
                         "mirar el mapa no pide nada a ningún servidor. Actualizarlo es opcional (descarga ≈25 MB)."))
         self._map_row = Adw.ActionRow(title=_("Estado"))
         g.add(self._map_row)
@@ -2189,6 +2190,138 @@ class Window(Adw.ApplicationWindow):
         if diff:
             self.call_bg("settings_set", {"changes": diff})
 
+    # ── actualizaciones (persistente; solo bajo petición, por Tor/VPN) ──
+    def update_group(self):
+        if getattr(self, "_upd_grp", None) is not None:
+            return self._upd_grp
+        g = Adw.PreferencesGroup(
+            title=_("Actualizaciones"),
+            description=_("VELA nunca busca actualizaciones por su cuenta. Al pulsar «Buscar», consulta tu repositorio git "
+                          "por Tor o por la VPN y te enseña los cambios antes de instalarlos. Actualizar solo avanza tu "
+                          "copia (sin tocar cambios locales) y reinicia el servicio unos segundos."))
+        self._upd_row = Adw.ActionRow(title=_("Versión instalada"))
+        g.add(self._upd_row)
+        self._upd_via = Adw.ComboRow(title=_("Consultar por"))
+        self._upd_via.set_model(Gtk.StringList.new([t for _ign, t in self.UPD_VIA]))
+        g.add(self._upd_via)
+        self._upd_res = Adw.ExpanderRow(title=_("Novedades"), subtitle=_("Pulsa «Buscar» para comprobarlo"),
+                                        enable_expansion=False)
+        g.add(self._upd_res)
+        self._upd_bar = Gtk.ProgressBar(show_text=True, visible=False, valign=Gtk.Align.CENTER, hexpand=True)
+        self._upd_check = Gtk.Button(label=_("Buscar"), valign=Gtk.Align.CENTER)
+        self._upd_check.connect("clicked", lambda _b: self.update_run(check=True))
+        self._upd_apply = Gtk.Button(label=_("Actualizar"), valign=Gtk.Align.CENTER, sensitive=False,
+                                     css_classes=["suggested-action"])
+        self._upd_apply.connect("clicked", lambda _b: self.update_confirm())
+        act = Adw.ActionRow(title=_("Buscar e instalar"))
+        act.add_suffix(self._upd_bar)
+        act.add_suffix(self._upd_check)
+        act.add_suffix(self._upd_apply)
+        g.add(act)
+        self._upd_grp = g
+        self._upd_rows = []
+        self._update_status()
+        return g
+
+    UPD_VIA = [("auto", _("Automático: Tor y, si no hay, la VPN")), ("tor", _("Solo por Tor")),
+               ("vpn", _("Solo por la VPN")), ("direct", _("Directo (el servidor git verá tu IP real)"))]
+
+    def _update_status(self):
+        from .. import updater
+        st = updater.status()
+        cm = f" · {st['installed_commit'][:7]}" if st.get("installed_commit") else ""
+        src = _(" · origen {src}", src=tilde(st["source"])) if st.get("source") else ""
+        self._upd_row.set_subtitle(f"VELA {st['installed_version']}{cm}{src}" + (f"\n{st['hint']}" if st.get("hint") else ""))
+        self._upd_check.set_sensitive(bool(st.get("git")))
+
+    def update_run(self, check):
+        import subprocess
+        via = self.UPD_VIA[self._upd_via.get_selected()][0]
+        cmd = [sys.executable, "-m", "vela", "update", "--via", via, "--progress"] + (["--check"] if check else ["--yes"])
+        root = Path(__file__).resolve().parents[2]
+        self._upd_check.set_sensitive(False)
+        self._upd_apply.set_sensitive(False)
+        self._upd_bar.set_visible(True)
+        self._upd_bar.set_fraction(0.05)
+        self._upd_bar.set_text(_("consultando…") if check else _("actualizando…"))
+        if check:
+            self._upd_bar.pulse()
+
+        def work():
+            err, res = None, None
+            try:
+                import os
+                pr = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, cwd=str(root),
+                                      env={**os.environ, "PYTHONPATH": str(root)})
+                for line in pr.stdout:
+                    line = line.rstrip()
+                    if line.startswith("progress "):
+                        _ign, f, msg = line.split(" ", 2)
+                        GLib.idle_add(lambda f=float(f), m=msg: (self._upd_bar.set_fraction(f), self._upd_bar.set_text(m),
+                                                                False)[-1])
+                    elif line.startswith("error "):
+                        err = line[6:]
+                    elif line.startswith("result "):
+                        res = json.loads(line[7:])
+                pr.wait()
+                if pr.returncode and not err:
+                    err = _("código {returncode}", returncode=pr.returncode)
+            except Exception as e:  # noqa: BLE001
+                err = str(e)
+            GLib.idle_add(self._update_done, check, err, res)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _update_done(self, check, err, res):
+        self._upd_bar.set_visible(False)
+        self._update_status()
+        for r in self._upd_rows:
+            self._upd_res.remove(r)
+        self._upd_rows = []
+        if err:
+            self._upd_res.set_subtitle(_("No se pudo comprobar: {err}", err=err))
+            self._upd_res.set_enable_expansion(False)
+            self.toast(_("Actualizaciones: {err}", err=err))
+            return False
+        if not check:
+            self._upd_res.set_subtitle(res.get("message") or "")
+            if res.get("updated"):
+                self.ask_restart(_("VELA actualizado"), _("La versión nueva ya está instalada y el servicio reiniciado. "
+                                                          "Reinicia la app para usarla."))
+            return False
+        if not res.get("available"):
+            self._upd_res.set_subtitle(_("Ya tienes la última versión (consultado por {route})", route=res.get("route")))
+            self._upd_res.set_enable_expansion(False)
+            return False
+        if res.get("behind"):
+            sub = _("{n} cambios nuevos{v} · consultado por {route}", n=res["behind"], route=res.get("route"),
+                    v=_(" · versión {v}", v=res["new_version"]) if res.get("new_version") else "")
+        else:
+            sub = _("El clon ya tiene una versión más nueva que la instalada")
+        blockers = []
+        if res.get("dirty"):
+            blockers.append(_("Tienes cambios sin guardar en el clon: guárdalos o descártalos antes de actualizar."))
+        if res.get("ahead"):
+            blockers.append(_("Tu rama tiene {n} commits propios que no están en el remoto: resuélvelo con git.", n=res["ahead"]))
+        self._upd_res.set_subtitle(sub + ("\n" + " ".join(blockers) if blockers else ""))
+        for cm in res.get("commits") or []:
+            r = Adw.ActionRow(title=GLib.markup_escape_text(cm["subject"]), subtitle=f"{cm['id']} · {cm['date']}")
+            self._upd_res.add_row(r)
+            self._upd_rows.append(r)
+        self._upd_res.set_enable_expansion(bool(self._upd_rows))
+        self._upd_res.set_expanded(bool(self._upd_rows))
+        self._upd_apply.set_sensitive(not blockers)
+        return False
+
+    def update_confirm(self):
+        d = Adw.AlertDialog(heading=_("¿Instalar la actualización?"),
+                            body=_("Se avanzará tu clon de VELA a la versión del remoto y se reinstalará. El servicio velad "
+                                   "se reinicia unos segundos (no corta tu conexión). Tus datos y ajustes se conservan."))
+        d.add_response("cancel", _("Cancelar"))
+        d.add_response("go", _("Actualizar"))
+        d.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
+        d.connect("response", lambda _d, r: r == "go" and self.update_run(check=False))
+        d.present(self)
+
     # ── idioma ──
     LANG_CODES = ["auto", "es", "en", "ca", "pt", "fr", "de"]
 
@@ -2213,9 +2346,9 @@ class Window(Adw.ApplicationWindow):
         g.add(row)
         return g
 
-    def ask_restart(self):
-        d = Adw.AlertDialog(heading=_("Idioma cambiado"),
-                            body=_("Reinicia VELA para ver toda la interfaz en el nuevo idioma."))
+    def ask_restart(self, heading=None, body=None):
+        d = Adw.AlertDialog(heading=heading or _("Idioma cambiado"),
+                            body=body or _("Reinicia VELA para ver toda la interfaz en el nuevo idioma."))
         d.add_response("later", _("Más tarde"))
         d.add_response("restart", _("Reiniciar ahora"))
         d.set_response_appearance("restart", Adw.ResponseAppearance.SUGGESTED)

@@ -172,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installs the app, the velad service, the tray icon and the launcher (no pip, no root)
 ```
 
-Update: `git pull && ./install.sh` · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
+Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
 
 It also works without installing, with `python3 -m vela <command>`.
 
@@ -210,6 +210,7 @@ vela tui               # interactive terminal
 | `vela fix` | Specific commands to fix each detected problem (runs nothing) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys on your history or a list (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **The app's own OpenStreetMap map, bundled** (`vela/data/`, works offline in the native app, TUI and web GUI). `build` updates it with recent data: download via Tor or the VPN (`--via direct` only if you ask, `--file` for an already downloaded zip); viewing the map requests no tiles from anyone |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Updates from your git clone: only when you ask, over Tor or the VPN, fast-forward only, with the new commits shown first |
 | `vela network` | Interfaces, classified addresses (private, CGNAT, ULA…), routes and policy routing |
 | `vela vpn list` / `vela proxy list` | Detected VPNs and proxies, with their status |
 | `vela tor status` | Circuits with guard, middle and exit; guards; external check |
