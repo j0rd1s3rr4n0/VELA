@@ -915,6 +915,7 @@
  "Uso diario: VPN con kill-switch y DNS cifrado; sin restricciones geográficas": "Daily use: VPN with kill-switch and encrypted DNS; no geographic restrictions",
  "Usos": "Uses",
  "VELA": "VELA",
+ "VELA solo funciona en Linux. Las versiones para Windows están en las ramas «windows-lite» y «windows» del repositorio.": "VELA only runs on Linux. The Windows versions live in the «windows-lite» and «windows» branches of the repository.",
  "VELA · IP y fugas en tiempo real": "VELA · IP and leaks in real time",
  "VELA — Vigilant Egress & Leak Analyst. {TAGLINE}": "VELA — Vigilant Egress & Leak Analyst. {TAGLINE}",
  "VELA — perfil «{profile}»": "VELA — profile «{profile}»",

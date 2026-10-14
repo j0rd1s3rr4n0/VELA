@@ -1042,6 +1042,9 @@ def _early_lang(argv: list[str]) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     _early_lang(sys.argv[1:] if argv is None else argv)
+    if not sys.platform.startswith("linux"):
+        print(_("VELA solo funciona en Linux. Las versiones para Windows están en las ramas «windows-lite» y «windows» del repositorio."), file=sys.stderr)
+        return 2
     parser = build_parser()
     a = parser.parse_args(argv)
     if not getattr(a, "fn", None):

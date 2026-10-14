@@ -31,6 +31,8 @@ VELA watches **where your traffic leaves from** (router, VPN, proxies, Tor and D
 exit, **the leaks** that expose you and **the reputation** of the IPs you talk to. All local, on Linux, with no
 external dependencies: it discovers what is on your machine and only enables what actually exists.
 
+> **Linux only.** VELA reads the network straight from the Linux kernel (/proc, netlink, nftables, systemd). Windows versions are being developed in separate branches: [`windows-lite`](../../tree/windows-lite) (light: public IP, connections and leaks, DNS, web GUI) and [`windows`](../../tree/windows) (full port).
+
 | Letter | What it does |
 |---|---|
 | **V**igilant | Always-on daemon, leak watcher every 2 s, kernel events (netlink) and tray notifications |
@@ -297,7 +299,7 @@ Legend:
 | Country borders on the map | ⏳ | not included (OSM border data weighs hundreds of MB) |
 | City / ASN | ⛔ | no `.mmdb` database on the system (optional) |
 | Database encryption | ⛔ | SQLCipher not installed: the database is **not** encrypted, only protected by 0600 permissions |
-| Windows and macOS | ⏳ | the core is Linux-specific (/proc, /sys, netlink, nftables) |
+| Windows and macOS | ⛔ | this branch is Linux-only; Windows: `windows-lite` and `windows` branches |
 | PAC/WPAD proxies: script evaluation | ⏳ | detected, but the PAC script is not evaluated |
 </details>
 

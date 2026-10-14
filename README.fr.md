@@ -32,6 +32,8 @@ utilisez chaque sortie, **les fuites** qui vous exposent et **la réputation** d
 communiquez. Tout en local, sous Linux, sans dépendances externes : il découvre ce qui se trouve sur votre machine
 et n'active que ce qui existe réellement.
 
+> **Linux uniquement.** VELA lit le réseau directement depuis le noyau Linux (/proc, netlink, nftables, systemd). Les versions Windows sont développées dans des branches séparées : [`windows-lite`](../../tree/windows-lite) (légère : IP publique, connexions et fuites, DNS, GUI web) et [`windows`](../../tree/windows) (portage complet).
+
 | Lettre | Ce qu'elle fait |
 |---|---|
 | **V**igilant | Daemon permanent, veilleur de fuites toutes les 2 s, événements du noyau (netlink) et alertes dans la barre |
@@ -299,7 +301,7 @@ Légende :
 | Frontières entre pays sur la carte | ⏳ | non incluses (les données de frontières OSM pèsent des centaines de Mo) |
 | Ville / ASN | ⛔ | pas de base `.mmdb` sur le système (facultatif) |
 | Chiffrement de la base de données | ⛔ | SQLCipher non installé : la base n'est **pas** chiffrée, seulement protégée par des permissions 0600 |
-| Windows et macOS | ⏳ | le cœur est propre à Linux (/proc, /sys, netlink, nftables) |
+| Windows et macOS | ⛔ | cette branche est réservée à Linux ; Windows : branches `windows-lite` et `windows` |
 | Proxies PAC/WPAD : évaluation du script | ⏳ | détectés, mais le script PAC n'est pas évalué |
 </details>
 

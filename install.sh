@@ -41,7 +41,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-[ "$(uname -s)" = Linux ] || die "$(t "este instalador es para Linux (en Windows usa install.ps1)" "this installer is for Linux (on Windows use install.ps1)")"
+[ "$(uname -s)" = Linux ] || die "$(t "VELA solo funciona en Linux (las versiones para Windows están en las ramas windows-lite y windows)" "VELA only runs on Linux (Windows versions live in the windows-lite and windows branches)")"
 [ "$(id -u)" != 0 ] || die "$(t "no lo ejecutes como root: VELA se instala para tu usuario" "don't run it as root: VELA installs for your user")"
 
 # la copia instalada va siempre primero en sys.path (aunque se ejecute desde la carpeta del repositorio)

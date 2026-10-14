@@ -31,6 +31,8 @@ O VELA vigia **por onde sai o seu tráfego** (router, VPN, proxies, Tor e DNS), 
 **as fugas** que o expõem e **a reputação** dos IPs com que comunica. Tudo local, em Linux, sem dependências
 externas: descobre o que existe no seu equipamento e só ativa o que realmente está lá.
 
+> **Só Linux.** O VELA lê a rede diretamente do kernel do Linux (/proc, netlink, nftables, systemd). As versões para Windows são desenvolvidas em ramos à parte: [`windows-lite`](../../tree/windows-lite) (ligeira: IP público, ligações e fugas, DNS, GUI web) e [`windows`](../../tree/windows) (versão completa).
+
 | Letra | O que faz |
 |---|---|
 | **V**igilant | Daemon permanente, vigilante de fugas a cada 2 s, eventos do kernel (netlink) e avisos na bandeja |
@@ -297,7 +299,7 @@ Legenda:
 | Fronteiras entre países no mapa | ⏳ | não incluídas (os dados de fronteiras do OSM pesam centenas de MB) |
 | Cidade / ASN | ⛔ | sem base `.mmdb` no sistema (opcional) |
 | Cifra da base de dados | ⛔ | SQLCipher não instalado: a base **não** está cifrada, só protegida por permissões 0600 |
-| Windows e macOS | ⏳ | o núcleo é específico de Linux (/proc, /sys, netlink, nftables) |
+| Windows e macOS | ⛔ | este ramo é só para Linux; Windows: ramos `windows-lite` e `windows` |
 | Proxies PAC/WPAD: avaliação do script | ⏳ | deteta-se que existem, mas o script PAC não é avaliado |
 </details>
 

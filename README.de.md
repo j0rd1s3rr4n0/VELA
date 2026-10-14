@@ -32,6 +32,8 @@ nutzt, **die Lecks**, die dich preisgeben, und **die Reputation** der IPs, mit d
 unter Linux, ohne externe Abhängigkeiten: es erkennt, was auf deinem Rechner vorhanden ist, und aktiviert nur, was
 es wirklich gibt.
 
+> **Nur Linux.** VELA liest das Netz direkt aus dem Linux-Kernel (/proc, netlink, nftables, systemd). Windows-Versionen entstehen in eigenen Branches: [`windows-lite`](../../tree/windows-lite) (leicht: öffentliche IP, Verbindungen und Lecks, DNS, Web-GUI) und [`windows`](../../tree/windows) (vollständige Portierung).
+
 | Buchstabe | Was er tut |
 |---|---|
 | **V**igilant | Dauerhafter Daemon, Leckwächter alle 2 s, Kernel-Ereignisse (netlink) und Hinweise im Tray |
@@ -299,7 +301,7 @@ Legende:
 | Ländergrenzen auf der Karte | ⏳ | nicht enthalten (OSM-Grenzdaten wiegen Hunderte MB) |
 | Stadt / ASN | ⛔ | keine `.mmdb`-Datenbank auf dem System (optional) |
 | Datenbankverschlüsselung | ⛔ | SQLCipher nicht installiert: die Datenbank ist **nicht** verschlüsselt, nur durch Rechte 0600 geschützt |
-| Windows und macOS | ⏳ | der Kern ist Linux-spezifisch (/proc, /sys, netlink, nftables) |
+| Windows und macOS | ⛔ | dieser Branch ist nur für Linux; Windows: Branches `windows-lite` und `windows` |
 | PAC/WPAD-Proxys: Auswertung des Skripts | ⏳ | wird erkannt, das PAC-Skript wird aber nicht ausgewertet |
 </details>
 
