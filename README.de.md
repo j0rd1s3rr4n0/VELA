@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="VELA-Logo: eine blaue Flamme">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -52,6 +55,7 @@ es wirklich gibt.
 
 - [Funktionen](#funktionen)
 - [Datenschutz durch Technik](#datenschutz-durch-technik)
+- [Themes](#themes)
 - [Sprachen](#sprachen)
 - [Installation](#installation)
 - [Verwendung](#verwendung)
@@ -134,6 +138,20 @@ Standardmäßig beobachtet das Werkzeug nur. Diese Aktionen werden unter `[conse
 | `allow_killswitch` | Wendet nftables-Regeln an (mit `sudo -n` oder pkexec) |
 </details>
 
+## Themes
+
+Die Desktop-App hat **fünf Themes, jeweils hell und dunkel**, dazu *System folgen*: **VELA Signature** (offiziell, mit dem
+Marineblau, Blau und Cyan der Marke), **Obsidian** (Graphit für SOC-Arbeit), **Glacier** (kühl und analytisch), **Sentinel**
+(Petrolgrün) und **High Contrast** (Text ≥ 7:1). Auswahl unter **Einstellungen → Erscheinungsbild**, zusammen mit Dichte
+(komfortabel oder kompakt) und Animationen. Die Änderung gilt sofort, ohne Neustart.
+
+Die Farben sind *Design-Tokens*, die die GTK-App, ihre Diagramme und Karte sowie die Web-GUI gemeinsam nutzen. Ihre Bedeutung ist
+in allen Themes gleich: geschützt grün, direkt (echte IP) orange, Proxy indigo, Tor violett und Leck rot, immer mit Symbol und Text.
+Alle 790 Kontrastprüfungen (WCAG 2.2 AA; AAA für den Text von High Contrast) werden berechnet und von den Tests erzwungen. Siehe
+[docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Die fünf VELA-Themes im dunklen und hellen Modus"></p>
+
 ## Sprachen
 
 Die gesamte Oberfläche (Desktop-App, Tray, CLI, TUI, Web-GUI, Warnungen und Erklärungen) gibt es auf **Deutsch,
@@ -156,7 +174,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installiert App, velad-Dienst, Tray-Symbol und Starter (ohne pip, ohne Root)
 ```
 
-Aktualisieren: `git pull && ./install.sh` · Deinstallieren: `./install.sh --uninstall` (`--purge` löscht auch deine Daten). Fehlende Systempakete (apt, dnf, pacman, zypper) werden erkannt und erst nach Rückfrage installiert; siehe `./install.sh --help`.
+Aktualisieren: **Einstellungen → Aktualisierungen** in der App oder `vela update` (fragt das Remote deines Klons über Tor oder das VPN ab, nie von selbst, zeigt die neuen Commits und spult nur vor; `vela update --check` ändert nichts) · Deinstallieren: `./install.sh --uninstall` (`--purge` löscht auch deine Daten). Fehlende Systempakete (apt, dnf, pacman, zypper) werden erkannt und erst nach Rückfrage installiert; siehe `./install.sh --help`.
 
 Funktioniert auch ohne Installation, mit `python3 -m vela <Befehl>`.
 
@@ -194,6 +212,7 @@ vela tui               # interaktives Terminal
 | `vela fix` | Konkrete Befehle zur Behebung jedes erkannten Problems (führt nichts aus) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys für deinen Verlauf oder eine Liste (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Eigene OpenStreetMap-Karte, in die App eingebaut** (`vela/data/`, funktioniert offline in der nativen App, der TUI und der Web-GUI). `build` aktualisiert sie mit neuen Daten: Download über Tor oder das VPN (`--via direct` nur auf Wunsch, `--file` für ein bereits geladenes Zip); das Ansehen der Karte fragt bei niemandem Kacheln an |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Aktualisieren aus deinem Git-Klon: nur auf Wunsch, über Tor oder VPN, nur Vorspulen, neue Commits werden vorher gezeigt |
 | `vela network` | Schnittstellen, eingeordnete Adressen (privat, CGNAT, ULA…), Routen und Policy-Routing |
 | `vela vpn list` / `vela proxy list` | Erkannte VPNs und Proxys mit ihrem Status |
 | `vela tor status` | Circuits mit Guard, Middle und Exit; Guards; externe Prüfung |

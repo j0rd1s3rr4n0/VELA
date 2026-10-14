@@ -58,6 +58,7 @@ if [ "$MODE" = uninstall ]; then
   rm -f "$HOME/.config/systemd/user/velad.service" "$HOME/.config/autostart/vela-tray.desktop" \
         "$HOME/.local/share/applications/$APP_ID.desktop" \
         "$HOME/.local/share/icons/hicolor/scalable/apps/$APP_ID.svg" "$BIN/vela" "$BIN/velad"
+  for n in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${n}x${n}/apps/$APP_ID.png"; done
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   rm -rf "$PREFIX"
   ok "$(t "Programa, servicio, bandeja y lanzador eliminados." "Program, service, tray and launcher removed.")"
@@ -105,6 +106,8 @@ cp -r "$SRC/vela" "$PREFIX/vela.new"
 find "$PREFIX/vela.new" -name __pycache__ -type d -prune -exec rm -rf {} +
 rm -rf "$PREFIX/vela" && mv "$PREFIX/vela.new" "$PREFIX/vela"
 ok "$(t "Programa copiado a $PREFIX" "Program copied to $PREFIX")"
+# de dónde y qué versión se instaló: lo usa «vela update» (Ajustes → Actualizaciones)
+env PYTHONPATH="$PREFIX" python3 -m vela.updater write-manifest "$PREFIX" "$SRC" 2>/dev/null || true
 
 cat > "$BIN/vela" <<EOF
 #!/bin/sh
@@ -149,4 +152,4 @@ fi
 
 echo
 ok "$(t "VELA $VERSION instalado. Ábrelo desde el menú o con «vela app»; en la terminal: «vela status»." "VELA $VERSION installed. Open it from the menu or with «vela app»; in a terminal: «vela status».")"
-say "$(t "Actualizar: vuelve a ejecutar ./install.sh · Desinstalar: ./install.sh --uninstall" "Update: run ./install.sh again · Uninstall: ./install.sh --uninstall")"
+say "$(t "Actualizar: Ajustes → Actualizaciones en la app o «vela update» · Desinstalar: ./install.sh --uninstall" "Update: Settings → Updates in the app or «vela update» · Uninstall: ./install.sh --uninstall")"

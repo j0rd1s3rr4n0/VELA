@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logotipo de VELA: una llama azul">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ Linux, sin dependencias externas: descubre solo lo que hay en tu equipo y activa
 
 - [Funciones](#funciones)
 - [Privacidad por diseño](#privacidad-por-diseño)
+- [Temas](#temas)
 - [Idiomas](#idiomas)
 - [Instalación](#instalación)
 - [Uso](#uso)
@@ -133,6 +137,20 @@ Por defecto la herramienta solo observa. Estas acciones se activan en `[consent]
 | `allow_killswitch` | Aplica reglas nftables (con `sudo -n` o pkexec) |
 </details>
 
+## Temas
+
+La app de escritorio tiene **cinco temas, cada uno en claro y oscuro**, y el modo *Seguir al sistema*: **VELA Signature**
+(oficial, con el azul marino, el azul y el cian de la marca), **Obsidian** (grafito para trabajo SOC), **Glacier** (frío y
+analítico), **Sentinel** (verde petróleo) y **High Contrast** (texto ≥ 7:1). Se elige en **Ajustes → Apariencia**, junto con
+la densidad (cómoda o compacta) y las animaciones. Se aplica al instante, sin reiniciar nada.
+
+Los colores son *design tokens* que comparten la app GTK, sus gráficos y el mapa, y la GUI web. Su significado no cambia entre
+temas: protegida en verde, directa (IP real) en naranja, proxy en índigo, Tor en violeta y fuga en rojo, siempre con icono y texto.
+Las 790 comprobaciones de contraste (WCAG 2.2 AA; AAA para el texto de High Contrast) se calculan y las exigen las pruebas. Más en
+[docs/THEMES.es.md](docs/THEMES.es.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Los cinco temas de VELA en modo oscuro y claro"></p>
+
 ## Idiomas
 
 Toda la interfaz (app de escritorio, bandeja, CLI, TUI, GUI web, avisos y explicaciones) está en
@@ -154,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # instala la app, el servicio velad, el icono de bandeja y el lanzador (sin pip ni root)
 ```
 
-Actualizar: `git pull && ./install.sh` · Desinstalar: `./install.sh --uninstall` (`--purge` borra también tus datos). Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
+Actualizar: **Ajustes → Actualizaciones** en la app o `vela update` (consulta el remoto de tu clon por Tor o por la VPN, nunca por su cuenta, enseña los commits nuevos y solo avanza; `vela update --check` no cambia nada) · Desinstalar: `./install.sh --uninstall` (`--purge` borra también tus datos). Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
 
 También funciona sin instalar, con `python3 -m vela <comando>`.
 
@@ -193,6 +211,7 @@ vela tui               # terminal interactiva
 | `vela fix` | Comandos concretos para corregir cada problema detectado (no ejecuta nada) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre tu historial o un listado (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Mapa propio de OpenStreetMap, incorporado en la app** (`vela/data/`, funciona sin conexión en la app nativa, la TUI y la GUI web). `build` lo actualiza con datos recientes: descarga por Tor o la VPN (`--via direct` solo si lo pides, `--file` para un zip ya descargado); mirar el mapa no pide teselas a nadie |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Actualizar desde tu clon git: solo cuando lo pides, por Tor o la VPN, solo avanzando y enseñando antes los commits nuevos |
 | `vela network` | Interfaces, direcciones clasificadas (privada, CGNAT, ULA…), rutas y policy routing |
 | `vela vpn list` / `vela proxy list` | VPN y proxies detectados, con su estado |
 | `vela tor status` | Circuitos con guard, middle y exit; guards; comprobación externa |

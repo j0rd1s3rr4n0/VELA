@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logotip de VELA: una flama blava">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ sense dependències externes: descobreix què hi ha al teu equip i només activa
 
 - [Funcions](#funcions)
 - [Privadesa per disseny](#privadesa-per-disseny)
+- [Temes](#temes)
 - [Idiomes](#idiomes)
 - [Instal·lació](#instal·lació)
 - [Ús](#ús)
@@ -133,6 +137,20 @@ Per defecte l'eina només observa. Aquestes accions s'activen a `[consent]`; veg
 | `allow_killswitch` | Aplica regles nftables (amb `sudo -n` o pkexec) |
 </details>
 
+## Temes
+
+L'app d'escriptori té **cinc temes, cadascun en clar i fosc**, i el mode *Segueix el sistema*: **VELA Signature** (oficial,
+amb el blau marí, el blau i el cian de la marca), **Obsidian** (grafit per a feina SOC), **Glacier** (fred i analític),
+**Sentinel** (verd petroli) i **High Contrast** (text ≥ 7:1). Es tria a **Ajustos → Aparença**, juntament amb la densitat
+(còmoda o compacta) i les animacions. S'aplica a l'instant, sense reiniciar res.
+
+Els colors són *design tokens* que comparteixen l'app GTK, els seus gràfics i el mapa, i la GUI web. El seu significat no canvia
+entre temes: protegida en verd, directa (IP real) en taronja, proxy en índigo, Tor en violeta i fuita en vermell, sempre amb icona i
+text. Les 790 comprovacions de contrast (WCAG 2.2 AA; AAA per al text de High Contrast) es calculen i les exigeixen les proves.
+Més a [docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Els cinc temes de VELA en mode fosc i clar"></p>
+
 ## Idiomes
 
 Tota la interfície (app d'escriptori, safata, CLI, TUI, GUI web, avisos i explicacions) està en **català,
@@ -154,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # instal·la l'app, el servei velad, la icona de la safata i el llançador (sense pip ni root)
 ```
 
-Actualitzar: `git pull && ./install.sh` · Desinstal·lar: `./install.sh --uninstall` (`--purge` també esborra les teves dades). Detecta els paquets del sistema que faltin (apt, dnf, pacman, zypper) i pregunta abans d'instal·lar-los; vegeu `./install.sh --help`.
+Actualitzar: **Ajustos → Actualitzacions** a l'app o `vela update` (consulta el remot del teu clon per Tor o per la VPN, mai pel seu compte, mostra els commits nous i només avança; `vela update --check` no canvia res) · Desinstal·lar: `./install.sh --uninstall` (`--purge` també esborra les teves dades). Detecta els paquets del sistema que faltin (apt, dnf, pacman, zypper) i pregunta abans d'instal·lar-los; vegeu `./install.sh --help`.
 
 També funciona sense instal·lar, amb `python3 -m vela <ordre>`.
 
@@ -192,6 +210,7 @@ vela tui               # terminal interactiu
 | `vela fix` | Ordres concretes per corregir cada problema detectat (no executa res) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre el teu historial o una llista (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Mapa propi d'OpenStreetMap, incorporat a l'app** (`vela/data/`, funciona sense connexió a l'app nativa, la TUI i la GUI web). `build` l'actualitza amb dades recents: baixada per Tor o la VPN (`--via direct` només si ho demanes, `--file` per a un zip ja baixat); mirar el mapa no demana tessel·les a ningú |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Actualitzar des del teu clon git: només quan ho demanes, per Tor o la VPN, només avançant i mostrant abans els commits nous |
 | `vela network` | Interfícies, adreces classificades (privada, CGNAT, ULA…), rutes i policy routing |
 | `vela vpn list` / `vela proxy list` | VPN i proxies detectats, amb el seu estat |
 | `vela tor status` | Circuits amb guard, middle i exit; guards; comprovació externa |

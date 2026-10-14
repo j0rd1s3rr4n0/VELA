@@ -1,0 +1,37 @@
+# VELA — Kit de identidad visual
+
+**VELA — Vigilant Egress & Leak Analyst**
+
+Paquete generado a partir de la **última propuesta de logotipo seleccionada** por el autor del proyecto.
+
+## Carpetas
+
+- `PNG/Logo_Solo/` — emblema aislado (transparente), tamaños 16, 32, 64, 128, 256, 512 y 1024 px.
+- `PNG/Logo_Horizontal/` — emblema a la izquierda + nombre a la derecha, 2048/1024 px.
+- `PNG/Logo_Vertical/` — emblema arriba + nombre abajo, también con descripción.
+- `PNG/Wordmark/` — VELA sin símbolo, texto geométrico basado en el original.
+- `PNG/App_Iconos/` — emblema sobre tesela para lanzar la app (oscuro, azul o claro), varios tamaños.
+- `PNG/Banner/` — encabezados para README/GitHub.
+- `SVG_Vector_Monochrome/` — 12 variantes **vectoriales reales** en navy, blanco y azul; símbolo, palabra y composiciones horizontal/vertical. Son monocromáticas, no reproducen los degradados.
+
+## Fondos
+
+Los PNG de `Logo_Solo`, `Logo_Horizontal`, `Logo_Vertical` y `Wordmark` tienen **fondo transparente (RGBA)**. Los iconos de App y los banners tienen fondo integrado intencionalmente.
+
+## Paleta aproximada
+
+- Navy: `#061C3A`
+- Blue: `#137EE9`
+- Cyan: `#00C5E8`
+- White: `#F8FBFF`
+
+## Nota técnica
+
+La versión de color se extrajo del diseño original rasterizado (no es vector puro) y se ha escalado para formar el paquete. Los SVG monocromos son vectorizados a partir de la silueta y no representan el degradado original. No incluye archivos de fuentes tipográficas. Para uso comercial conviene revisar disponibilidad del nombre y marcas.
+
+## Uso recomendado
+
+- Logotipo para web sobre fondo claro: `Logo_Horizontal/VELA_horizontal_color_texto_oscuro_2048.png`
+- Logotipo para interfaz oscura: `Logo_Horizontal/VELA_horizontal_color_texto_blanco_2048.png`
+- Icono de bandeja: `Logo_Solo/VELA_simbolo_color_32.png` o versión blanca.
+- Launcher Linux: `App_Iconos/VELA_app_oscuro_512.png`.

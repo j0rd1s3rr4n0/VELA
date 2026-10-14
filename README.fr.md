@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logo de VELA : une flamme bleue">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -52,6 +55,7 @@ et n'active que ce qui existe réellement.
 
 - [Fonctionnalités](#fonctionnalités)
 - [Confidentialité dès la conception](#confidentialité-dès-la-conception)
+- [Thèmes](#thèmes)
 - [Langues](#langues)
 - [Installation](#installation)
 - [Utilisation](#utilisation)
@@ -134,6 +138,21 @@ Par défaut, l'outil se contente d'observer. Ces actions s'activent dans `[conse
 | `allow_killswitch` | Applique des règles nftables (avec `sudo -n` ou pkexec) |
 </details>
 
+## Thèmes
+
+L'application de bureau propose **cinq thèmes, chacun en clair et en sombre**, plus le mode *Suivre le système* :
+**VELA Signature** (officiel, avec le bleu marine, le bleu et le cyan de la marque), **Obsidian** (graphite pour le travail SOC),
+**Glacier** (froid et analytique), **Sentinel** (vert pétrole) et **High Contrast** (texte ≥ 7:1). On le choisit dans
+**Réglages → Apparence**, avec la densité (confortable ou compacte) et les animations. Il s'applique immédiatement, sans rien
+redémarrer.
+
+Les couleurs sont des *design tokens* partagés par l'application GTK, ses graphiques et sa carte, et la GUI web. Leur sens ne
+change jamais d'un thème à l'autre : protégée en vert, directe (IP réelle) en orange, proxy en indigo, Tor en violet et fuite en
+rouge, toujours avec une icône et du texte. Les 790 vérifications de contraste (WCAG 2.2 AA ; AAA pour le texte de High Contrast)
+sont calculées et imposées par les tests. Voir [docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Les cinq thèmes de VELA en mode sombre et clair"></p>
+
 ## Langues
 
 Toute l'interface (app de bureau, barre système, CLI, TUI, GUI web, alertes et explications) est disponible en
@@ -156,7 +175,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installe l'app, le service velad, l'icône de la barre et le lanceur (sans pip ni root)
 ```
 
-Mettre à jour : `git pull && ./install.sh` · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
+Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
 
 Fonctionne aussi sans installation, avec `python3 -m vela <commande>`.
 
@@ -194,6 +213,7 @@ vela tui               # terminal interactif
 | `vela fix` | Commandes précises pour corriger chaque problème détecté (n'exécute rien) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sur votre historique ou une liste (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Carte OpenStreetMap propre, intégrée à l'app** (`vela/data/`, fonctionne hors ligne dans l'app native, la TUI et la GUI web). `build` la met à jour avec des données récentes : téléchargement via Tor ou le VPN (`--via direct` uniquement si vous le demandez, `--file` pour un zip déjà téléchargé) ; consulter la carte ne demande aucune tuile à personne |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Mettre à jour depuis votre clone git : seulement à la demande, via Tor ou le VPN, en fast-forward uniquement, après avoir montré les nouveaux commits |
 | `vela network` | Interfaces, adresses classées (privée, CGNAT, ULA…), routes et policy routing |
 | `vela vpn list` / `vela proxy list` | VPN et proxies détectés, avec leur état |
 | `vela tor status` | Circuits avec guard, middle et exit ; guards ; vérification externe |

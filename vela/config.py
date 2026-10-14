@@ -105,7 +105,11 @@ DEFAULTS: dict = {
     "active_profile": "default",
     "correlation": {"time_similarity_threshold": 0.85},
     "gui": {"host": "127.0.0.1", "port": 0, "open_browser": True},
-    "ui": {"language": "auto"},          # auto = idioma del sistema; es, en, ca, pt, fr, de
+    "ui": {"language": "auto",           # auto = idioma del sistema; es, en, ca, pt, fr, de
+           "theme": "signature",         # signature, obsidian, glacier, sentinel, contrast (vela/themes.py)
+           "appearance": "system",       # system (sigue al escritorio), light, dark
+           "density": "comfortable",     # comfortable, compact
+           "motion": "system"},          # system, reduced, full
 }
 
 DURATION_KEYS = {"network_interval", "tor_interval", "dns_interval", "public_ip_interval",
@@ -152,6 +156,8 @@ def validate(cfg: dict) -> list[str]:
 
 # Ajustes que la app puede cambiar: se guardan en un fichero propio que se aplica ENCIMA de config.toml,
 # así la app nunca reescribe (ni pierde los comentarios de) tu config.toml.
+from . import themes as _themes  # noqa: E402
+
 SETTINGS_KEYS: dict[str, object] = {
     "consent.direct_ip_checks": bool, "consent.proxy_ip_checks": bool, "consent.tor_ip_checks": bool,
     "consent.active_dns_leak_test": bool, "consent.allow_rotation_changes": bool, "consent.allow_killswitch": bool,
@@ -160,6 +166,7 @@ SETTINGS_KEYS: dict[str, object] = {
     "storage.retention_days": int, "intel.auto_live": bool, "intel.live_daily_limit": int,
     "intel.live_notify": ("flagged", "all"), "monitor.public_ip_interval": "duration", "public_ip.realtime_interval": "duration",
     "ui.language": ("auto", "es", "en", "ca", "pt", "fr", "de"),
+    **_themes.PREF_KEYS,
 }
 
 

@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="VELA logo: a blue flame">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ external dependencies: it discovers what is on your machine and only enables wha
 
 - [Features](#features)
 - [Privacy by design](#privacy-by-design)
+- [Themes](#themes)
 - [Languages](#languages)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -133,6 +137,20 @@ By default the tool only observes. These actions are enabled under `[consent]`; 
 | `allow_killswitch` | Applies nftables rules (with `sudo -n` or pkexec) |
 </details>
 
+## Themes
+
+The desktop app has **five themes, each in light and dark**, plus *Follow system*: **VELA Signature** (official, from the
+brand's navy, blue and cyan), **Obsidian** (graphite for SOC work), **Glacier** (cool and analytical), **Sentinel**
+(petrol green) and **High Contrast** (text ≥ 7:1). Choose one in **Settings → Appearance**, along with density (comfortable or
+compact) and animations. It applies instantly, without restarting anything.
+
+Colors are *design tokens* shared by the GTK app, its charts and map, and the web GUI. Their meaning never changes between
+themes: protected is green, direct (real IP) is orange, proxy is indigo, Tor is violet and a leak is red, always with an icon and text.
+All 790 contrast checks (WCAG 2.2 AA; AAA for High Contrast text) are computed and enforced by the tests. See
+[docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="The five VELA themes in dark and light mode"></p>
+
 ## Languages
 
 The whole interface (desktop app, tray, CLI, TUI, web GUI, alerts and explanations) is available in
@@ -154,7 +172,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installs the app, the velad service, the tray icon and the launcher (no pip, no root)
 ```
 
-Update: `git pull && ./install.sh` · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
+Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
 
 It also works without installing, with `python3 -m vela <command>`.
 
@@ -192,6 +210,7 @@ vela tui               # interactive terminal
 | `vela fix` | Specific commands to fix each detected problem (runs nothing) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys on your history or a list (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **The app's own OpenStreetMap map, bundled** (`vela/data/`, works offline in the native app, TUI and web GUI). `build` updates it with recent data: download via Tor or the VPN (`--via direct` only if you ask, `--file` for an already downloaded zip); viewing the map requests no tiles from anyone |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Updates from your git clone: only when you ask, over Tor or the VPN, fast-forward only, with the new commits shown first |
 | `vela network` | Interfaces, classified addresses (private, CGNAT, ULA…), routes and policy routing |
 | `vela vpn list` / `vela proxy list` | Detected VPNs and proxies, with their status |
 | `vela tor status` | Circuits with guard, middle and exit; guards; external check |
