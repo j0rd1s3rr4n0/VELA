@@ -41,7 +41,9 @@ NOTIFY_KINDS = {"ip_leak", "dns_leak_live", "public_ip_is_real", "direct_exposur
 
 def notify(title: str, body: str, urgency: str = "normal"):
     if which("notify-send"):
-        subprocess.Popen(["notify-send", "-a", "VELA", "-i", ICONS["alert"], "-u", urgency, title, body],
+        icon = ROOT / "vela" / "data" / "brand" / "vela-app-64.png"      # icono de la app (Brand Kit)
+        subprocess.Popen(["notify-send", "-a", "VELA", "-i", str(icon) if icon.exists() else ICONS["alert"],
+                          "-u", urgency, title, body],
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 

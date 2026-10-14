@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logo de VELA : une flamme bleue">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -52,6 +55,7 @@ et n'active que ce qui existe réellement.
 
 - [Fonctionnalités](#fonctionnalités)
 - [Confidentialité dès la conception](#confidentialité-dès-la-conception)
+- [Thèmes](#thèmes)
 - [Langues](#langues)
 - [Installation](#installation)
 - [Utilisation](#utilisation)
@@ -133,6 +137,21 @@ Par défaut, l'outil se contente d'observer. Ces actions s'activent dans `[conse
 | `allow_rotation_changes` | Modifie des connexions réelles |
 | `allow_killswitch` | Applique des règles nftables (avec `sudo -n` ou pkexec) |
 </details>
+
+## Thèmes
+
+L'application de bureau propose **cinq thèmes, chacun en clair et en sombre**, plus le mode *Suivre le système* :
+**VELA Signature** (officiel, avec le bleu marine, le bleu et le cyan de la marque), **Obsidian** (graphite pour le travail SOC),
+**Glacier** (froid et analytique), **Sentinel** (vert pétrole) et **High Contrast** (texte ≥ 7:1). On le choisit dans
+**Réglages → Apparence**, avec la densité (confortable ou compacte) et les animations. Il s'applique immédiatement, sans rien
+redémarrer.
+
+Les couleurs sont des *design tokens* partagés par l'application GTK, ses graphiques et sa carte, et la GUI web. Leur sens ne
+change jamais d'un thème à l'autre : protégée en vert, directe (IP réelle) en orange, proxy en indigo, Tor en violet et fuite en
+rouge, toujours avec une icône et du texte. Les 790 vérifications de contraste (WCAG 2.2 AA ; AAA pour le texte de High Contrast)
+sont calculées et imposées par les tests. Voir [docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Les cinq thèmes de VELA en mode sombre et clair"></p>
 
 ## Langues
 

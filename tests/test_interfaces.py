@@ -7,6 +7,7 @@ import queue
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from vela import cli, ipc
@@ -114,6 +115,16 @@ class GUITests(unittest.TestCase):
         self.assertIn("script-src 'self'", headers["Content-Security-Policy"])
         self.assertNotIn(b"http://", body.replace(b"http://www.w3.org", b""))     # sin recursos externos
         self.assertEqual(self.req("GET", "/../server.py")[0], 404)
+
+    def test_theme_css(self):
+        """Los colores de la GUI web salen del tema elegido en Ajustes (sin token: no es información sensible)."""
+        with mock.patch.dict(os.environ, {"VELA_THEME": "obsidian"}):
+            code, body, headers = self.req("GET", "/theme.css")
+        self.assertEqual(code, 200)
+        self.assertTrue(headers["Content-Type"].startswith("text/css"))
+        self.assertIn(b"VELA Obsidian", body)
+        self.assertIn(b':root[data-theme="light"]', body)
+        self.assertIn(b'href="theme.css"', self.req("GET", "/")[1])
 
     def test_token_required(self):
         self.assertEqual(self.req("POST", "/api/status")[0], 401)

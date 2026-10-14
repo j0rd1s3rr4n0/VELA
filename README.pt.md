@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logótipo do VELA: uma chama azul">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ externas: descobre o que existe no seu equipamento e só ativa o que realmente e
 
 - [Funcionalidades](#funcionalidades)
 - [Privacidade desde a conceção](#privacidade-desde-a-conceção)
+- [Temas](#temas)
 - [Idiomas](#idiomas)
 - [Instalação](#instalação)
 - [Utilização](#utilização)
@@ -132,6 +136,20 @@ Por omissão a ferramenta só observa. Estas ações ativam-se em `[consent]`; v
 | `allow_rotation_changes` | Altera ligações reais |
 | `allow_killswitch` | Aplica regras nftables (com `sudo -n` ou pkexec) |
 </details>
+
+## Temas
+
+A app de ambiente de trabalho tem **cinco temas, cada um em claro e escuro**, e o modo *Seguir o sistema*: **VELA Signature**
+(oficial, com o azul-marinho, o azul e o ciano da marca), **Obsidian** (grafite para trabalho SOC), **Glacier** (frio e
+analítico), **Sentinel** (verde-petróleo) e **High Contrast** (texto ≥ 7:1). Escolhe-se em **Definições → Aparência**, junto com
+a densidade (confortável ou compacta) e as animações. Aplica-se de imediato, sem reiniciar nada.
+
+As cores são *design tokens* partilhados pela app GTK, pelos seus gráficos e mapa, e pela GUI web. O significado não muda entre
+temas: protegida a verde, direta (IP real) a laranja, proxy a índigo, Tor a violeta e fuga a vermelho, sempre com ícone e texto.
+As 790 verificações de contraste (WCAG 2.2 AA; AAA para o texto do High Contrast) são calculadas e exigidas pelos testes. Mais em
+[docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Os cinco temas do VELA em modo escuro e claro"></p>
 
 ## Idiomas
 

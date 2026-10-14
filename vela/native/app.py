@@ -14,6 +14,7 @@ from ..i18n import language as i18n_language
 import hashlib
 import json
 import math
+import re
 import sys
 import threading
 import time
@@ -34,53 +35,35 @@ from .. import APP_ID as VELA_APP_ID  # noqa: E402
 from ..ipc import connect  # noqa: E402
 from ..util import fmt_duration, fmt_duration_short, iso, tilde  # noqa: E402
 from .charts import P, STATUS, Columns, Donut, Gauge, HBars, LineChart, Sankey, measure, set_rgb, text  # noqa: E402
+from . import theme as theme_mod  # noqa: E402
+from .. import themes  # noqa: E402
 
 APP_ID = VELA_APP_ID
-ICON = Path(__file__).resolve().parents[1] / "data" / "vela.svg"
+DATA = Path(__file__).resolve().parents[1] / "data"
+BRAND_DIR = DATA / "brand"
+ICON = BRAND_DIR / "vela-app-256.png"          # icono de la app (tesela oscura del Brand Kit)
+ICON_SIZES = (16, 24, 32, 48, 64, 128, 256, 512)
 SEV_STATUS = {"critical": "critical", "high": "critical", "medium": "serious", "warning": "warning",
-              "low": "warning", "info": "neutral"}
+              "low": "warning", "info": "info"}
+SEV_LABEL = {"critical": _("Crítica"), "high": _("Alta"), "medium": _("Media"), "warning": _("Aviso"), "low": _("Baja"),
+             "info": _("Info")}
+SEV_ORDER = ["critical", "high", "medium", "warning", "low", "info"]
+
+
+def sev_pill(sev):
+    return pill(SEV_STATUS.get(sev, "neutral"), SEV_LABEL.get(sev, str(sev)).upper())
 VERDICT = {"fuga": ("critical", _("Fuga")), "directa": ("serious", _("Directa")), "protegida": ("good", _("Protegida")),
            "permitida": ("neutral", _("Permitida")), "otra": ("neutral", _("Otra"))}
-VERDICT_COLOR = {"fuga": P["critical"], "directa": P["serious"], "protegida": P["good"], "permitida": P["s1"],
-                 "otra": P["muted"]}
+# Veredicto → token de red (el color se resuelve al pintar, con el tema activo)
+VERDICT_COLOR = {"fuga": "net_leak", "directa": "net_direct", "protegida": "net_protected", "permitida": "info",
+                 "otra": "net_unknown"}
+# Veredictos de threat intel (identificadores del motor) → (estado, etiqueta). Nada desconocido se muestra como limpio.
+INTEL_VERDICT = {"malicioso": ("critical", _("Malicioso")), "expuesto": ("serious", _("Expuesto")),
+                 "sospechoso": ("warning", _("Sospechoso")), "limpio": ("good", _("Limpio")),
+                 "benigno": ("good", _("Benigno")), "info": ("info", _("Información")),
+                 "sin_datos": ("neutral", _("Sin datos")), None: ("neutral", _("No analizado"))}
 CATEGORY_ORDER = ["wifi", "lan", "vpn", "bloqueo", "máquinas virtuales", "contenedores", "virtual"]
 
-CSS = f"""
-window.vela, window.vela .content-bg {{ background-color: {P['page']}; }}
-.vela .sidebar-pane {{ background-color: #141517; }}
-.vela .navlist {{ background: transparent; }}
-.vela .navlist row {{ border-radius: 8px; margin: 1px 8px; padding: 6px 8px; min-height: 0; }}
-.vela .navlist row:selected {{ background-color: alpha({P['s1']}, 0.18); }}
-.vela .brand {{ font-weight: 800; font-size: 12pt; letter-spacing: 0.02em; }}
-.vela .brand-sub {{ font-size: 8pt; color: {P['muted']}; }}
-.vela .card {{ background-color: {P['surface']}; border: 1px solid rgba(255,255,255,0.08);
-                border-radius: 10px; padding: 12px 14px; box-shadow: none; }}
-.vela .card-title {{ font-size: 8pt; font-weight: 700; letter-spacing: 0.08em; color: {P['muted']}; }}
-.vela .kpi-value {{ font-size: 15pt; font-weight: 700; color: {P['ink']}; }}
-.vela .kpi-sub {{ font-size: 8.5pt; color: {P['ink2']}; }}
-.vela .pill {{ font-size: 8pt; font-weight: 700; border-radius: 99px; padding: 1px 8px; }}
-.vela .pill-good {{ color: {P['good']}; background-color: alpha({P['good']}, 0.14); }}
-.vela .pill-warning {{ color: {P['warning']}; background-color: alpha({P['warning']}, 0.14); }}
-.vela .pill-serious {{ color: {P['serious']}; background-color: alpha({P['serious']}, 0.14); }}
-.vela .pill-critical {{ color: #ff6b6b; background-color: alpha({P['critical']}, 0.18); }}
-.vela .pill-neutral {{ color: {P['ink2']}; background-color: rgba(255,255,255,0.07); }}
-.vela .th {{ font-size: 8pt; font-weight: 700; color: {P['muted']}; letter-spacing: 0.05em; }}
-.vela .td {{ font-size: 9pt; color: {P['ink2']}; }}
-.vela .td-strong {{ font-size: 9pt; color: {P['ink']}; font-weight: 600; }}
-.vela .rowsep {{ background-color: rgba(255,255,255,0.05); min-height: 1px; }}
-.vela .hop {{ background-color: {P['surface2']}; border-radius: 8px; padding: 6px 10px;
-               border-left: 3px solid {P['s1']}; }}
-.vela .hop-tor {{ border-left-color: #9085e9; }}
-.vela .hop-home {{ border-left-color: {P['ink2']}; }}
-.vela .hop-vpn {{ border-left-color: {P['good']}; }}
-.vela .legend {{ font-size: 8.5pt; color: {P['ink2']}; }}
-.vela .page-title {{ font-size: 13pt; font-weight: 700; }}
-.vela .cmd {{ font-family: monospace; font-size: 8.5pt; color: {P['ink']}; background-color: #101113;
-               border-radius: 6px; padding: 4px 8px; }}
-.vela .mini {{ min-height: 18px; min-width: 18px; padding: 1px 4px; }}
-.vela .badge {{ font-size: 7.5pt; font-weight: 800; color: #fff; background-color: {P['critical']};
-                 border-radius: 99px; padding: 0 6px; }}
-"""
 
 
 # ── utilidades de UI ────────────────────────────────────────────────────────
@@ -97,9 +80,14 @@ def lbl(text_, css="td", xalign=0.0, wrap=False, ellipsize=False, selectable=Fal
     return w
 
 
-def pill(status: str, label_: str):
-    icon = STATUS.get(status, STATUS["neutral"])[0]
-    return lbl(f"{icon} {label_}", f"pill pill-{status}")
+def pill(status: str, label_: str, icon=True):
+    """Píldora de estado: icono + texto (el estado nunca depende solo del color). icon=False para etiquetas
+    que no son un estado (p. ej. lo que exige un perfil)."""
+    glyph = STATUS.get(status, STATUS["neutral"])[0]
+    w = lbl(f"{glyph} {label_}" if icon else label_, f"pill pill-{status}")
+    w.set_halign(Gtk.Align.START)
+    w.set_valign(Gtk.Align.CENTER)
+    return w
 
 
 def card(title: str | None = None, child=None, suffix=None):
@@ -107,9 +95,11 @@ def card(title: str | None = None, child=None, suffix=None):
     box.add_css_class("card")
     if title:
         head = Gtk.Box(spacing=8)
-        head.append(lbl(title.upper(), "card-title"))
+        t = lbl(title.upper(), "card-title", wrap=True)
+        t.set_hexpand(True)
+        head.append(t)
         if suffix is not None:
-            head.append(Gtk.Box(hexpand=True))
+            suffix.set_valign(Gtk.Align.START)
             head.append(suffix)
         box.append(head)
     if child is not None:
@@ -125,9 +115,16 @@ def clear(box):
         c = n
 
 
-def table(columns: list[tuple[str, float]], rows: list[list], max_rows=200):
-    """Tabla compacta: columns = [(título, peso)], celdas = texto | widget."""
+# Identificadores técnicos que se leen mejor en monoespaciada: IPs (con o sin puerto/prefijo), MAC, hashes
+TECH_RE = re.compile(r"^(\d{1,3}(\.\d{1,3}){3}(:\d+|/\d+)?|\[?[0-9a-f]*:[0-9a-f]*:[0-9a-f:]*\]?(:\d+|/\d+)?|"
+                     r"([0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{16,64})$", re.I)
+
+
+def table(columns: list[tuple[str, float]], rows: list[list], max_rows=200, empty=None):
+    """Tabla compacta: columns = [(título, peso)], celdas = texto | widget. Las IPs, puertos y MAC
+    van en monoespaciada con cifras tabulares; los espaciados salen de la densidad del tema (.cell)."""
     grid = Gtk.Grid(column_spacing=14, row_spacing=0)
+    grid.add_css_class("vtable")
     for j, (title, weight) in enumerate(columns):
         h = lbl(title.upper(), "th")
         h.set_hexpand(weight > 1)
@@ -140,10 +137,12 @@ def table(columns: list[tuple[str, float]], rows: list[list], max_rows=200):
         grid.attach(sep, 0, r, len(columns), 1)
         r += 1
         for j, cell in enumerate(row):
-            w = cell if isinstance(cell, Gtk.Widget) else lbl(cell, "td" if j else "td-strong", ellipsize=True,
+            css = "td" if j else "td-strong"
+            if not isinstance(cell, Gtk.Widget) and cell is not None and TECH_RE.match(str(cell).strip()):
+                css += " mono"
+            w = cell if isinstance(cell, Gtk.Widget) else lbl(cell, css, ellipsize=True,
                                                                width=int(columns[j][1] * 14))
-            w.set_margin_top(5)
-            w.set_margin_bottom(5)
+            w.add_css_class("cell")
             w.set_halign(Gtk.Align.START)
             w.set_valign(Gtk.Align.CENTER)
             if not isinstance(cell, Gtk.Widget):
@@ -151,7 +150,10 @@ def table(columns: list[tuple[str, float]], rows: list[list], max_rows=200):
             grid.attach(w, j, r, 1, 1)
         r += 1
     if not rows:
-        grid.attach(lbl(_("sin datos"), "td"), 0, 1, len(columns), 1)
+        grid.attach(lbl(empty or _("sin datos"), "empty", wrap=True), 0, 1, len(columns), 1)
+    elif len(rows) > max_rows:
+        grid.attach(lbl(_("… y {n} filas más (usa «Copiar tabla» para verlas todas)", n=len(rows) - max_rows), "kpi-hint"),
+                    0, r, len(columns), 1)
     return grid
 
 
@@ -214,7 +216,9 @@ def legend(items):
 
 
 def legend_row(items):
-    b = Gtk.Box(spacing=16)
+    """Leyenda en fila que se reparte en varias líneas si la ventana es estrecha."""
+    b = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=len(items), min_children_per_line=1,
+                    column_spacing=16, row_spacing=4, halign=Gtk.Align.START)
     for name, color in items:
         b.append(legend([(name, color, "")]))
     return b
@@ -260,18 +264,23 @@ class KPI:
         self.widget = card(title, inner, self.pill_box)
         self.widget.set_hexpand(True)
 
-    def set(self, value, sub, status, status_label):
+    def set(self, value, sub, status, status_label, tip=None):
         self.value.set_text(str(value))
-        self.value.set_tooltip_text(str(value))
+        self.value.set_tooltip_text(tip or str(value))
         self.sub.set_text(str(sub or ""))
-        self.sub.set_tooltip_text(str(sub or ""))
+        self.sub.set_tooltip_text(tip or str(sub or ""))
         clear(self.pill_box)
-        self.pill_box.append(pill(status, status_label))
+        p = pill(status, status_label)
+        if tip:
+            p.set_tooltip_text(tip)
+            self.widget.set_tooltip_text(tip)
+        self.pill_box.append(p)
 
 
 # Estilo propio del mapa base (oscuro, discreto: los datos van encima)
-MAP_STYLE = {"ocean": "#121419", "land": "#20242a", "coast": "#353b44", "grid": "#1b1e23",
-             "country": "#6f7682", "city": "#9aa1ad", "dot": "#59606b"}
+# Estilo del mapa base: tokens map_* del tema activo (claro u oscuro; los datos van encima)
+MAP_STYLE = {"ocean": "map_ocean", "land": "map_land", "coast": "map_coast", "grid": "map_grid",
+             "country": "map_label", "city": "map_label_strong", "dot": "map_dot"}
 MAP_YTOP = osmmap.lonlat_to_norm(0, 82)[1]
 MAP_YBOT = osmmap.lonlat_to_norm(0, -60)[1]
 MAP_YSPAN = MAP_YBOT - MAP_YTOP
@@ -295,8 +304,7 @@ class MapView(Gtk.DrawingArea):
     varios niveles de detalle y estilo propio. No pide teselas a ningún servidor mientras lo usas.
     El fondo se dibuja en una imagen en caché; al arrastrar se desplaza la imagen y se redibuja al parar."""
 
-    VCOL = {"fuga": P["critical"], "directa": P["serious"], "protegida": P["good"], "permitida": P["s1"],
-            "otra": P["muted"]}
+    VCOL = VERDICT_COLOR
     RANK = {"fuga": 4, "directa": 3, "otra": 2, "permitida": 1, "protegida": 0}
 
     def __init__(self, height=480, on_select=None):
@@ -404,7 +412,7 @@ class MapView(Gtk.DrawingArea):
     def _draw_base(self, cr, w, h):
         """Pinta el mapa base usando la caché si la escala no ha cambiado."""
         bm = osmmap.load()
-        key = (w, h, round(self.s, 6), id(bm), self.get_scale_factor(), self._marker_geo())
+        key = (w, h, round(self.s, 6), id(bm), self.get_scale_factor(), self._marker_geo(), P.get("_key"))
         cache = self._base
         if cache and cache[0] == key:
             dx, dy = self.ox - cache[2], self.oy - cache[3]
@@ -605,14 +613,14 @@ class MapView(Gtk.DrawingArea):
                     continue
                 px, py = self.proj(x["lon"], x["lat"], w, h)
                 r = 5 + 24 * math.sqrt(x["seconds"] / mx)
-                set_rgb(cr, P["s1"], 0.13)
+                set_rgb(cr, "series1", 0.13)
                 cr.arc(px, py, r, 0, 2 * math.pi)
                 cr.fill()
                 self.points.append((px, py, r, "heat", x))
         if self.layers["history"]:
             for it in d.get("history") or []:
                 px, py = self.proj(it["lon"], it["lat"], w, h)
-                set_rgb(cr, "#9085e9" if it["layer"].startswith("tor") else P["s1"], 0.65)
+                set_rgb(cr, "net_tor" if it["layer"].startswith("tor") else "series1", 0.65)
                 cr.arc(px, py, 2.5, 0, 2 * math.pi)
                 cr.fill()
                 self.points.append((px, py, 6, "history", it))
@@ -623,7 +631,7 @@ class MapView(Gtk.DrawingArea):
                     p = self.proj(g["lon"], g["lat"], w, h)
                     if math.dist(p, start) < 2:
                         continue
-                    set_rgb(cr, self.VCOL.get(g["worst"], P["muted"]), 0.35 if self.selected is not g else 0.9)
+                    set_rgb(cr, self.VCOL.get(g["worst"], "muted"), 0.35 if self.selected is not g else 0.9)
                     cr.set_line_width(1.5 if self.selected is not g else 2.5)
                     mx_, my_ = (start[0] + p[0]) / 2, (start[1] + p[1]) / 2 - min(90, math.dist(start, p) * 0.25)
                     cr.move_to(*start)
@@ -633,25 +641,25 @@ class MapView(Gtk.DrawingArea):
                 px, py = self.proj(g["lon"], g["lat"], w, h)
                 n = len(g["flows"])
                 r = 5 + 2.2 * math.sqrt(n)
-                set_rgb(cr, P["surface"])
+                set_rgb(cr, "surface")
                 cr.arc(px, py, r + 2, 0, 2 * math.pi)
                 cr.fill()
-                set_rgb(cr, self.VCOL.get(g["worst"], P["muted"]))
+                set_rgb(cr, self.VCOL.get(g["worst"], "muted"))
                 cr.arc(px, py, r, 0, 2 * math.pi)
                 cr.fill()
                 if g["vt_bad"]:
-                    set_rgb(cr, P["critical"])
+                    set_rgb(cr, "net_leak")
                     cr.set_line_width(2)
                     cr.arc(px, py, r + 4, 0, 2 * math.pi)
                     cr.stroke()
                 if n > 1:
-                    text(cr, px, py, str(n), 7.5, "#000000", bold=True, align="center", valign="middle")
+                    text(cr, px, py, str(n), 7.5, "surface", bold=True, align="center", valign="middle")
                 if g["tor"]:
-                    text(cr, px + r + 1, py - r - 2, "🧅", 8, P["ink"], valign="middle")
+                    text(cr, px + r + 1, py - r - 2, "🧅", 8, "ink", valign="middle")
                 if self.s >= 3:
-                    text(cr, px, py + r + 3, f"{g['country'] or '?'}", 8, P["ink2"], align="center")
+                    text(cr, px, py + r + 3, f"{g['country'] or '?'}", 8, "ink2", align="center")
                 self.points.append((px, py, r + 3, "cluster", g))
-        for layer, chain, color in (("chain", d.get("chain") or [], P["s1"]), ("tor", d.get("tor_chain") or [], "#9085e9")):
+        for layer, chain, color in (("chain", d.get("chain") or [], "highlight"), ("tor", d.get("tor_chain") or [], "net_tor")):
             if not self.layers[layer]:
                 continue
             prev = start
@@ -659,7 +667,7 @@ class MapView(Gtk.DrawingArea):
                 if hop.get("lat") is None:
                     continue
                 p = self.proj(hop["lon"], hop["lat"], w, h)
-                c = P["good"] if hop["type"] == "vpn" else color
+                c = "net_protected" if hop["type"] == "vpn" else color
                 if prev and math.dist(prev, p) > 2:
                     set_rgb(cr, c, 0.95)
                     cr.set_line_width(2.5)
@@ -669,7 +677,7 @@ class MapView(Gtk.DrawingArea):
                     cr.curve_to(mx_, my_, mx_, my_, *p)
                     cr.stroke()
                     cr.set_dash([])
-                set_rgb(cr, P["surface"])
+                set_rgb(cr, "surface")
                 cr.rectangle(p[0] - 6, p[1] - 6, 12, 12)
                 cr.fill()
                 set_rgb(cr, c)
@@ -678,22 +686,22 @@ class MapView(Gtk.DrawingArea):
                 self.points.append((p[0], p[1], 9, "hop", hop))
                 prev = p
         if start:
-            set_rgb(cr, P["ink"])
+            set_rgb(cr, "ink")
             cr.arc(start[0], start[1], 5, 0, 2 * math.pi)
             cr.fill()
-            set_rgb(cr, P["surface"])
+            set_rgb(cr, "surface")
             cr.arc(start[0], start[1], 2, 0, 2 * math.pi)
             cr.fill()
             self.points.append((start[0], start[1], 9, "home", home))
         z = self.zoom_level(w, h)
-        text(cr, w - 8, h - 6, f"zoom {z:.1f} · ×{self.s:.1f}", 8, P["muted"], align="right", valign="bottom")
+        text(cr, w - 8, h - 6, f"zoom {z:.1f} · ×{self.s:.1f}", 8, "muted", align="right", valign="bottom")
         note = (osmmap.ATTRIBUTION if osmmap.load() else
                 _("Mapa básico · genera el mapa OpenStreetMap en Ajustes → Mapa"))
         tw, th = measure(cr, note, 7.5)
         set_rgb(cr, MAP_STYLE["ocean"], 0.8)
         cr.rectangle(0, h - th - 6, tw + 14, th + 6)
         cr.fill()
-        text(cr, 7, h - 3, note, 7.5, P["muted"], valign="bottom")
+        text(cr, 7, h - 3, note, 7.5, "muted", valign="bottom")
 
     # ── interacción ──
     def _hit(self, x, y):
@@ -766,6 +774,82 @@ class MapView(Gtk.DrawingArea):
         self.queue_draw()
         if self.on_select:
             self.on_select(hit[0] if hit else None, hit[1] if hit else None)
+
+
+class ThemePreview(Gtk.DrawingArea):
+    """Miniatura de un tema dibujada con SUS tokens reales (en el modo claro/oscuro en uso): fondo, barra
+    lateral con un elemento seleccionado, tarjeta, texto, botón principal y estados ✔ ▲ ✖."""
+
+    def __init__(self, theme_id):
+        super().__init__()
+        self.theme_id = theme_id
+        self.set_content_width(170)
+        self.set_content_height(96)
+        self.set_draw_func(self._draw)
+
+    def _draw(self, _a, cr, w, h):
+        t = themes.tokens(self.theme_id, P.get("_dark", True))
+
+        def rect(x, y, ww, hh, c, r=4):
+            set_rgb(cr, c)
+            cr.new_sub_path()
+            cr.arc(x + ww - r, y + r, r, -math.pi / 2, 0)
+            cr.arc(x + ww - r, y + hh - r, r, 0, math.pi / 2)
+            cr.arc(x + r, y + hh - r, r, math.pi / 2, math.pi)
+            cr.arc(x + r, y + r, r, math.pi, 1.5 * math.pi)
+            cr.close_path()
+            cr.fill()
+        rect(0, 0, w, h, t["border"], 8)
+        rect(1, 1, w - 2, h - 2, t["bg"], 7)
+        set_rgb(cr, t["sidebar"])
+        cr.rectangle(1, 1, 42, h - 2)
+        cr.fill()
+        rect(6, 14, 32, 9, t["selected"], 3)
+        set_rgb(cr, t["accent_text"])
+        cr.rectangle(6, 14, 2, 9)
+        cr.fill()
+        for i in range(3):
+            rect(10, 30 + i * 11, 22, 4, t["muted"], 2)
+        rect(52, 10, w - 60, h - 20, t["border"], 6)
+        rect(53, 11, w - 62, h - 22, t["surface"], 5)
+        text(cr, 61, 16, "VELA", 8.5, t["ink"], bold=True)
+        rect(61, 33, 58, 4, t["ink2"], 2)
+        rect(61, 41, 40, 4, t["muted"], 2)
+        rect(w - 56, 15, 40, 14, t["accent"], 4)
+        text(cr, w - 36, 22, "OK", 7, t["accent_fg"], bold=True, align="center", valign="middle")
+        for i, (icon, tok) in enumerate((("✔", "success"), ("▲", "warning"), ("✖", "danger"))):
+            x = 61 + i * 30
+            set_rgb(cr, over_tint(t[tok], t["surface"]))
+            rect(x, 56, 26, 14, over_tint(t[tok], t["surface"]), 7)
+            text(cr, x + 13, 63, icon, 7, t[tok], bold=True, align="center", valign="middle")
+
+
+def over_tint(c, bg):
+    return themes.over(c, themes.PILL_ALPHA, bg)
+
+
+class Wordmark(Gtk.DrawingArea):
+    """Logotipo «VELA» del Brand Kit a un ancho fijo (nítido en HiDPI): versión clara u oscura según el tema."""
+
+    _cache: dict = {}
+
+    def __init__(self, width):
+        super().__init__(halign=Gtk.Align.START)
+        self.set_content_width(width)
+        self.set_content_height(round(width * 101 / 600))
+        self.set_draw_func(self._draw)
+        self.update_property([Gtk.AccessibleProperty.LABEL], ["VELA"])
+
+    def _draw(self, _a, cr, w, h):
+        name = "vela-wordmark-on-dark.png" if P.get("_dark", True) else "vela-wordmark-on-light.png"
+        img = self._cache.get(name)
+        if img is None:
+            img = self._cache[name] = cairo.ImageSurface.create_from_png(str(BRAND_DIR / name))
+        k = min(w / img.get_width(), h / img.get_height())
+        cr.scale(k, k)
+        cr.set_source_surface(img, 0, (h / k - img.get_height()) / 2)
+        cr.get_source().set_filter(cairo.FILTER_GOOD)
+        cr.paint()
 
 
 # ── ventana ─────────────────────────────────────────────────────────────────
@@ -849,13 +933,17 @@ class Window(Adw.ApplicationWindow):
         brand.set_margin_start(16)
         brand.set_margin_bottom(14)
         brand.set_tooltip_text(f"VELA — {ACRONYM}\n{_(TAGLINE)}")
-        logo = Gtk.Image.new_from_file(str(ICON))
-        logo.set_pixel_size(34)
+        logo = Gtk.Image.new_from_file(str(BRAND_DIR / "vela-symbol-128.png"))
+        logo.set_pixel_size(36)
+        logo.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
         brand.append(logo)
-        names = vbox(0)
+        names = vbox(3)
         names.set_valign(Gtk.Align.CENTER)
-        names.append(lbl("VELA", "brand"))
-        names.append(lbl(ACRONYM, "brand-sub"))
+        self.wordmark = Wordmark(76)
+        names.append(self.wordmark)
+        sub = lbl(ACRONYM, "brand-sub", wrap=True)
+        sub.set_max_width_chars(22)
+        names.append(sub)
         brand.append(names)
         side.append(brand)
         self.nav = Gtk.ListBox(selection_mode=Gtk.SelectionMode.SINGLE)
@@ -877,7 +965,7 @@ class Window(Adw.ApplicationWindow):
         self.nav.connect("row-selected", self.on_nav)
         side.append(self.nav)
         side.append(Gtk.Box(vexpand=True))
-        self.side_status = lbl("", "brand-sub", wrap=True)
+        self.side_status = lbl("", "side-status", wrap=True)
         self.side_status.set_margin_start(18)
         self.side_status.set_margin_end(12)
         self.side_status.set_margin_bottom(14)
@@ -903,8 +991,14 @@ class Window(Adw.ApplicationWindow):
         header.pack_start(self.profile_dd)
         self.head_pill = hbox(0)
         header.pack_start(self.head_pill)
-        panic = Gtk.Button(label=_("Emergencia"))
+        panic = Gtk.Button(tooltip_text=_("Modo de emergencia: detiene las rotaciones y, si lo permites, bloquea "
+                                          "las conexiones no verificadas. Pide confirmación."))
+        pc = hbox(6)
+        pc.append(Gtk.Image.new_from_icon_name("dialog-warning-symbolic"))
+        pc.append(Gtk.Label(label=_("Emergencia")))
+        panic.set_child(pc)
         panic.add_css_class("destructive-action")
+        panic.add_css_class("emergency")
         panic.connect("clicked", self.on_panic)
         header.pack_end(panic)
         ref = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Actualizar"))
@@ -926,6 +1020,9 @@ class Window(Adw.ApplicationWindow):
 
         self.build_dash()
         self.build_map()
+        self.themes = app.themes
+        self.themes.listeners.append(self.on_theme)
+        self.on_theme(self.themes.tokens, self.themes.dark)
         keys = [k for k, _ign, _ign in PAGES]
         start = keys.index(self.state["page"]) if self.state.get("page") in keys else 0
         self.nav.select_row(self.nav.get_row_at_index(start))
@@ -934,6 +1031,10 @@ class Window(Adw.ApplicationWindow):
         GLib.timeout_add_seconds(1, self._clock)
         self.refresh(full=True)
         threading.Thread(target=self._events, daemon=True).start()
+
+    def on_theme(self, _tokens, dark):
+        """Tema aplicado (al arrancar, al elegirlo en Ajustes o al cambiar el escritorio de claro a oscuro)."""
+        theme_mod.redraw_tree(self)           # los widgets ya cambian con la CSS; cairo necesita redibujar
 
     def _save_state(self, *_ign):
         w, h = self.get_default_size()
@@ -1019,8 +1120,8 @@ class Window(Adw.ApplicationWindow):
                     self.traffic["tx"].append(max(0, (tx - tx0) / dt))
                 self._last_counters = (dev, t, rx, tx)
                 span = len(self.traffic["rx"]) * 2
-                self.traffic_chart.set([(_("Descarga"), P["s1"], list(self.traffic["rx"])),
-                                        (_("Subida"), P["s2"], list(self.traffic["tx"]))],
+                self.traffic_chart.set([(_("Descarga"), "series1", list(self.traffic["rx"])),
+                                        (_("Subida"), "series2", list(self.traffic["tx"]))],
                                        (_("hace {m} min {s} s", m=span // 60, s=span % 60) if span >= 60 else _("hace {s} s", s=span), _("ahora")))
                 last = lambda k: self.traffic[k][-1] if self.traffic[k] else None  # noqa: E731
                 self.traffic_dev.set_text(f"{dev} · ↓ {human_bps(last('rx'))}   ↑ {human_bps(last('tx'))}")
@@ -1139,6 +1240,23 @@ class Window(Adw.ApplicationWindow):
     # ── panel de mando (widgets persistentes) ──
     def build_dash(self):
         box = self.pages["dash"]
+        # franja de estado general: lo primero que se lee (icono + titular + motivos; nunca solo color)
+        self.strip = hbox(12)
+        self.strip.add_css_class("card")
+        self.strip.add_css_class("callout")
+        self.strip_icon = Gtk.Image(pixel_size=22, valign=Gtk.Align.CENTER)
+        self.strip.append(self.strip_icon)
+        st_txt = vbox(2)
+        self.strip_title = lbl("", "kpi-value", wrap=True)
+        self.strip_detail = lbl("", "kpi-sub", wrap=True)
+        st_txt.append(self.strip_title)
+        st_txt.append(self.strip_detail)
+        st_txt.set_hexpand(True)
+        self.strip.append(st_txt)
+        self.strip_pill = hbox(0)
+        self.strip_pill.set_valign(Gtk.Align.CENTER)
+        self.strip.append(self.strip_pill)
+        box.append(self.strip)
         row1 = hbox(12, homogeneous=True)
         self.kpi_tunnel, self.kpi_ip, self.kpi_ks, self.kpi_dns, self.kpi_session = (
             KPI(_("Túnel VPN")), KPI(_("IP pública")), KPI(_("Kill-switch")), KPI(_("DNS")), KPI(_("Sesión actual")))
@@ -1168,7 +1286,7 @@ class Window(Adw.ApplicationWindow):
         self.traffic_dev = lbl("", "kpi-sub")
         tv.append(self.traffic_chart)
         leg = hbox(16)
-        leg.append(legend_row([(_("Descarga"), P["s1"]), (_("Subida"), P["s2"])]))
+        leg.append(legend_row([(_("Descarga"), "series1"), (_("Subida"), "series2")]))
         leg.append(Gtk.Box(hexpand=True))
         leg.append(self.traffic_dev)
         tv.append(leg)
@@ -1186,7 +1304,7 @@ class Window(Adw.ApplicationWindow):
         a = card(_("Alertas activas"), self.alerts_box)
         a.set_hexpand(True)
         row3.append(a)
-        self.proc_bars = HBars(color=P["s1"], label_w=130)
+        self.proc_bars = HBars(color="series1", label_w=130)
         pc = card(_("Procesos con más conexiones"), self.proc_bars)
         pc.set_size_request(420, -1)
         row3.append(pc)
@@ -1196,11 +1314,11 @@ class Window(Adw.ApplicationWindow):
         self.events_chart = Columns(height=120)
         ev = vbox(6)
         ev.append(self.events_chart)
-        ev.append(legend_row([(_("Crítico / alto"), P["critical"]), (_("Aviso"), P["warning"]), (_("Info"), P["muted"])]))
+        ev.append(legend_row([(_("Crítico / alto"), "danger"), (_("Aviso"), "warning"), (_("Info"), "muted")]))
         e = card(_("Eventos · últimas 24 h"), ev)
         e.set_hexpand(True)
         row4.append(e)
-        self.country_bars = HBars(color=P["s1"], label_w=110)
+        self.country_bars = HBars(color="series1", label_w=110)
         cc = card(_("Tiempo por país de salida · 7 días"), self.country_bars)
         cc.set_size_request(420, -1)
         row4.append(cc)
@@ -1249,6 +1367,7 @@ class Window(Adw.ApplicationWindow):
         self.kpi_session.set(fmt_duration(s["duration"]) if s else "—",
                              _("perfil {profile}", profile=st['profile']) + (_(" · desde {t}", t=iso(s['started'])[11:16]) if s else ""),
                              "neutral", st["profile"])
+        self._update_strip(st, lw)
         # medidor + donut
         ex = st["exposure"]
         self.gauge.set(ex["score"], ex["level"], {"baja": "good", "media": "warning", "alta": "critical"}[ex["level"]])
@@ -1278,7 +1397,7 @@ class Window(Adw.ApplicationWindow):
         order = ["critical", "high", "medium", "low", "info"]
         fs = sorted(st.get("findings") or [], key=lambda f: order.index(f["severity"]))
         self.alerts_box.append(table([(_("Severidad"), 0.8), (_("Alerta"), 2.6), (_("Observado"), 2.4)],
-                                     [[pill(SEV_STATUS[f["severity"]], f["severity"].upper()), f["title"], f["observed"]]
+                                     [[sev_pill(f["severity"]), f["title"], f["observed"]]
                                       for f in fs], max_rows=8))
         # procesos
         counts = {}
@@ -1295,14 +1414,49 @@ class Window(Adw.ApplicationWindow):
                 sev = e["severity"]
                 buckets[k]["crit" if sev in ("critical", "high") else
                            "warn" if sev in ("warning", "medium", "low") else "info"] += 1
-        self.events_chart.set(buckets, [("info", "Info", P["muted"]), ("warn", "Aviso", P["warning"]),
-                                        ("crit", _("Crítico / alto"), P["critical"])], (_("hace 24 h"), _("ahora")))
+        self.events_chart.set(buckets, [("info", "Info", "muted"), ("warn", "Aviso", "warning"),
+                                        ("crit", _("Crítico / alto"), "danger")], (_("hace 24 h"), _("ahora")))
         stats = self.data.get("stats") or {}
         merged = {}
         for x in (stats.get("time_by_country") or []) + (stats.get("time_by_tor_country") or []):
             name = country_label(x.get("key"), x["label"]) if len(str(x.get("key") or "")) == 2 else x["label"]
             merged[name] = merged.get(name, 0) + x["seconds"]
         self.country_bars.set([(k, v, fmt_duration_short(v)) for k, v in sorted(merged.items(), key=lambda kv: -kv[1])[:6]])
+
+    def _update_strip(self, st, lw):
+        """Resumen del estado con los datos del motor (no reclasifica nada): fugas > directas > túnel."""
+        net = st["net"]
+        sm = lw.get("summary") or {}
+        nf, nd = sm.get("fugas", 0), sm.get("directas", 0)
+        up = bool(net["via_tunnel"].get("ipv4"))
+        ex = st["exposure"]
+        enc = (st.get("dns") or {}).get("encrypted")
+        dns_txt = _("DNS cifrado") if enc else (_("DNS en claro") if enc is False else _("DNS sin verificar"))
+        if nf:
+            stx, icon = "critical", "dialog-error-symbolic"
+            title = _("Fugas: {n} conexiones esquivan la VPN", n=nf)
+        elif not up and nd:
+            stx, icon = "serious", "dialog-warning-symbolic"
+            title = _("Sin VPN: {n} conexiones muestran tu IP real", n=nd)
+        elif not up:
+            stx, icon = "warning", "dialog-warning-symbolic"
+            title = _("Sin VPN: tu tráfico sale con tu IP real")
+        else:
+            stx, icon = "good", "security-high-symbolic"
+            title = _("El tráfico observado sale por el túnel")
+        detail = " · ".join([_("Exposición {score}/100 ({level})", score=ex["score"], level=_(ex["level"])), dns_txt,
+                             _("{n} alertas activas", n=sum(1 for f in st.get("findings") or [] if f["status"] == "fail"))])
+        if stx == "good":
+            detail += " · " + _("indicador de lo observable: no mide anonimato")
+        for c in ("callout-good", "callout-warning", "callout-serious", "callout-critical"):
+            self.strip.remove_css_class(c)
+        self.strip.add_css_class(f"callout-{stx}")
+        self.strip_icon.set_from_icon_name(icon)
+        self.strip_title.set_text(title)
+        self.strip_detail.set_text(detail)
+        clear(self.strip_pill)
+        self.strip_pill.append(pill(stx, {"critical": _("Fuga"), "serious": _("IP real expuesta"),
+                                          "warning": _("Sin túnel"), "good": _("Túnel activo")}[stx]))
 
     # ── páginas ──
     def render_live(self):
@@ -1314,27 +1468,47 @@ class Window(Adw.ApplicationWindow):
         s = r.get("summary") or {}
         live = r.get("intel_live") or {}
         row = hbox(12, homogeneous=True)
-        for title, val, status, lab in (
-                (_("Túnel"), ", ".join(r.get("tunnels") or []) or _("ninguno"), "good" if r.get("tunnel_up") else "critical",
-                 _("Activo") if r.get("tunnel_up") else _("Caído")),
-                (_("Fugas"), s.get("fugas", 0), "critical" if s.get("fugas") else "good",
-                 _("Fuera del túnel") if s.get("fugas") else _("Sin fugas")),
-                (_("Directas"), s.get("directas", 0), "serious" if s.get("directas") else "good",
-                 _("Con tu IP real") if s.get("directas") else _("Ninguna")),
-                (_("Marcadas en VirusTotal"), r.get("vt_flagged", 0), "critical" if r.get("vt_flagged") else "good",
-                 _("Revisar") if r.get("vt_flagged") else _("Ninguna"))):
+        nf, nd, up = s.get("fugas", 0), s.get("directas", 0), r.get("tunnel_up")
+        # «Fuga» (motor) = tráfico que esquiva una VPN ACTIVA. Sin VPN no hay fugas: todo sale «directo» con tu IP
+        # real. Se explica en la propia tarjeta para que un 0 en verde no parezca «estás protegido».
+        if nf:
+            fug = (nf, _("{n} conexiones esquivan el túnel: el destino ve tu IP real", n=nf), "critical", _("Fuera del túnel"))
+        elif not up:
+            fug = (0, _("Sin VPN no se cuentan fugas: mira «Directas»"), "neutral", _("No aplica sin túnel"))
+        else:
+            fug = (0, _("Nada esquiva el túnel ahora mismo"), "good", _("Sin fugas"))
+        cards = (
+            (_("Túnel"), (", ".join(r.get("tunnels") or []) or _("ninguno"),
+                          _("Las conexiones a Internet salen por él") if up else _("Todo sale por tu conexión normal"),
+                          "good" if up else "critical", _("Activo") if up else _("Caído")),
+             _("Túnel VPN detectado en las interfaces del sistema. Que exista no garantiza que todo el tráfico lo use: "
+               "eso lo dicen «Fugas» y «Directas».")),
+            (_("Fugas"), fug,
+             _("Fuga: conexión que sale por una interfaz física mientras hay una VPN activa (esquiva el túnel). "
+               "Sin VPN no hay nada que esquivar, así que este contador queda en 0 aunque tu IP real esté expuesta.")),
+            (_("Directas"), (nd, _("Salen sin túnel: el destino ve tu IP real") if nd else _("Ninguna conexión sale sin túnel"),
+                             "serious" if nd else "good", _("Exponen tu IP real") if nd else _("Ninguna")),
+             _("Directa: conexión a Internet sin VPN activa. No es una «fuga» del túnel, pero el destino ve tu IP real.")),
+            (_("Marcadas en VirusTotal"), (r.get("vt_flagged", 0),
+                                          _("Destinos con detecciones: revisa la tabla") if r.get("vt_flagged") else
+                                          _("Ningún destino puntuado tiene detecciones"),
+                                          "critical" if r.get("vt_flagged") else "neutral",
+                                          _("Revisar") if r.get("vt_flagged") else _("Ninguna")),
+             _("Solo cuenta los destinos que ya tienen puntuación de VirusTotal; los no analizados no se dan por limpios.")))
+        for title, (val, sub, status, lab), tip in cards:
             k = KPI(title)
-            k.set(val, "", status, lab)
+            k.set(val, sub, status, lab, tip=tip)
             row.append(k.widget)
         box.append(row)
         rt = self.data.get("routes")
         if rt:
             sk = Sankey()
             sk.set(rt["nodes"], rt["links"])
+            self._sankey = sk
             inner = vbox(10)
             inner.append(sk)
-            inner.append(legend_row([(_("Por el túnel VPN"), P["good"]), (_("Directo · IP real"), P["serious"]),
-                                     (_("Proxy"), P["s1"]), (_("Tor"), "#9085e9")]))
+            inner.append(legend_row([(_("Por el túnel VPN"), "net_protected"), (_("Directo · IP real"), "net_direct"),
+                                     (_("Proxy"), "net_proxy"), (_("Tor"), "net_tor"), (_("Sin proxy (decide la ruta)"), "net_unknown")]))
             for line in rt.get("explain") or []:
                 inner.append(lbl("• " + line, "td", wrap=True))
             guide = Gtk.Expander(label=_("Cómo encaja un proxy con la VPN y Tor"))
@@ -1409,10 +1583,11 @@ class Window(Adw.ApplicationWindow):
         for i in ifs:
             r = rates.get(i["name"], {})
             w = i.get("wifi") or {}
-            rows.append([i["name"], pill("neutral", _(i["category"]) + ("" if i["up"] else _(" · caída"))), ", ".join(i["subnets"]) or "—",
+            rows.append([i["name"], pill("neutral", _(i["category"])),
+                         pill("info", _("Activa"), icon=False) if i["up"] else lbl(_("Inactiva"), "kpi-hint"), ", ".join(i["subnets"]) or "—",
                          (f"{w['ssid']} · {w['security']} · {w['signal']}%" if w else (i["gateway"] or "—")),
                          f"↓ {human_bps(r.get('rx_bps'))}  ↑ {human_bps(r.get('tx_bps'))}", str(len(i["neighbors"]))])
-        box.append(card(_("Interfaces y redes"), table([(_("Interfaz"), 1.2), (_("Tipo"), 1.2), (_("Subred"), 1.4),
+        box.append(card(_("Interfaces y redes"), table([(_("Interfaz"), 1.2), (_("Tipo"), 1.0), (_("Estado"), 0.8), (_("Subred"), 1.4),
                                                      ("Red / gateway", 2.2), (_("Tráfico"), 1.6), (_("Vecinos"), 0.6)], rows)))
         row = hbox(12)
         neigh = [[x["ip"], x["mac"], x["vendor"] or _("desconocido"), i["name"],
@@ -1460,14 +1635,16 @@ class Window(Adw.ApplicationWindow):
             t = Gtk.ToggleButton(label=label, active=self.mapv.layers[key])
             t.connect("toggled", lambda b, k=key: (self.mapv.layers.__setitem__(k, b.get_active()), self.mapv.queue_draw()))
             tools.append(t)
-        tools.append(Gtk.Box(hexpand=True))
-        tools.append(lbl(_("Rueda: zoom · arrastrar: mover · doble clic: acercar · clic en un punto: detalle"), "kpi-sub"))
         inner = vbox(8)
-        inner.append(tools)
+        tools_sc = Gtk.ScrolledWindow(vscrollbar_policy=Gtk.PolicyType.NEVER, hscrollbar_policy=Gtk.PolicyType.AUTOMATIC,
+                                      propagate_natural_height=True)
+        tools_sc.set_child(tools)
+        inner.append(tools_sc)
+        inner.append(lbl(_("Rueda: zoom · arrastrar: mover · doble clic: acercar · clic en un punto: detalle"), "kpi-hint", wrap=True))
         frame = Gtk.Frame(child=self.mapv)
         inner.append(frame)
-        inner.append(legend_row([(_("Fuga"), P["critical"]), (_("Directa (IP real)"), P["serious"]), (_("Protegida (túnel)"), P["good"]),
-                                 (_("Cadena VPN"), P["s1"]), (_("Circuito Tor"), "#9085e9"), (_("Origen"), P["ink"])]))
+        inner.append(legend_row([(_("Fuga"), "net_leak"), (_("Directa (IP real)"), "net_direct"), (_("Protegida (túnel)"), "net_protected"),
+                                 (_("Permitida (tu excepción)"), "info"), (_("Cadena VPN"), "highlight"), (_("Circuito Tor"), "net_tor"), (_("Origen"), "ink")]))
         box.append(card(_("Mapa de conexiones"), inner))
         self.map_detail = vbox(0)
         box.append(self.map_detail)
@@ -1563,43 +1740,71 @@ class Window(Adw.ApplicationWindow):
         box.append(card(_("Sesiones"), table(
             [(_("Inicio"), 1.2), (_("Duración"), 1.0), (_("Interfaz"), 0.8), (_("VPN"), 1.4), (_("IP pública"), 1.2), (_("Cierre"), 1.4)],
             [[iso(s["started"]), fmt_duration(s["duration"]), s["egress_iface"], s["vpn"] or "—", s["public_ip"] or "—",
-              reason_label(s["end_reason"]) if s["end_reason"] else pill("good", _("activa"))] for s in self.data.get("sessions") or []], max_rows=40)))
+              reason_label(s["end_reason"]) if s["end_reason"] else pill("info", _("En curso"), icon=False)] for s in self.data.get("sessions") or []], max_rows=40)))
         box.append(card(_("Contadores de tiempo"), table(
             [(_("Elemento"), 2.2), (_("Capa"), 1.0), (_("País"), 0.5), (_("Usos"), 0.4), (_("Total"), 1.0), (_("En curso"), 1.0)],
             [[c["label"], c["layer"], c["country"] or "—", str(c["uses"]), c["total_fmt"], c.get("current_fmt") or ""]
              for c in self.data.get("counters") or []], max_rows=60)))
         box.append(card(_("Timeline"), table(
             [(_("Hora"), 1.1), (_("Severidad"), 0.8), (_("Evento"), 1.4), (_("Detalle"), 3.2)],
-            [[iso(e["ts"]), pill(SEV_STATUS.get(e["severity"], "neutral"), e["severity"]), e["kind"],
+            [[iso(e["ts"]), sev_pill(e["severity"]), e["kind"],
               json.dumps(e["data"], ensure_ascii=False)[:140]] for e in self.data.get("timeline") or []], max_rows=80)))
 
     def render_fix(self):
         box = self.pages["fix"]
         clear(box)
-        box.append(lbl(_("Los comandos no se ejecutan solos: cópialos, revísalos y lánzalos tú."), "kpi-sub"))
-        for fx in self.data.get("fixes") or []:
-            inner = vbox(6)
+        head = hbox(10)
+        head.append(Gtk.Image.new_from_icon_name("dialog-information-symbolic"))
+        head.append(lbl(_("Los comandos no se ejecutan solos: cópialos, revísalos y lánzalos tú. Las etiquetas indican "
+                          "si necesitan privilegios o si cortan la conexión."), "kpi-sub", wrap=True))
+        box.append(head)
+        fixes = sorted(self.data.get("fixes") or [], key=lambda f: SEV_ORDER.index(f.get("severity", "info"))
+                       if f.get("severity", "info") in SEV_ORDER else 9)
+        if not fixes:
+            box.append(card(None, lbl(_("No hay acciones pendientes."), "empty")))
+        for fx in fixes:
+            inner = vbox(8)
             if fx.get("why") or fx.get("finding"):
                 inner.append(lbl(fx.get("why") or fx.get("finding"), "kpi-sub", wrap=True))
-            for s in fx["steps"]:
-                line = hbox(8)
-                desc = vbox(3)
-                tags = (" · root" if s["root"] else "") + (_(" · corta la conexión") if s["disruptive"] else "")
-                desc.append(lbl(s["desc"] + tags, "td", wrap=True))
-                if s.get("cmd"):
-                    desc.append(lbl(s["cmd"], "cmd", wrap=True, selectable=True))
+            for n, s_ in enumerate(fx["steps"], 1):
+                line = hbox(10)
+                desc = vbox(4)
+                top = hbox(6)
+                top.append(lbl(f"{n}. {s_['desc']}", "td", wrap=True))
+                top.get_first_child().set_hexpand(True)
+                if s_["root"]:
+                    t = lbl(_("Necesita root"), "cmd-tag cmd-tag-root")
+                    t.set_tooltip_text(_("Se ejecuta con privilegios: puede cambiar la configuración del sistema"))
+                    top.append(t)
+                if s_["disruptive"]:
+                    t = lbl(_("Corta la conexión"), "cmd-tag cmd-tag-disruptive")
+                    t.set_tooltip_text(_("Interrumpe la conectividad mientras se aplica: hazlo cuando no estés en medio de algo"))
+                    top.append(t)
+                if s_.get("cmd") and not s_["root"] and not s_["disruptive"]:
+                    top.append(lbl(_("Sin privilegios"), "cmd-tag cmd-tag-read"))
+                desc.append(top)
+                if s_.get("cmd"):
+                    desc.append(lbl(s_["cmd"], "cmd", wrap=True, selectable=True))
                 desc.set_hexpand(True)
                 line.append(desc)
-                if s.get("cmd"):
-                    b = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copiar"))
+                if s_.get("cmd"):
+                    b = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.END, tooltip_text=_("Copiar"))
                     b.add_css_class("flat")
-                    b.connect("clicked", lambda _b, c=s["cmd"]: self.copy(c))
+                    b.connect("clicked", lambda _b, c=s_["cmd"]: self.copy(c))
                     line.append(b)
                 inner.append(line)
             if fx.get("verify") and fx["verify"] != "—":
-                inner.append(lbl(_("Comprobar: {cmd}", cmd=fx['verify']), "kpi-sub", wrap=True))
-            sev = SEV_STATUS.get(fx.get("severity", "info"), "neutral")
-            box.append(card(fx["title"], inner, pill(sev, (fx.get("severity") or "info").upper())))
+                ver = hbox(8)
+                ver.append(lbl(_("Comprobar después").upper(), "card-title"))
+                v = lbl(fx["verify"], "cmd", wrap=True, selectable=True)
+                v.set_hexpand(True)
+                ver.append(v)
+                inner.append(ver)
+            sev = fx.get("severity") or "info"
+            c = card(fx["title"], inner, sev_pill(sev))
+            c.add_css_class("callout")
+            c.add_css_class(f"callout-{SEV_STATUS.get(sev, 'neutral')}")
+            box.append(c)
 
     def render_intel(self):
         from .. import intel as intel_mod
@@ -1647,9 +1852,16 @@ class Window(Adw.ApplicationWindow):
         order = {"malicioso": 0, "expuesto": 1, "sospechoso": 2}
         results = sorted(self.data.get("intel") or [], key=lambda x: order.get(x["verdict"], 9))
         rows = []
+        def vlabel(res):
+            """Veredicto de un proveedor → texto traducido (o su estado: sin clave, cuota, error…)."""
+            res = res or {}
+            if res.get("verdict") in INTEL_VERDICT and res.get("verdict") is not None:
+                return INTEL_VERDICT[res["verdict"]][1]
+            st_ = res.get("status")
+            return {"sin_clave": _("Sin clave"), "rate_limited": _("Cuota agotada"), "ok": _("Sin veredicto")}.get(
+                st_, _("No disponible: {s}", s=st_) if st_ else _("No analizado"))
         for r in results:
-            stx = ("critical" if r["verdict"] in ("malicioso", "expuesto") else
-                   "warning" if r["verdict"] == "sospechoso" else "good")
+            stx, vtxt = INTEL_VERDICT.get(r["verdict"], ("neutral", str(r["verdict"])))
             g = r.get("geo") or {}
             geo = lbl(f"{cc_flag(g.get('country'))} {g.get('country') or '—'}", "td")
             geo.set_tooltip_text(" · ".join(str(x) for x in (g.get("country_name"), g.get("city"),
@@ -1662,12 +1874,11 @@ class Window(Adw.ApplicationWindow):
                 vt_cell = pill(vst, f"{vt['malicious']}/{vt['total']}")
                 vt_cell.set_tooltip_text(_("{malicious} maliciosos, {suspicious} sospechosos de {total} motores · reputación {v6}", malicious=vt['malicious'], suspicious=vt['suspicious'], total=vt['total'], v6=vt.get('reputation')))
             else:
-                vt_cell = lbl((r["results"].get("virustotal") or {}).get("status") or "—", "td")
+                vt_cell = lbl(vlabel(r["results"].get("virustotal")), "td")
             gn = r["results"].get("greynoise") or {}
             ports = r.get("shodan_ports") or []
-            sh_txt = (f"{len(ports)} puertos" + (f" · {len(r['shodan_vulns'])} CVE" if r.get("shodan_vulns") else "")
-                      if ports else ((r["results"].get("shodan") or {}).get("verdict") or
-                                     (r["results"].get("shodan") or {}).get("status") or "—"))
+            sh_txt = (_("{n} puertos", n=len(ports)) + (f" · {len(r['shodan_vulns'])} CVE" if r.get("shodan_vulns") else "")
+                      if ports else vlabel(r["results"].get("shodan")))
             sh_cell = lbl(sh_txt, "td")
             if ports:
                 sh_cell.set_tooltip_text(_("Puertos: ") + ", ".join(map(str, ports[:30])) +
@@ -1676,9 +1887,8 @@ class Window(Adw.ApplicationWindow):
             copy_btn.add_css_class("flat")
             copy_btn.add_css_class("mini")
             copy_btn.connect("clicked", lambda _b, ip=r["ip"]: self.copy(ip, "IP copiada"))
-            rows.append([r["ip"], geo, tor_pill(r.get("tor")), r.get("org") or "—", pill(stx, r["verdict"]),
-                         gn.get("verdict") or gn.get("status") or "—", vt_cell, sh_cell,
-                         (r["results"].get("censys") or {}).get("verdict") or "—", copy_btn])
+            rows.append([r["ip"], geo, tor_pill(r.get("tor")), r.get("org") or "—", pill(stx, vtxt),
+                         vlabel(gn), vt_cell, sh_cell, vlabel(r["results"].get("censys")), copy_btn])
         tools = hbox(8)
         cp = Gtk.Button(label=_("Copiar tabla"), tooltip_text=_("Todos los resultados en formato tabulado"))
         cp.connect("clicked", lambda *_ign: self.copy(self._intel_tsv(results), _("{n} resultados copiados", n=len(results))))
@@ -1695,7 +1905,8 @@ class Window(Adw.ApplicationWindow):
         inner = vbox(8)
         inner.append(tools)
         inner.append(table([("IP", 1.2), (_("País"), 0.6), (_("Tor"), 0.7), (_("Organización"), 1.7), (_("Veredicto"), 0.9), ("GreyNoise", 0.8),
-                            ("VirusTotal", 0.8), (_("Shodan"), 0.9), (_("Censys"), 0.6), ("", 0.2)], rows))
+                            ("VirusTotal", 0.8), (_("Shodan"), 0.9), (_("Censys"), 0.6), ("", 0.2)], rows,
+                           empty=_("Aún no hay resultados: guarda una clave y pulsa «Escanear historial».")))
         box.append(card(_("Resultados · geolocalización local"), inner))
         box.append(lbl(_("Los exits de Tor y servidores VPN suelen figurar como maliciosos por el abuso de otros usuarios: "
                        "indica listas de bloqueo, no algo sobre tu tráfico."), "kpi-sub", wrap=True))
@@ -1744,6 +1955,7 @@ class Window(Adw.ApplicationWindow):
         v = s["values"]
         auto = s.get("autostart") or {}
 
+        box.append(self.appearance_group())
         box.append(self.language_group(v))
 
         def switch(group, key, title, subtitle, invert=False):
@@ -1899,6 +2111,84 @@ class Window(Adw.ApplicationWindow):
         self._map_status_update()
         return False
 
+    # ── apariencia (persistente: no se reconstruye con cada refresco de Ajustes) ──
+    APPEARANCE = [("system", _("Seguir al sistema")), ("light", _("Claro")), ("dark", _("Oscuro"))]
+    DENSITY = [("comfortable", _("Cómoda")), ("compact", _("Compacta"))]
+    MOTION = [("system", _("Según el sistema")), ("reduced", _("Reducido")), ("full", _("Completo"))]
+
+    def appearance_group(self):
+        if getattr(self, "_app_grp", None) is not None:
+            return self._app_grp
+        prefs = self.themes.prefs
+        g = Adw.PreferencesGroup(title=_("Apariencia"),
+                                 description=_("Se aplica al instante y se guarda en tus ajustes. El daemon y las "
+                                               "conexiones no se tocan."))
+        flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=5, min_children_per_line=2,
+                           column_spacing=10, row_spacing=10, homogeneous=True)
+        flow.set_margin_bottom(10)
+        self._theme_cards = {}
+        for tid in themes.ids():
+            th = themes.get(tid)
+            btn = Gtk.Button(tooltip_text=_(th["description"]))
+            btn.add_css_class("flat")
+            inner = vbox(6)
+            inner.append(ThemePreview(tid))
+            inner.append(lbl(th["name"], "td-strong"))
+            btn.set_child(inner)
+            btn.update_property([Gtk.AccessibleProperty.LABEL], [th["name"]])
+            btn.connect("clicked", lambda _b, t=tid: self.set_appearance(theme=t))
+            card_ = vbox(0)
+            card_.add_css_class("card")
+            card_.add_css_class("theme-card")
+            card_.append(btn)
+            self._theme_cards[tid] = card_
+            flow.append(card_)
+        g.add(flow)
+        g2 = Adw.PreferencesGroup()
+        self._app_combos = {}
+
+        def combo(title, subtitle, options, key):
+            r = Adw.ComboRow(title=title, subtitle=subtitle)
+            r.set_model(Gtk.StringList.new([t for _k, t in options]))
+            keys = [k for k, _t in options]
+            r.set_selected(keys.index(prefs[key]) if prefs[key] in keys else 0)
+            h = r.connect("notify::selected", lambda row, _p: self.set_appearance(**{key: keys[row.get_selected()]}))
+            self._app_combos[key] = (r, keys, h)
+            g2.add(r)
+        combo(_("Modo"), _("Claro, oscuro o el que use tu escritorio (cambia solo si el escritorio cambia)"),
+              self.APPEARANCE, "appearance")
+        combo(_("Densidad"), _("Compacta reduce márgenes y filas; el texto mantiene su tamaño"), self.DENSITY, "density")
+        combo(_("Animaciones"), _("Reducido desactiva las transiciones de la interfaz"), self.MOTION, "motion")
+        a11y = Adw.ActionRow(title=_("Estados con icono y texto"),
+                             subtitle=_("Siempre activo: ningún estado se indica solo con color (✔ ▲ ◆ ✖ ● y su texto)"))
+        a11y.add_suffix(Gtk.Image.new_from_icon_name("emblem-ok-symbolic"))
+        g2.add(a11y)
+        both = vbox(18)
+        both.append(g)
+        both.append(g2)
+        self._app_grp = both
+        self.themes.listeners.append(lambda *_a: self._appearance_sync())
+        self._appearance_sync()
+        return both
+
+    def _appearance_sync(self):
+        prefs = self.themes.prefs
+        for tid, c in getattr(self, "_theme_cards", {}).items():
+            (c.add_css_class if tid == prefs["theme"] else c.remove_css_class)("selected")
+        for key, (row, keys, h) in getattr(self, "_app_combos", {}).items():
+            if prefs[key] in keys and row.get_selected() != keys.index(prefs[key]):
+                row.handler_block(h)
+                row.set_selected(keys.index(prefs[key]))
+                row.handler_unblock(h)
+
+    def set_appearance(self, **changes):
+        before = dict(self.themes.prefs)
+        prefs = self.themes.apply(**changes)
+        diff = {f"ui.{k}": v for k, v in prefs.items() if before.get(k) != v}
+        self._appearance_sync()
+        if diff:
+            self.call_bg("settings_set", {"changes": diff})
+
     # ── idioma ──
     LANG_CODES = ["auto", "es", "en", "ca", "pt", "fr", "de"]
 
@@ -1969,27 +2259,67 @@ class Window(Adw.ApplicationWindow):
         box = self.pages["prof"]
         clear(box)
         prof = self.data.get("profiles") or {}
+        box.append(lbl(_("Un perfil describe lo que quieres exigir. Que esté activo no significa que se cumpla: "
+                         "la sección «Comprobado ahora» del perfil activo muestra lo que el motor observa de verdad."),
+                       "kpi-sub", wrap=True))
         flow = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=3, min_children_per_line=1,
-                           column_spacing=12, row_spacing=12, homogeneous=True)
+                           column_spacing=12, row_spacing=12, homogeneous=False)
         for name, p in (prof.get("profiles") or {}).items():
-            inner = vbox(6)
+            active = name == prof.get("active")
+            inner = vbox(8)
             inner.append(lbl(p.get("description") or "", "kpi-sub", wrap=True))
-            tags = hbox(6)
-            tags.append(pill("good" if p.get("use_tor") else "neutral", _("Tor") if p.get("use_tor") else _("sin Tor")))
-            tags.append(pill("good" if p.get("require_vpn") else "neutral",
-                             _("VPN obligatoria") if p.get("require_vpn") else _("VPN opcional")))
-            tags.append(pill("good" if p.get("require_killswitch") else "neutral", "kill-switch"))
+            inner.append(lbl(_("Exige").upper(), "card-title"))
+            tags = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=3, column_spacing=6,
+                               row_spacing=6, halign=Gtk.Align.START)
+            for on, yes, no in ((p.get("require_vpn"), _("VPN obligatoria"), _("VPN opcional")),
+                                (p.get("use_tor"), _("Tor obligatorio"), _("Sin Tor")),
+                                (p.get("require_killswitch"), _("Kill-switch obligatorio"), _("Kill-switch opcional"))):
+                tags.append(pill("info" if on else "neutral", yes if on else no, icon=False))
             inner.append(tags)
-            inner.append(lbl(_("DNS {v1} · retención {v3} d · prohibidos {v5}", v1=p.get('dns_policy'), v3=p.get('retention_days'), v5=', '.join(p.get('forbidden_countries') or []) or '—'), "td", wrap=True))
-            if name == prof.get("active"):
-                suffix = pill("good", _("Activo"))
+            inner.append(table([(_("Política"), 1.0), (_("Valor"), 2.0)], [
+                [_("DNS"), str(p.get("dns_policy") or "—")],
+                [_("Retención"), _("{n} días", n=p.get("retention_days")) if p.get("retention_days") else _("sin límite")],
+                [_("Países prohibidos"), ", ".join(p.get("forbidden_countries") or []) or "—"],
+                [_("Países permitidos"), ", ".join(p.get("allowed_countries") or []) or _("todos")]]))
+            if active:
+                inner.append(lbl(_("Comprobado ahora").upper(), "card-title"))
+                inner.append(self._profile_checks(p))
+                suffix = pill("info", _("Perfil activo"), icon=False)
             else:
                 suffix = Gtk.Button(label=_("Activar"))
+                suffix.add_css_class("flat")
                 suffix.connect("clicked", lambda _b, n=name: self.call_bg("profile_activate", {"name": n}, lambda r: (
                     self.toast(_("Perfil activo: {n}", n=n)), self.refresh(full=True))))
-            flow.append(card(name, inner, suffix))
+            c = card(name, inner, suffix)
+            if active:
+                c.add_css_class("profile-active")
+            c.set_size_request(380, -1)
+            flow.append(c)
         box.append(flow)
 
+    def _profile_checks(self, p):
+        """Requisito del perfil frente a lo observado por el motor (no se deduce nada del propio perfil)."""
+        st = self.data.get("status") or {}
+        net = st.get("net") or {}
+        tunnel = bool((net.get("via_tunnel") or {}).get("ipv4"))
+        tor = st.get("tor") or {}
+        tor_ok = bool(tor.get("circuit_established"))
+        rp = ((st.get("killswitch") or {}).get("external") or {}).get("route_protection") or {}
+        ks_ok = bool(rp) and rp.get("ipv4", {}).get("state") == "bloqueado" and bool(net.get("tunnels"))
+        enc = (st.get("dns") or {}).get("encrypted")
+
+        def row(need, ok, ok_txt, bad_txt):
+            if ok:
+                return pill("good", ok_txt)
+            return pill("critical" if need else "neutral", bad_txt + (_(" · exigido") if need else ""))
+        rows = [
+            [_("Túnel VPN"), row(p.get("require_vpn"), tunnel, _("Tráfico por el túnel"), _("Sin túnel"))],
+            [_("Tor"), row(p.get("use_tor"), tor_ok, _("Circuito establecido"), _("Sin circuito"))],
+            [_("Kill-switch"), row(p.get("require_killswitch"), ks_ok, _("Bloquea si cae el túnel"), _("No verificado"))],
+            [_("DNS"), pill("good", _("Cifrado")) if enc else pill("warning" if enc is False else "neutral",
+                                                                     _("En claro") if enc is False else _("Sin verificar"))],
+        ]
+        return table([(_("Requisito"), 1.0), (_("Observado"), 2.0)], rows)
 
 class App(Adw.Application):
     def __init__(self, backend=None):
@@ -1999,11 +2329,8 @@ class App(Adw.Application):
 
     def do_activate(self):
         if self.win is None:
-            Adw.StyleManager.get_default().set_color_scheme(Adw.ColorScheme.FORCE_DARK)
-            prov = Gtk.CssProvider()
-            prov.load_from_string(CSS)
-            Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), prov,
-                                                      Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+            # tema: se aplica ANTES de crear la ventana (preferencias leídas del fichero de ajustes)
+            self.themes = theme_mod.ThemeManager(Gdk.Display.get_default())
             # icono de la ventana: el SVG del paquete, visible como «<APP_ID>» para el tema de iconos
             theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
             theme.add_search_path(str(_icon_dir()))
@@ -2015,14 +2342,17 @@ class App(Adw.Application):
 
 
 def _icon_dir() -> Path:
-    """Carpeta con el icono nombrado como el APP_ID (lo que buscan el tema de iconos y el lanzador)."""
+    """Tema de iconos privado con el icono nombrado como el APP_ID (lo que buscan la ventana y el lanzador)."""
     import shutil
     from ..util import xdg_dir
     d = xdg_dir("data") / "icons"
-    d.mkdir(parents=True, exist_ok=True)
-    dst = d / f"{APP_ID}.svg"
-    if not dst.exists() or dst.stat().st_mtime < ICON.stat().st_mtime:
-        shutil.copyfile(ICON, dst)
+    for n in ICON_SIZES:
+        dst = d / "hicolor" / f"{n}x{n}" / "apps" / f"{APP_ID}.png"
+        src = BRAND_DIR / f"vela-app-{n}.png"
+        if src.exists() and (not dst.exists() or dst.stat().st_mtime < src.stat().st_mtime):
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(src, dst)
+    (d / f"{APP_ID}.svg").unlink(missing_ok=True)          # icono anterior (llama), si quedaba
     return d
 
 
@@ -2045,11 +2375,14 @@ def install_desktop() -> str:
     p = Path.home() / f".local/share/applications/{APP_ID}.desktop"
     p.parent.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parents[2]
-    # icono en el tema de iconos del usuario (hicolor) para el menú de aplicaciones
+    # icono en el tema de iconos del usuario (hicolor, todos los tamaños) para el menú de aplicaciones
     import shutil
-    icon_dst = Path.home() / f".local/share/icons/hicolor/scalable/apps/{APP_ID}.svg"
-    icon_dst.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(ICON, icon_dst)
+    hicolor = Path.home() / ".local/share/icons/hicolor"
+    for n in ICON_SIZES:
+        dst = hicolor / f"{n}x{n}" / "apps" / f"{APP_ID}.png"
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(BRAND_DIR / f"vela-app-{n}.png", dst)
+    (hicolor / "scalable" / "apps" / f"{APP_ID}.svg").unlink(missing_ok=True)   # la llama anterior tenía prioridad
     p.write_text(DESKTOP.format(exe=f"env PYTHONPATH={root} {sys.executable}", icon=APP_ID))
     os.chmod(p, 0o644)
     return str(p)

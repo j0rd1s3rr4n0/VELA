@@ -58,6 +58,7 @@ if [ "$MODE" = uninstall ]; then
   rm -f "$HOME/.config/systemd/user/velad.service" "$HOME/.config/autostart/vela-tray.desktop" \
         "$HOME/.local/share/applications/$APP_ID.desktop" \
         "$HOME/.local/share/icons/hicolor/scalable/apps/$APP_ID.svg" "$BIN/vela" "$BIN/velad"
+  for n in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${n}x${n}/apps/$APP_ID.png"; done
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   rm -rf "$PREFIX"
   ok "$(t "Programa, servicio, bandeja y lanzador eliminados." "Program, service, tray and launcher removed.")"

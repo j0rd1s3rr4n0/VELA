@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logotip de VELA: una flama blava">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ sense dependències externes: descobreix què hi ha al teu equip i només activa
 
 - [Funcions](#funcions)
 - [Privadesa per disseny](#privadesa-per-disseny)
+- [Temes](#temes)
 - [Idiomes](#idiomes)
 - [Instal·lació](#instal·lació)
 - [Ús](#ús)
@@ -132,6 +136,20 @@ Per defecte l'eina només observa. Aquestes accions s'activen a `[consent]`; veg
 | `allow_rotation_changes` | Canvia connexions reals |
 | `allow_killswitch` | Aplica regles nftables (amb `sudo -n` o pkexec) |
 </details>
+
+## Temes
+
+L'app d'escriptori té **cinc temes, cadascun en clar i fosc**, i el mode *Segueix el sistema*: **VELA Signature** (oficial,
+amb el blau marí, el blau i el cian de la marca), **Obsidian** (grafit per a feina SOC), **Glacier** (fred i analític),
+**Sentinel** (verd petroli) i **High Contrast** (text ≥ 7:1). Es tria a **Ajustos → Aparença**, juntament amb la densitat
+(còmoda o compacta) i les animacions. S'aplica a l'instant, sense reiniciar res.
+
+Els colors són *design tokens* que comparteixen l'app GTK, els seus gràfics i el mapa, i la GUI web. El seu significat no canvia
+entre temes: protegida en verd, directa (IP real) en taronja, proxy en índigo, Tor en violeta i fuita en vermell, sempre amb icona i
+text. Les 790 comprovacions de contrast (WCAG 2.2 AA; AAA per al text de High Contrast) es calculen i les exigeixen les proves.
+Més a [docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Els cinc temes de VELA en mode fosc i clar"></p>
 
 ## Idiomes
 

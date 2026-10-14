@@ -1,6 +1,9 @@
-# Solo se versiona el mapa incorporado y su licencia. Cualquier otra cosa que acabe aquí
-# (descargas de OSM, places.json, mapas de prueba) se queda fuera.
+# Solo se versiona el mapa incorporado, su licencia y los recursos de marca (Brand Kit). Cualquier otra
+# cosa que acabe aquí (descargas de OSM, places.json, mapas de prueba) se queda fuera.
 *
 !.gitignore
 !basemap-osm.bin
 !OSM-ATTRIBUTION.txt
+!brand/
+!brand/*.png
+!brand/*.svg

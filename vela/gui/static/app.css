@@ -17,7 +17,7 @@ body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 sys
 .sr { position: absolute; left: -9999px; }
 button, select, input, textarea { font: inherit; color: var(--text); background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
 button { cursor: pointer; } button:hover { border-color: var(--accent); }
-button.danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+button.danger { background: var(--crit); border-color: var(--crit); color: #fff; }
 button.ghost { background: transparent; }
 button:disabled { opacity: .5; cursor: default; }
 .topbar { display: flex; gap: 16px; align-items: center; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; position: sticky; top: 0; z-index: 5; }

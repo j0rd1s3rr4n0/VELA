@@ -86,6 +86,11 @@ class Handler(BaseHTTPRequestHandler):
             lang = i18n.language()
             return self._json(200, {"lang": lang, "locale": i18n.LOCALES.get(lang, "es-ES"),
                                     "catalog": i18n.catalog(lang)})
+        if path == "/theme.css":                      # colores del tema elegido en Ajustes (vela/themes.py)
+            from .. import themes
+            body = themes.web_css(themes.load_prefs()["theme"]).encode()
+            self._headers(200, "text/css; charset=utf-8", len(body))
+            return self.wfile.write(body)
         f = (STATIC / path.lstrip("/")).resolve()
         if STATIC.resolve() not in f.parents or not f.is_file():
             return self._json(404, {"error": _("no encontrado")})

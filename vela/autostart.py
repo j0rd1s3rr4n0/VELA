@@ -69,7 +69,7 @@ Type=Application
 Name=VELA (bandeja)
 Comment=Icono de bandeja con el estado de la VPN, la IP y las fugas
 Exec=env PYTHONPATH={root} {exe} -m vela tray
-Icon={root}/vela/data/vela.svg
+Icon={root}/vela/data/brand/vela-app-256.png
 Terminal=false
 X-GNOME-Autostart-enabled=true
 """

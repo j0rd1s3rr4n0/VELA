@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="VELA logo: a blue flame">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ external dependencies: it discovers what is on your machine and only enables wha
 
 - [Features](#features)
 - [Privacy by design](#privacy-by-design)
+- [Themes](#themes)
 - [Languages](#languages)
 - [Installation](#installation)
 - [Usage](#usage)
@@ -132,6 +136,20 @@ By default the tool only observes. These actions are enabled under `[consent]`; 
 | `allow_rotation_changes` | Changes real connections |
 | `allow_killswitch` | Applies nftables rules (with `sudo -n` or pkexec) |
 </details>
+
+## Themes
+
+The desktop app has **five themes, each in light and dark**, plus *Follow system*: **VELA Signature** (official, from the
+brand's navy, blue and cyan), **Obsidian** (graphite for SOC work), **Glacier** (cool and analytical), **Sentinel**
+(petrol green) and **High Contrast** (text ≥ 7:1). Choose one in **Settings → Appearance**, along with density (comfortable or
+compact) and animations. It applies instantly, without restarting anything.
+
+Colors are *design tokens* shared by the GTK app, its charts and map, and the web GUI. Their meaning never changes between
+themes: protected is green, direct (real IP) is orange, proxy is indigo, Tor is violet and a leak is red, always with an icon and text.
+All 790 contrast checks (WCAG 2.2 AA; AAA for High Contrast text) are computed and enforced by the tests. See
+[docs/THEMES.md](docs/THEMES.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="The five VELA themes in dark and light mode"></p>
 
 ## Languages
 

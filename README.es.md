@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="vela/data/vela.svg" width="120" alt="Logotipo de VELA: una llama azul">
+  <picture>
+    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+  </picture>
 </p>
 
 <h1 align="center">VELA</h1>
@@ -51,6 +54,7 @@ Linux, sin dependencias externas: descubre solo lo que hay en tu equipo y activa
 
 - [Funciones](#funciones)
 - [Privacidad por diseño](#privacidad-por-diseño)
+- [Temas](#temas)
 - [Idiomas](#idiomas)
 - [Instalación](#instalación)
 - [Uso](#uso)
@@ -132,6 +136,20 @@ Por defecto la herramienta solo observa. Estas acciones se activan en `[consent]
 | `allow_rotation_changes` | Cambia conexiones reales |
 | `allow_killswitch` | Aplica reglas nftables (con `sudo -n` o pkexec) |
 </details>
+
+## Temas
+
+La app de escritorio tiene **cinco temas, cada uno en claro y oscuro**, y el modo *Seguir al sistema*: **VELA Signature**
+(oficial, con el azul marino, el azul y el cian de la marca), **Obsidian** (grafito para trabajo SOC), **Glacier** (frío y
+analítico), **Sentinel** (verde petróleo) y **High Contrast** (texto ≥ 7:1). Se elige en **Ajustes → Apariencia**, junto con
+la densidad (cómoda o compacta) y las animaciones. Se aplica al instante, sin reiniciar nada.
+
+Los colores son *design tokens* que comparten la app GTK, sus gráficos y el mapa, y la GUI web. Su significado no cambia entre
+temas: protegida en verde, directa (IP real) en naranja, proxy en índigo, Tor en violeta y fuga en rojo, siempre con icono y texto.
+Las 790 comprobaciones de contraste (WCAG 2.2 AA; AAA para el texto de High Contrast) se calculan y las exigen las pruebas. Más en
+[docs/THEMES.es.md](docs/THEMES.es.md).
+
+<p align="center"><img src="docs/screenshots/themes/gallery.png" width="760" alt="Los cinco temas de VELA en modo oscuro y claro"></p>
 
 ## Idiomas
 
