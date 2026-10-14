@@ -1247,6 +1247,7 @@
  "fin": "fin",
  "formato de mapa desconocido": "format de carte inconnu",
  "forwarder no iniciado": "relais non démarré",
+ "forzar la salida por una interfaz no es posible en este sistema": "forcer la sortie par une interface n'est pas possible sur ce système",
  "fuga detectada en tiempo real": "fuite détectée en temps réel",
  "genera un config.toml adaptado al sistema": "génère un config.toml adapté au système",
  "generado por ti (vela map build)": "générée par vous (vela map build)",

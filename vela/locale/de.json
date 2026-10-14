@@ -1247,6 +1247,7 @@
  "fin": "Ende",
  "formato de mapa desconocido": "unbekanntes Kartenformat",
  "forwarder no iniciado": "Weiterleitung nicht gestartet",
+ "forzar la salida por una interfaz no es posible en este sistema": "das Erzwingen einer bestimmten Schnittstelle ist auf diesem System nicht möglich",
  "fuga detectada en tiempo real": "Leck in Echtzeit erkannt",
  "genera un config.toml adaptado al sistema": "erzeugt eine an das System angepasste config.toml",
  "generado por ti (vela map build)": "von dir erstellt (vela map build)",

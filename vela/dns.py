@@ -9,6 +9,7 @@ Distingue tres niveles de evidencia:
 from __future__ import annotations
 
 from .i18n import _
+from .util import WINDOWS
 
 import ipaddress
 import json
@@ -83,6 +84,9 @@ def classify_server(entry: str) -> str:
 
 
 def snapshot() -> dict:
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.dns_snapshot()
     resolv = ""
     try:
         with open("/etc/resolv.conf") as f:

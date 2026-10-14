@@ -21,7 +21,7 @@ import os
 import re
 from pathlib import Path
 
-from .util import run, run_json, which
+from .util import WINDOWS, run, run_json, which
 
 HOME = Path.home()
 TUNNEL_KINDS = {"wireguard", "tun", "ppp"}
@@ -169,6 +169,9 @@ def nordvpn_state() -> dict | None:
 
 def detect_killswitches(kinds: dict[str, str], routes: dict | None = None) -> dict:
     """kinds: interfaz → tipo (de network.snapshot)."""
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.killswitch_status(kinds)
     routes = routes or default_routes()
     rp = route_protection(routes, kinds)
     nm = _nm_connections() if which("nmcli") else []

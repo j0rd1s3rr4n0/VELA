@@ -12,7 +12,10 @@ from .i18n import _
 
 import ipaddress
 import os
-import pwd
+try:
+    import pwd
+except ImportError:          # Windows: el kill-switch nftables no existe allí
+    pwd = None
 
 from .util import now, run, which
 

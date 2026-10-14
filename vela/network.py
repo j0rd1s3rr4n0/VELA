@@ -13,7 +13,7 @@ import threading
 import time
 
 from . import discovery
-from .util import now, run_json
+from .util import WINDOWS, now, run_json
 
 CGNAT = ipaddress.ip_network("100.64.0.0/10")
 PROBE_V4 = "1.1.1.1"
@@ -47,6 +47,9 @@ def _route_get(target: str, family: str) -> dict | None:
 
 def snapshot() -> dict:
     """Foto completa del estado de red local."""
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.network_snapshot()
     ifaces = {i["name"]: {**i, "addrs": []} for i in discovery.detect_interfaces()}
     for entry in run_json(["ip", "-j", "addr", "show"]) or []:
         name = entry.get("ifname")

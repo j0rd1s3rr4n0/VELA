@@ -14,11 +14,15 @@ puertos de loopback.
 from __future__ import annotations
 
 from .i18n import _
+from .util import WINDOWS
 
 import argparse
 import datetime as dt
 import glob
-import grp
+try:
+    import grp
+except ImportError:          # Windows
+    grp = None
 import importlib.util
 import ipaddress
 import json
@@ -657,6 +661,9 @@ def detect_geoip() -> dict:
 
 
 def discover() -> dict:
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.discover()
     procs = list_processes()
     loop_tcp = {p for a, p in listening_sockets("tcp") if is_local(a)}
     loop_udp = {p for a, p in listening_sockets("udp") if is_local(a)}

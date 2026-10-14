@@ -43,6 +43,16 @@ def _from_env() -> str | None:
             code = part.split(".")[0].split("_")[0].split("-")[0].lower()
             if code in LANGS:
                 return code
+    if os.name == "nt":            # Windows no define LANG: idioma de la cuenta de usuario («es-ES»)
+        try:
+            import ctypes
+            buf = ctypes.create_unicode_buffer(85)
+            if ctypes.windll.kernel32.GetUserDefaultLocaleName(buf, 85):
+                code = buf.value.split("-")[0].lower()
+                if code in LANGS:
+                    return code
+        except (OSError, AttributeError):
+            pass
     return None
 
 
@@ -51,6 +61,8 @@ def settings_file() -> Path:
     env = os.environ.get("VELA_SETTINGS") or os.environ.get("OPSEC_SETTINGS")
     if env:
         return Path(env)
+    if os.name == "nt":
+        return Path(os.environ.get("APPDATA") or os.path.expanduser("~")) / "vela" / "app-settings.toml"
     base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
     return Path(base) / "vela" / "app-settings.toml"
 

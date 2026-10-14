@@ -20,6 +20,7 @@ conexiones muy breves. Para bloqueo garantizado hace falta un kill-switch (clien
 from __future__ import annotations
 
 from .i18n import _
+from .util import WINDOWS
 
 import glob
 import ipaddress
@@ -73,6 +74,9 @@ def parse_proc_net(text: str, proto: str) -> list[dict]:
 
 
 def read_sockets() -> list[dict]:
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.read_sockets()
     socks = []
     for name, proto in (("tcp", "tcp"), ("tcp6", "tcp"), ("udp", "udp"), ("udp6", "udp")):
         try:
@@ -90,6 +94,9 @@ def owners(wanted: set[int] | None = None, cache: bool = True) -> dict[int, tupl
     """inodo de socket → (pid, comando). Con `wanted` solo busca esos inodos, reutiliza lo ya
     resuelto y para en cuanto los encuentra (recorrer todos los fd de todos los procesos cada 2 s
     es caro con navegadores que tienen miles)."""
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        return winsys.owners(wanted)
     res = {}
     if wanted is not None and cache:
         res = {i: _OWNER_CACHE[i] for i in wanted if i in _OWNER_CACHE}
@@ -166,7 +173,7 @@ def classify(socks: list[dict], net: dict, allow: set[str] | None = None, own: d
             continue
         iface, kind = amap.get(s["local"], (None, None))
         pid, comm = (own or {}).get(s["inode"], (None, None))
-        proc = comm or (f"[{_user(s['uid'])}]" if s["uid"] not in (None, os.getuid()) else "desconocido")
+        proc = comm or (f"[{_user(s['uid'])}]" if s["uid"] is not None and s["uid"] != os.getuid() else "desconocido")
         if s["remote"] in allow or f"{s['remote']}:{s['rport']}" in allow or (comm and f"proc:{comm}" in allow):
             verdict = "permitida"
         elif kind in TUNNEL_KINDS:

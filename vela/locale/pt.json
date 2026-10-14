@@ -1247,6 +1247,7 @@
  "fin": "fim",
  "formato de mapa desconocido": "formato de mapa desconhecido",
  "forwarder no iniciado": "reencaminhador não iniciado",
+ "forzar la salida por una interfaz no es posible en este sistema": "forçar a saída por uma interface não é possível neste sistema",
  "fuga detectada en tiempo real": "fuga detetada em tempo real",
  "genera un config.toml adaptado al sistema": "gera um config.toml adaptado ao sistema",
  "generado por ti (vela map build)": "gerado por si (vela map build)",

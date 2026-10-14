@@ -61,6 +61,8 @@ def open_direct(host: str, port: int, timeout: float, iface: str | None = None) 
         s.settimeout(timeout)
         try:
             if iface:
+                if not hasattr(socket, "SO_BINDTODEVICE"):     # Windows: no se puede forzar la interfaz
+                    raise OSError(_("forzar la salida por una interfaz no es posible en este sistema"))
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, iface.encode())
             s.connect(addr)
             return s

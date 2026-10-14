@@ -31,6 +31,8 @@ def _legacy(path: Path) -> Path:
 
 
 def _runtime_base() -> Path:
+    if os.name == "nt":
+        return Path(os.environ.get("TEMP") or ".")
     return Path(os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
 
 

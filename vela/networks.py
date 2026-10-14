@@ -17,6 +17,7 @@ Alertas que genera el motor a partir de aquí:
 from __future__ import annotations
 
 from .i18n import _
+from .util import WINDOWS
 
 import ipaddress
 import json
@@ -170,6 +171,10 @@ def neighbors() -> dict[str, list[dict]]:
 
 
 def inventory(net: dict | None = None, dns: dict | None = None) -> dict:
+    if WINDOWS:                       # rama windows-lite: mismos datos desde las API de Windows
+        from . import winsys
+        from . import network as _net
+        return winsys.inventory(net or _net.snapshot(), dns)
     from . import network as network_mod
     net = net or network_mod.snapshot()
     nm = _nm_active() if which("nmcli") else {}

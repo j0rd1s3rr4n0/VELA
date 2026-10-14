@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 APP = "vela"
+WINDOWS = os.name == "nt"           # rama windows-lite: ver vela/winsys.py
 
 
 def now() -> float:
@@ -132,6 +133,9 @@ def fingerprint(obj) -> str:
 
 
 def xdg_dir(kind: str) -> Path:
+    if WINDOWS:     # configuración en %APPDATA% (itinerante); datos y estado en %LOCALAPPDATA% (de este equipo)
+        var = "APPDATA" if kind == "config" else "LOCALAPPDATA"
+        return Path(os.environ.get(var) or os.path.expanduser("~")) / APP / ("" if kind == "config" else kind)
     env, default = {
         "config": ("XDG_CONFIG_HOME", "~/.config"),
         "data": ("XDG_DATA_HOME", "~/.local/share"),
@@ -142,6 +146,8 @@ def xdg_dir(kind: str) -> Path:
 
 
 def runtime_dir() -> Path:
+    if WINDOWS:
+        return xdg_dir("state") / "run"
     base = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
     if not os.path.isdir(base):
         base = str(xdg_dir("state"))
@@ -151,5 +157,5 @@ def runtime_dir() -> Path:
 def private_dir(path: Path) -> Path:
     """Crea un directorio accesible solo por el usuario y corrige permisos si ya existe."""
     path.mkdir(parents=True, exist_ok=True)
-    os.chmod(path, 0o700)
+    os.chmod(path, 0o700)       # en Windows solo afecta a «solo lectura»: ahí protege el perfil de usuario (ACL)
     return path
