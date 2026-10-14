@@ -5,6 +5,9 @@
   </picture>
 </p>
 
+> [!WARNING]
+> **`windows-lite` branch — work in progress.** It will be a light Windows version (public IP, connections and leaks, DNS, web GUI, autostart, `install.ps1`). So far only the Windows data layer exists (`vela/winsys.py`), tested with simulated Windows output (`tests/test_windows.py`); it **does not run on Windows yet** and has not been tried on a real Windows machine. Everything else is identical to `master` (Linux).
+
 <h1 align="center">VELA</h1>
 
 <p align="center">

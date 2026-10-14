@@ -5,6 +5,9 @@
   </picture>
 </p>
 
+> [!WARNING]
+> **Rama `windows-lite`, en desarrollo.** Será una versión ligera para Windows (IP pública, conexiones y fugas, DNS, GUI web, arranque automático, `install.ps1`). De momento solo existe la capa de datos de Windows (`vela/winsys.py`), probada con salidas de Windows simuladas (`tests/test_windows.py`); **todavía no funciona en Windows** ni se ha probado en un Windows real. Todo lo demás es igual que `master` (Linux).
+
 <h1 align="center">VELA</h1>
 
 <p align="center">
