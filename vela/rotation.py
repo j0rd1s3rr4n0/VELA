@@ -15,6 +15,8 @@ Ciclo de rotación segura (cada paso queda registrado):
 
 from __future__ import annotations
 
+from .i18n import _
+
 import random
 import re
 import secrets
@@ -101,15 +103,15 @@ def choose(candidates: list[Target], history: list[dict], policy: Policy, curren
     pool = []
     for c in candidates:
         if c.id == current:
-            rejected[c.id] = "destino actual"
+            rejected[c.id] = _("destino actual")
         elif c.id in policy.exclude or c.label in policy.exclude:
             rejected[c.id] = "excluido"
         elif c.country and c.country.upper() in policy.exclude_countries:
-            rejected[c.id] = f"país excluido ({c.country})"
+            rejected[c.id] = _("país excluido ({country})", country=c.country)
         elif c.id in recent:
-            rejected[c.id] = f"usado en los últimos {policy.no_repeat}"
+            rejected[c.id] = _("usado en los últimos {no_repeat}", no_repeat=policy.no_repeat)
         elif c.id in last_use and ts - last_use[c.id] < policy.cooldown:
-            rejected[c.id] = f"cooldown ({int(policy.cooldown - (ts - last_use[c.id]))}s restantes)"
+            rejected[c.id] = _("cooldown ({v1}s restantes)", v1=int(policy.cooldown - (ts - last_use[c.id])))
         else:
             pool.append(c)
     # ASN: solo se excluye si quedan alternativas verificadas (con ASN conocido y no excluido)
@@ -119,7 +121,7 @@ def choose(candidates: list[Target], history: list[dict], policy: Policy, curren
         if ok_asn:
             for c in pool:
                 if c not in ok_asn:
-                    rejected[c.id] = "ASN excluido o desconocido"
+                    rejected[c.id] = _("ASN excluido o desconocido")
             pool = ok_asn
     if not pool:
         return None, rejected
@@ -188,20 +190,20 @@ class SimulatedAdapter(Adapter):
     def switch(self, target):
         self.calls.append(("switch", target.id))
         if target.id in self.fail_switch:
-            raise RotationError(f"fallo simulado al cambiar a {target.id}")
+            raise RotationError(_("fallo simulado al cambiar a {id}", id=target.id))
         self.cur = target
 
     def verify(self, target, timeout=30):
         self.calls.append(("verify", target.id))
         if target.id in self.fail_verify:
-            return {"ok": False, "error": "verificación simulada fallida"}
+            return {"ok": False, "error": _("verificación simulada fallida")}
         return {"ok": True, "observed": {"target": target.id, "exit_ip": self.exits.get(target.id),
                                          "country": target.country}}
 
     def rollback(self, previous):
         self.calls.append(("rollback", previous.id if previous else None))
         if self.fail_rollback:
-            raise RotationError("fallo simulado de rollback")
+            raise RotationError(_("fallo simulado de rollback"))
         self.cur = previous
 
 
@@ -217,9 +219,9 @@ class TorAdapter(Adapter):
     def available(self):
         st = self.obs.status()
         if not st.get("available"):
-            return False, st.get("error", "Tor no disponible")
+            return False, st.get("error", _("Tor no disponible"))
         if st.get("observe_only"):
-            return False, "Tor Browser: solo observación (usa 'Nueva identidad' en el navegador)"
+            return False, _("Tor Browser: solo observación (usa 'Nueva identidad' en el navegador)")
         return True, ""
 
     def current(self):
@@ -229,7 +231,7 @@ class TorAdapter(Adapter):
                       {"ip": ex.get("ip")}) if ex else None
 
     def targets(self):
-        return [Target("newnym", "circuitos nuevos (Tor elige el exit)")]
+        return [Target("newnym", _("circuitos nuevos (Tor elige el exit)"))]
 
     def switch(self, target):
         res = self.obs.newnym()
@@ -249,10 +251,10 @@ class TorAdapter(Adapter):
                 ex = st["exit"]
                 return {"ok": True, "observed": {"exit": ex["fp"], "exit_ip": ex.get("ip"),
                                                  "country": ex.get("country"), "asn": ex.get("asn"),
-                                                 "note": "exit del circuito más reciente; el que use cada "
-                                                         "aplicación lo decide Tor al abrir streams"}}
+                                                 "note": _("exit del circuito más reciente; el que use cada "
+                                                         "aplicación lo decide Tor al abrir streams")}}
             time.sleep(1)
-        return {"ok": False, "error": st.get("error") or "sin circuito establecido tras NEWNYM"}
+        return {"ok": False, "error": st.get("error") or _("sin circuito establecido tras NEWNYM")}
 
     def rollback(self, previous):
         return None  # NEWNYM no es reversible ni necesita serlo: no deja tráfico expuesto
@@ -268,9 +270,9 @@ class ProxyAdapter(Adapter):
 
     def available(self):
         if not self.fw:
-            return False, "forwarder no iniciado"
+            return False, _("forwarder no iniciado")
         if len(self.pool) < 2:
-            return False, "hacen falta al menos 2 proxies en el pool"
+            return False, _("hacen falta al menos 2 proxies en el pool")
         return True, ""
 
     def targets(self):
@@ -301,7 +303,7 @@ class NetworkManagerAdapter(Adapter):
         self._endpoints = endpoints or {}
 
     def _conns(self):
-        code, out, _ = run(["nmcli", "-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"])
+        code, out, _ign = run(["nmcli", "-t", "-f", "NAME,TYPE,ACTIVE", "connection", "show"])
         if code:
             return []
         rows = []
@@ -314,7 +316,7 @@ class NetworkManagerAdapter(Adapter):
     def available(self):
         conns = self._conns()
         if len(conns) < 2:
-            return False, f"NetworkManager tiene {len(conns)} conexiones VPN (hacen falta 2+)"
+            return False, _("NetworkManager tiene {n} conexiones VPN (hacen falta 2+)", n=len(conns))
         return True, ""
 
     def targets(self):
@@ -328,9 +330,9 @@ class NetworkManagerAdapter(Adapter):
         cur = self.current()
         if cur:
             run(["nmcli", "connection", "down", "id", cur.id], timeout=30)
-        code, _, err = run(["nmcli", "connection", "up", "id", target.id], timeout=90)
+        code, _ign, err = run(["nmcli", "connection", "up", "id", target.id], timeout=90)
         if code:
-            raise RotationError(f"nmcli up {target.id}: {err.strip()}")
+            raise RotationError(_("nmcli up {id}: {v3}", id=target.id, v3=err.strip()))
 
     def verify(self, target, timeout=30):
         from . import network
@@ -340,7 +342,7 @@ class NetworkManagerAdapter(Adapter):
             if snap["via_tunnel"].get("ipv4"):
                 return {"ok": True, "observed": {"target": target.id, "iface": snap["egress"]["ipv4"]["dev"]}}
             time.sleep(1)
-        return {"ok": False, "error": "la ruta por defecto no pasa por el túnel tras conectar"}
+        return {"ok": False, "error": _("la ruta por defecto no pasa por el túnel tras conectar")}
 
     def endpoints(self, target):
         return self._endpoints.get(target.id, [])
@@ -362,12 +364,12 @@ class WgQuickAdapter(Adapter):
 
     def available(self):
         if len(self.targets()) < 2:
-            return False, "hacen falta 2+ configuraciones en /etc/wireguard (o permisos para leerlas)"
-        code, _, _ = run(["sudo", "-n", "true"])
-        return (code == 0), ("" if code == 0 else "wg-quick necesita sudo sin contraseña (sudo -n)")
+            return False, _("hacen falta 2+ configuraciones en /etc/wireguard (o permisos para leerlas)")
+        code, _ign, _ign = run(["sudo", "-n", "true"])
+        return (code == 0), ("" if code == 0 else _("wg-quick necesita sudo sin contraseña (sudo -n)"))
 
     def current(self):
-        code, out, _ = run(["sudo", "-n", "wg", "show", "interfaces"])
+        code, out, _ign = run(["sudo", "-n", "wg", "show", "interfaces"])
         names = out.split() if code == 0 else []
         return Target(names[0], names[0]) if names else None
 
@@ -375,12 +377,12 @@ class WgQuickAdapter(Adapter):
         cur = self.current()
         if cur:
             run(["sudo", "-n", "wg-quick", "down", cur.id], timeout=30)
-        code, _, err = run(["sudo", "-n", "wg-quick", "up", target.id], timeout=60)
+        code, _ign, err = run(["sudo", "-n", "wg-quick", "up", target.id], timeout=60)
         if code:
-            raise RotationError(f"wg-quick up {target.id}: {err.strip()[-300:]}")
+            raise RotationError(_("wg-quick up {id}: {v3}", id=target.id, v3=err.strip()[-300:]))
 
     def endpoints(self, target):
-        code, out, _ = run(["sudo", "-n", "cat", f"{self.confdir}/{target.id}.conf"])
+        code, out, _ign = run(["sudo", "-n", "cat", f"{self.confdir}/{target.id}.conf"])
         return re.findall(r"(?im)^\s*Endpoint\s*=\s*(\S+)", out) if code == 0 else []
 
 
@@ -389,7 +391,7 @@ class MullvadAdapter(Adapter):
     layer, name = "vpn", "mullvad"
 
     def targets(self):
-        code, out, _ = run(["mullvad", "relay", "list"], timeout=10)
+        code, out, _ign = run(["mullvad", "relay", "list"], timeout=10)
         out_t = []
         country = None
         for line in out.splitlines() if code == 0 else []:
@@ -402,24 +404,24 @@ class MullvadAdapter(Adapter):
         return out_t
 
     def current(self):
-        code, out, _ = run(["mullvad", "status", "-v"], timeout=10)
+        code, out, _ign = run(["mullvad", "status", "-v"], timeout=10)
         m = re.search(r"(\w{2}-\w{3}-wg-\d+)", out) if code == 0 else None
         return Target(m.group(1), m.group(1)) if m else None
 
     def switch(self, target):
         for cmd in (["mullvad", "relay", "set", "location", target.id], ["mullvad", "reconnect"]):
-            code, _, err = run(cmd, timeout=30)
+            code, _ign, err = run(cmd, timeout=30)
             if code:
                 raise RotationError(f"{' '.join(cmd)}: {err.strip()}")
 
     def verify(self, target, timeout=40):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
-            code, out, _ = run(["mullvad", "status"], timeout=10)
+            code, out, _ign = run(["mullvad", "status"], timeout=10)
             if code == 0 and "Connected" in out:
                 return {"ok": True, "observed": {"target": target.id, "status": out.strip().splitlines()[0]}}
             time.sleep(2)
-        return {"ok": False, "error": "mullvad no llegó a Connected"}
+        return {"ok": False, "error": _("mullvad no llegó a Connected")}
 
 
 # ── motor ───────────────────────────────────────────────────────────────────
@@ -488,21 +490,21 @@ class RotationEngine:
         p = self.policy(layer)
         result = {"layer": layer, "reason": reason, "dry_run": dry_run, "steps": steps, "result": "aborted"}
         if not a:
-            step(0, "adaptador", False, f"no hay adaptador para '{layer}' en este sistema")
+            step(0, "adaptador", False, _("no hay adaptador para '{layer}' en este sistema", layer=layer))
             return self._finish(result, None, None)
         result["adapter"] = a.name
         if self.paused and not dry_run:
-            step(0, "estado", False, "rotaciones en pausa (modo de emergencia)")
+            step(0, "estado", False, _("rotaciones en pausa (modo de emergencia)"))
             return self._finish(result, None, None)
 
         # límites de frecuencia
         st = self.state.setdefault(layer, {"since": now()})
         if not dry_run:
             if self.rotations_last_hour(layer) >= p.max_per_hour:
-                step(0, "límite", False, f"máximo {p.max_per_hour} rotaciones/hora alcanzado")
+                step(0, "límite", False, _("máximo {max_per_hour} rotaciones/hora alcanzado", max_per_hour=p.max_per_hour))
                 return self._finish(result, None, None)
             if not force and now() - st.get("since", 0) < p.min_ttl:
-                step(0, "límite", False, f"tiempo mínimo de uso ({int(p.min_ttl)}s) no alcanzado")
+                step(0, "límite", False, _("tiempo mínimo de uso ({v1}s) no alcanzado", v1=int(p.min_ttl)))
                 return self._finish(result, None, None)
 
         # 1. destino
@@ -514,17 +516,17 @@ class RotationEngine:
         if layer == "tor" and target is None and a.targets():
             target = a.targets()[0]   # NEWNYM: la no repetición se aplica al exit observado (paso 7)
         if not step(1, "destino alternativo", target is not None,
-                    f"→ {target.label}" if target else f"sin destinos válidos: {rejected}"):
+                    f"→ {target.label}" if target else _("sin destinos válidos: {rejected}", rejected=rejected)):
             self.emit("rotation_no_target", "warning", {"layer": layer, "rejected": rejected})
             return self._finish(result, previous, None)
         result["from"], result["to"] = (previous.as_dict() if previous else None), target.as_dict()
 
         # 2. compatibilidad y consentimiento
-        if not step(2, "compatibilidad", a.supports_rotation, "" if a.supports_rotation else "solo observación"):
+        if not step(2, "compatibilidad", a.supports_rotation, "" if a.supports_rotation else _("solo observación")):
             return self._finish(result, previous, target)
         consent = self.cfg["consent"].get("allow_rotation_changes")
         if not dry_run and not step(2, "consentimiento", bool(consent),
-                                    "" if consent else "activa consent.allow_rotation_changes para rotar de verdad"):
+                                    "" if consent else _("activa consent.allow_rotation_changes para rotar de verdad")):
             return self._finish(result, previous, target)
 
         # 3. protección contra fugas
@@ -534,32 +536,32 @@ class RotationEngine:
             # el cliente VPN ya bloquea el tráfico si cae el túnel: no hace falta el nuestro
             need_ks = False
             step(3, "protección contra fugas", True,
-                 f"kill-switch de {', '.join(ext['declared_by'])} verificado por rutas")
-        ks_ok, ks_why = (self.ks.can_apply() if self.ks else (False, "kill-switch no disponible"))
+                 _("kill-switch de {v1} verificado por rutas", v1=', '.join(ext['declared_by'])))
+        ks_ok, ks_why = (self.ks.can_apply() if self.ks else (False, _("kill-switch no disponible")))
         endpoints = a.endpoints(target) if need_ks else []
         if need_ks and not (ks_ok and endpoints):
             step(3, "protección contra fugas", False,
-                 ks_why or "no se conocen los endpoints del destino para permitirlos en el kill-switch")
-            self.emit("rotation_unsafe", "high", {"layer": layer, "reason": ks_why or "endpoints desconocidos"})
+                 ks_why or _("no se conocen los endpoints del destino para permitirlos en el kill-switch"))
+            self.emit("rotation_unsafe", "high", {"layer": layer, "reason": ks_why or _("endpoints desconocidos")})
             return self._finish(result, previous, target)
         if not any(x["step"] == 3 for x in steps):
-            step(3, "protección contra fugas", True, "kill-switch requerido y disponible" if need_ks else
-                 ("no requerida para esta capa" if not a.needs_killswitch else "desactivada en la política"))
+            step(3, "protección contra fugas", True, _("kill-switch requerido y disponible") if need_ks else
+                 (_("no requerida para esta capa") if not a.needs_killswitch else _("desactivada en la política")))
 
         if dry_run:
             result["result"] = "dry_run_ok"
-            step(4, "simulación", True, "pasos 4-8 no ejecutados (--dry-run)")
+            step(4, "simulación", True, _("pasos 4-8 no ejecutados (--dry-run)"))
             return self._finish(result, previous, target, record=True)
 
         # 4. bloqueo
         engaged = False
         if need_ks:
-            res = self.ks.engage(endpoints=endpoints, reason=f"rotación {layer}")
+            res = self.ks.engage(endpoints=endpoints, reason=_("rotación {layer}", layer=layer))
             engaged = res.get("ok", False)
             if not step(4, "bloqueo de tráfico", engaged, res.get("error", "")):
                 return self._finish(result, previous, target)
         else:
-            step(4, "bloqueo de tráfico", True, "no aplicado")
+            step(4, "bloqueo de tráfico", True, _("no aplicado"))
 
         # 5-7 rotación, verificación y validación (con reintentos para Tor si repite exit)
         attempts = 1 + (p.retries_on_repeat if layer == "tor" else 0)
@@ -580,12 +582,12 @@ class RotationEngine:
             observed = v.get("observed", {})
             violations = []
             if observed.get("country") and observed["country"].upper() in p.exclude_countries:
-                violations.append(f"país excluido {observed['country']}")
+                violations.append(_("país excluido {country}", country=observed['country']))
             if observed.get("asn") and norm_asn(observed["asn"]) in {norm_asn(x) for x in p.exclude_asn}:
-                violations.append(f"ASN excluido {observed['asn']}")
+                violations.append(_("ASN excluido {asn}", asn=observed['asn']))
             repeated = layer == "tor" and (observed.get("exit") in recent_exits)
             if repeated:
-                violations.append("exit repetido dentro de la ventana de no repetición")
+                violations.append(_("exit repetido dentro de la ventana de no repetición"))
             if not violations:
                 verified = True
                 step(7, "validación de política", True)
@@ -619,7 +621,7 @@ class RotationEngine:
             step(8, "rollback", rb_ok, rv.get("error") or f"restaurado {previous.id}")
         else:
             rb_ok = layer == "tor"   # NEWNYM fallido no deja tráfico expuesto
-            step(8, "rollback", rb_ok, "no aplicable (no reversible)" if not a.reversible else "sin destino previo")
+            step(8, "rollback", rb_ok, _("no aplicable (no reversible)") if not a.reversible else _("sin destino previo"))
         if rb_ok:
             if engaged:
                 self.ks.release()
@@ -629,8 +631,8 @@ class RotationEngine:
             result["result"] = "failed_closed" if engaged else "failed"
             self.emit("rotation_failed", "critical",
                       {"layer": layer, "error": error, "traffic_blocked": engaged,
-                       "action": "el kill-switch se mantiene activo; revisa la conexión manualmente" if engaged
-                       else "sin kill-switch: verifica tu conexión"})
+                       "action": _("el kill-switch se mantiene activo; revisa la conexión manualmente") if engaged
+                       else _("sin kill-switch: verifica tu conexión")})
         result["error"] = error
         return self._finish(result, previous, target, record=True)
 

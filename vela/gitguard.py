@@ -18,27 +18,29 @@ Una línea con «gitguard: allow» se excluye de los patrones genéricos (no de 
 
 from __future__ import annotations
 
+from .i18n import _
+
 import re
 import subprocess
 import sys
 
 ZERO = "0" * 40
-ALLOW = "gitguard: allow"
+ALLOW = "gitguard: allow"          # marcador literal: nunca se traduce
 
 FORBIDDEN_PATHS = [
-    (r"(^|/)\.devlogs/", "registros de desarrollo (capturas con tus IPs, volcados del sistema)"),
-    (r"(^|/)__pycache__/|\.py[co]$", "bytecode de Python"),
-    (r"\.(db|sqlite3?)(-wal|-shm|-journal)?$", "base de datos (historial de sesiones e IPs)"),
-    (r"(^|/)secrets\.toml$", "claves de API"),
-    (r"(^|/)(app-settings\.toml|app-state\.json)$", "ajustes personales de la app"),
-    (r"(^|/)config\.toml$", "tu configuración (usa config.example.toml)"),
-    (r"\.mmdb$", "base GeoIP con licencia propia"),
-    (r"(^|/)\.env(\..*)?$", "variables de entorno"),
-    (r"\.(pem|key|p12|pfx|kdbx|gpg|asc)$", "clave o almacén de claves"),
-    (r"(^|/)id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$", "clave SSH"),
-    (r"(^|/)(cookie|control_auth_cookie)$", "cookie de autenticación (Tor)"),
-    (r"\.ovpn$|(^|/)wg\d*\.conf$|\.nmconnection$", "configuración de VPN (puede llevar claves privadas)"),
-    (r"\.part$", "descarga a medias"),
+    (r"(^|/)\.devlogs/", _("registros de desarrollo (capturas con tus IPs, volcados del sistema)")),
+    (r"(^|/)__pycache__/|\.py[co]$", _("bytecode de Python")),
+    (r"\.(db|sqlite3?)(-wal|-shm|-journal)?$", _("base de datos (historial de sesiones e IPs)")),
+    (r"(^|/)secrets\.toml$", _("claves de API")),
+    (r"(^|/)(app-settings\.toml|app-state\.json)$", _("ajustes personales de la app")),
+    (r"(^|/)config\.toml$", _("tu configuración (usa config.example.toml)")),
+    (r"\.mmdb$", _("base GeoIP con licencia propia")),
+    (r"(^|/)\.env(\..*)?$", _("variables de entorno")),
+    (r"\.(pem|key|p12|pfx|kdbx|gpg|asc)$", _("clave o almacén de claves")),
+    (r"(^|/)id_(rsa|dsa|ecdsa|ed25519)(\.pub)?$", _("clave SSH")),
+    (r"(^|/)(cookie|control_auth_cookie)$", _("cookie de autenticación (Tor)")),
+    (r"\.ovpn$|(^|/)wg\d*\.conf$|\.nmconnection$", _("configuración de VPN (puede llevar claves privadas)")),
+    (r"\.part$", _("descarga a medias")),
 ]
 
 PATTERNS = [
@@ -71,7 +73,7 @@ def sensitive_values() -> list[tuple[str, re.Pattern]]:
         from . import intel
         for name, v in (intel.load_keys() or {}).items():
             if isinstance(v, str) and len(v) >= 10:
-                out.append((f"tu clave de API ({name})", re.compile(re.escape(v))))
+                out.append((_("tu clave de API ({name})", name=name), re.compile(re.escape(v))))
     except Exception:  # noqa: BLE001
         pass
     ips = set()
@@ -93,7 +95,7 @@ def sensitive_values() -> list[tuple[str, re.Pattern]]:
     except Exception:  # noqa: BLE001
         pass
     for ip in sorted(i for i in ips if i):
-        out.append(("tu IP real", re.compile(r"(?<![\w.])" + re.escape(ip) + r"(?!\w|\.\d)")))
+        out.append((_("tu IP real"), re.compile(r"(?<![\w.])" + re.escape(ip) + r"(?!\w|\.\d)")))
     return out
 
 
@@ -132,7 +134,7 @@ def scan(items, reader, exact=None) -> list[tuple[str, int, str]]:
     for path in items:
         why = check_path(path)
         if why:
-            found.append((path, 0, f"fichero prohibido: {why}"))
+            found.append((path, 0, _("fichero prohibido: {why}", why=why)))
             continue
         data = reader(path)
         if data is not None:
@@ -147,9 +149,8 @@ def report(found, what: str) -> int:
     for path, line, kind in found[:60]:
         print(f"   {path}{':' + str(line) if line else ''}  →  {kind}", file=sys.stderr)
     if len(found) > 60:
-        print(f"   … y {len(found) - 60} más", file=sys.stderr)
-    print("\n   Saca el fichero del índice (git rm --cached <fichero>) o quita el dato y vuelve a intentarlo.\n"
-          f"   Para un falso positivo de un patrón genérico, añade «{ALLOW}» en esa línea.\n", file=sys.stderr)
+        print(_("   … y {v1} más", v1=len(found) - 60), file=sys.stderr)
+    print(_("\n   Saca el fichero del índice (git rm --cached <fichero>) o quita el dato y vuelve a intentarlo.\n   Para un falso positivo de un patrón genérico, añade «{ALLOW}» en esa línea.\n", ALLOW=ALLOW), file=sys.stderr)
     return 1
 
 
@@ -159,9 +160,7 @@ def email_problem(email: str) -> str | None:
     if NOREPLY.search(email) or "true" in (git("config", "--bool", "vela.allowEmail", check=False).strip(),
                                          git("config", "--bool", "opsec.allowEmail", check=False).strip()):
         return None
-    return (f"el correo del autor ({email}) quedará publicado en cada commit. Usa uno sin datos personales, p. ej. "
-            "git config user.email \"<id>+<usuario>@users.noreply.github.com\" (o permite el tuyo con "
-            "git config vela.allowEmail true)")
+    return (_("el correo del autor ({email}) quedará publicado en cada commit. Usa uno sin datos personales, p. ej. git config user.email \"<id>+<usuario>@users.noreply.github.com\" (o permite el tuyo con git config vela.allowEmail true)", email=email))
 
 
 def pre_commit() -> int:
@@ -193,7 +192,7 @@ def pre_push(stdin_lines) -> int:
     for e in sorted(emails):
         problem = email_problem(e)
         if problem:
-            print(f"✖ gitguard: push bloqueado — {problem}", file=sys.stderr)
+            print(_("✖ gitguard: push bloqueado — {problem}", problem=problem), file=sys.stderr)
             rc = 1
     return rc
 
@@ -202,7 +201,7 @@ def check_all() -> int:
     paths = [p for p in git("ls-files", "-z").split("\0") if p]
     found = scan(paths, lambda p: git("show", f":{p}", text=False))
     if not found:
-        print(f"✔ gitguard: {len(paths)} ficheros revisados, sin secretos ni datos personales")
+        print(_("✔ gitguard: {n} ficheros revisados, sin secretos ni datos personales", n=len(paths)))
     return report(found, "repositorio")
 
 
@@ -216,7 +215,7 @@ def main(argv=None) -> int:
             return pre_push(sys.stdin.read().splitlines())
         return check_all()
     except RuntimeError as e:
-        print(f"gitguard: error de git: {e}", file=sys.stderr)
+        print(_("gitguard: error de git: {e}", e=e), file=sys.stderr)
         return 1
 
 

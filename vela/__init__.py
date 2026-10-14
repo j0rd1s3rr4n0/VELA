@@ -8,5 +8,5 @@ __version__ = "0.3.0"
 
 NAME = "VELA"
 ACRONYM = "Vigilant Egress & Leak Analyst"
-TAGLINE = "Tu identidad de red, siempre en vela"
+TAGLINE = "Tu identidad de red, siempre en vela"   # se traduce al mostrarlo: _(TAGLINE)
 APP_ID = "io.github.j0rd1s3rr4n0.Vela"

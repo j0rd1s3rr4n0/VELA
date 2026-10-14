@@ -11,6 +11,8 @@
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 import re
 import threading
@@ -125,7 +127,7 @@ def parse_exonerator(html: str) -> dict:
 def exonerator(ip: str, socks: tuple[str, int] | None, date: str | None = None, timeout: float = 40) -> dict:
     """Consulta ExoneraTor por Tor. `date` (AAAA-MM-DD, por defecto ayer UTC)."""
     if not socks:
-        return {"status": "no_disponible", "result": None, "detail": "sin Tor: ExoneraTor solo se consulta por Tor"}
+        return {"status": "no_disponible", "result": None, "detail": _("sin Tor: ExoneraTor solo se consulta por Tor")}
     # ExoneraTor solo acepta fechas hasta anteayer (UTC)
     date = date or time.strftime("%Y-%m-%d", time.gmtime(time.time() - 2 * 86400))
     try:

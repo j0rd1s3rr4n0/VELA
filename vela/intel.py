@@ -16,6 +16,8 @@ listas de bloqueo (más captchas/bloqueos) y que llama la atención: es informac
 
 from __future__ import annotations
 
+from .i18n import _
+
 import base64
 import ipaddress
 import json
@@ -76,7 +78,7 @@ def load_keys() -> dict[str, str]:
 def save_key(name: str, value: str) -> Path:
     """Guarda una clave en secrets.toml (0600). Las demás claves se conservan."""
     if name not in ENV_KEYS:
-        raise ValueError(f"clave desconocida: {name} (válidas: {', '.join(ENV_KEYS)})")
+        raise ValueError(_("clave desconocida: {name} (válidas: {v3})", name=name, v3=', '.join(ENV_KEYS)))
     p = secrets_path()
     private_dir(p.parent)
     current = {}
@@ -117,11 +119,11 @@ def delete_key(name: str) -> bool:
 def configured(keys: dict | None = None) -> dict[str, str]:
     keys = load_keys() if keys is None else keys
     return {
-        "greynoise": "API key" if keys.get("greynoise") else "Community API sin clave (cuota limitada)",
-        "virustotal": "API key" if keys.get("virustotal") else "falta API key",
-        "shodan": "API key" if keys.get("shodan") else "falta API key",
-        "censys": ("token Platform" if keys.get("censys_token") else
-                   "API ID/secret (Search v2)" if keys.get("censys_id") and keys.get("censys_secret") else "falta API key"),
+        "greynoise": _("API key") if keys.get("greynoise") else _("Community API sin clave (cuota limitada)"),
+        "virustotal": _("API key") if keys.get("virustotal") else _("falta API key"),
+        "shodan": _("API key") if keys.get("shodan") else _("falta API key"),
+        "censys": (_("token Platform") if keys.get("censys_token") else
+                   _("API ID/secret (Search v2)") if keys.get("censys_id") and keys.get("censys_secret") else _("falta API key")),
     }
 
 
@@ -160,7 +162,7 @@ def q_greynoise(ip: str, keys: dict, t: Transport) -> dict:
     if code == 404:
         return {"status": "ok", "verdict": "sin_datos", "summary": {"seen": False, "message": d.get("message")}}
     if code == 429:
-        return {"status": "rate_limited", "verdict": None, "summary": {"message": d.get("message") or "cuota agotada"}}
+        return {"status": "rate_limited", "verdict": None, "summary": {"message": d.get("message") or _("cuota agotada")}}
     if code != 200:
         return {"status": f"error HTTP {code}", "verdict": None, "summary": {"message": d.get("message")}}
     cls = d.get("classification")
@@ -299,8 +301,8 @@ def targets(store, engine=None, since: float | None = None, history: bool = True
             e["last"] = end or ts
 
     if history:
-        role = {"public_ip": "IP pública de salida", "tor_exit": "Tor exit", "tor_guard": "Tor guard",
-                "proxy": "proxy", "vpn_server": "servidor VPN", "dns_resolver": "resolver DNS", "wan_ip": "WAN router"}
+        role = {"public_ip": _("IP pública de salida"), "tor_exit": _("Tor exit"), "tor_guard": _("Tor guard"),
+                "proxy": "proxy", "vpn_server": _("servidor VPN"), "dns_resolver": _("resolver DNS"), "wan_ip": _("WAN router")}
         for layer, name in role.items():
             for i in store.intervals(layer, since=since, limit=100000):
                 meta = json.loads(i["meta"] or "{}") if isinstance(i.get("meta"), str) else (i.get("meta") or {})
@@ -339,7 +341,7 @@ class Scanner:
             via = ("127.0.0.1", int(ic.get("tor_socks_port", 9050)))
         self.t = transport or Transport(via_tor=via)
         self.ttl = parse_duration(ic.get("cache_ttl", "24h"))
-        self.progress = progress or (lambda *_: None)
+        self.progress = progress or (lambda *_ign: None)
         self._last: dict[str, float] = {}
         self._blocked: set[str] = set()
         with store.lock:
@@ -456,15 +458,15 @@ class LiveIntel(threading.Thread):
     def _reason_blocked(self) -> str | None:
         cfg = self.engine.cfg
         if not cfg["intel"].get("auto_live"):
-            return "desactivado (Ajustes → consultar automáticamente en VirusTotal)"
+            return _("desactivado (Ajustes → consultar automáticamente en VirusTotal)")
         if not cfg["consent"].get("threat_intel_lookups"):
-            return "falta el consentimiento de threat intel"
+            return _("falta el consentimiento de threat intel")
         if not load_keys().get("virustotal"):
-            return "falta la API key de VirusTotal"
+            return _("falta la API key de VirusTotal")
         net = self.engine.net or {}
         if not cfg["intel"].get("via_tor") and not (net.get("via_tunnel") or {}).get("ipv4") \
                 and not cfg["intel"].get("allow_direct"):
-            return "en espera: sin VPN las consultas saldrían desde tu IP real"
+            return _("en espera: sin VPN las consultas saldrían desde tu IP real")
         return None
 
     def _today_key(self) -> str:

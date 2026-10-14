@@ -13,6 +13,8 @@ puertos de loopback.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import argparse
 import datetime as dt
 import glob
@@ -171,7 +173,7 @@ def listening_sockets(proto: str) -> list[tuple[str, int]]:
                 continue
             if proto == "udp" and not f[2].endswith(":0000"):  # solo sockets no conectados
                 continue
-            addr_hex, _, port_hex = f[1].partition(":")
+            addr_hex, _ign, port_hex = f[1].partition(":")
             try:
                 result.append((_decode_proc_addr(addr_hex), int(port_hex, 16)))
             except ValueError:
@@ -301,7 +303,7 @@ def parse_torrc() -> dict:
             line = line.split("#", 1)[0].strip()
             if not line:
                 continue
-            key, _, val = line.partition(" ")
+            key, _ign, val = line.partition(" ")
             if key == "HashedControlPassword":
                 has_password = True
             elif key in keep:
@@ -338,7 +340,7 @@ def detect_tor(loop_tcp: set[int], probes: dict[int, str], procs) -> dict:
             controls.append(info)
     return {
         "installed": bool(which("tor")),
-        "running": any(c == "tor" for _, c in procs),
+        "running": any(c == "tor" for _ign, c in procs),
         "control": controls,
         "socks": sorted(p for p, kind in probes.items() if kind == "tor-socks"),
         "torrc": torrc,
@@ -404,7 +406,7 @@ def detect_routes() -> dict:
         f = line.split()
         if len(f) >= 10 and f[0] == "0" * 32 and f[1] == "00" and f[9] != "lo":
             v6.append((int(f[5], 16), f[9]))
-    return {"ipv4_default": [i for _, i in sorted(v4)], "ipv6_default": [i for _, i in sorted(v6)]}
+    return {"ipv4_default": [i for _ign, i in sorted(v4)], "ipv6_default": [i for _ign, i in sorted(v6)]}
 
 
 def detect_egress() -> dict:
@@ -432,7 +434,7 @@ def detect_ipv6() -> dict:
 def detect_system() -> dict:
     osr = {}
     for line in (read("/etc/os-release") or "").splitlines():
-        k, _, v = line.partition("=")
+        k, _ign, v = line.partition("=")
         osr[k] = v.strip().strip('"')
     proc_version = read("/proc/version") or ""
     container = None
@@ -481,7 +483,7 @@ def listening_detail() -> list[dict]:
             f = line.split()
             if len(f) < 10 or f[3] != "0A":
                 continue
-            addr_hex, _, port_hex = f[1].partition(":")
+            addr_hex, _ign, port_hex = f[1].partition(":")
             try:
                 addr = _decode_proc_addr(addr_hex)
             except ValueError:
@@ -581,7 +583,7 @@ def detect_desktop_proxy() -> dict | None:
     mode = run(["gsettings", "get", "org.gnome.system.proxy", "mode"])
     if mode and "auto" in mode:
         url = (run(["gsettings", "get", "org.gnome.system.proxy", "autoconfig-url"]) or "").strip().strip("'")
-        return {"mode": "auto", "pac": redact_url(url) if url else "WPAD (descubrimiento automático)"}
+        return {"mode": "auto", "pac": redact_url(url) if url else _("WPAD (descubrimiento automático)")}
     if not mode or "manual" not in mode:
         return {"mode": mode.strip().strip("'")} if mode else None
     res = {"mode": "manual"}
@@ -608,7 +610,7 @@ def detect_dns(loop_udp: set[int]) -> dict:
     if out:
         links = {}
         for line in out.splitlines():
-            key, _, servers = line.partition(":")
+            key, _ign, servers = line.partition(":")
             m = re.match(r"Link \d+ \((.+)\)", key.strip())
             links[m.group(1) if m else key.strip()] = servers.split()
         status = run(["resolvectl", "status"]) or ""
@@ -667,7 +669,7 @@ def discover() -> dict:
         "system": detect_system(),
         "listening": [l for l in listening_detail() if l["port"] in probes or not is_local(l["addr"])],
         "binaries": {cat: {n: p for n in names if (p := which(n))} for cat, names in BINARIES.items()},
-        "processes": sorted({c for _, c in procs if c in INTERESTING_PROCESSES}),
+        "processes": sorted({c for _ign, c in procs if c in INTERESTING_PROCESSES}),
         "services": detect_services(),
         "interfaces": detect_interfaces(),
         "routes": detect_routes(),
@@ -731,10 +733,9 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     cfg["collectors"]["publicip"] = {"enabled": True, "isp_iface": physical[0] if physical else None,
                                      "interval": "60s", "isp_interval": "5m"}
     if physical:
-        note("ok", "IP pública", f"IP del router medida por {physical[0]} (fuera del túnel); "
-                                 f"IP de salida medida por la ruta por defecto ({egress4})")
+        note("ok", "IP pública", _("IP del router medida por {v1} (fuera del túnel); IP de salida medida por la ruta por defecto ({egress4})", v1=physical[0], egress4=egress4))
     else:
-        note("warn", "IP pública", "No hay interfaz física activa: solo se medirá la IP de salida")
+        note("warn", "IP pública", _("No hay interfaz física activa: solo se medirá la IP de salida"))
 
     # VPN
     vpn = env["vpn"]
@@ -743,21 +744,21 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     wg = vpn["wireguard"]
     can_escalate = env["privileges"]["root"] or bool(env["privileges"]["escalation"])
     if vpn_ifaces:
-        note("ok", "VPN", f"Túnel activo: {', '.join(vpn_ifaces)}")
+        note("ok", "VPN", _("Túnel activo: {v1}", v1=', '.join(vpn_ifaces)))
         if tunneled:
-            note("ok", "VPN", f"El tráfico IPv4 sale por el túnel ({egress4})")
+            note("ok", "VPN", _("El tráfico IPv4 sale por el túnel ({egress4})", egress4=egress4))
         else:
-            note("warn", "VPN", f"Hay túnel activo pero la ruta IPv4 sale por {egress4} (¿split tunnel?)")
+            note("warn", "VPN", _("Hay túnel activo pero la ruta IPv4 sale por {egress4} (¿split tunnel?)", egress4=egress4))
     for prov, info in vpn["providers"].items():
         note("ok", "VPN", f"Cliente {prov} detectado" + (f": {info['status']}" if info.get("status") else ""))
     if nm_vpns:
-        note("ok", "VPN", f"{len(nm_vpns)} conexión(es) VPN en NetworkManager: {', '.join(nm_vpns)}")
+        note("ok", "VPN", _("{n} conexión(es) VPN en NetworkManager: {v2}", n=len(nm_vpns), v2=', '.join(nm_vpns)))
     if wg["configs"]:
-        note("ok", "VPN", f"Configs WireGuard en /etc/wireguard: {', '.join(wg['configs'])}")
+        note("ok", "VPN", _("Configs WireGuard en /etc/wireguard: {v1}", v1=', '.join(wg['configs'])))
     elif not wg["readable"]:
-        note("info", "VPN", "/etc/wireguard existe pero no es legible sin root")
+        note("info", "VPN", _("/etc/wireguard existe pero no es legible sin root"))
     if vpn["openvpn_configs"]:
-        note("ok", "VPN", f"{len(vpn['openvpn_configs'])} perfil(es) OpenVPN encontrados")
+        note("ok", "VPN", _("{n} perfil(es) OpenVPN encontrados", n=len(vpn['openvpn_configs'])))
 
     driver, pool = None, []
     rotatable = [p for p in vpn["providers"] if p in ROTATABLE_PROVIDERS]
@@ -775,45 +776,44 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
                               "no_repeat": min(10, max(len(pool) - 1, 0)) if pool != ["auto"] else 10,
                               "exclude_countries": []}
     if driver:
-        note("ok", "VPN", f"Rotación de VPN con el driver «{driver}»")
+        note("ok", "VPN", _("Rotación de VPN con el driver «{driver}»", driver=driver))
         if pool != ["auto"] and len(pool) < 3:
-            note("warn", "VPN", f"Solo hay {len(pool)} VPN(s) en el pool: la no repetición será muy limitada")
+            note("warn", "VPN", _("Solo hay {n} VPN(s) en el pool: la no repetición será muy limitada", n=len(pool)))
     else:
-        note("off", "VPN", "No se ha encontrado ninguna VPN que se pueda rotar")
+        note("off", "VPN", _("No se ha encontrado ninguna VPN que se pueda rotar"))
 
     # Tor
     tor = env["tor"]
     if tor["control"]:
         c = tor["control"][0]
-        note("ok", "Tor", f"ControlPort en {c['target']} (Tor {c.get('version') or '?'}), auth: {','.join(c['auth'])}")
+        note("ok", "Tor", _("ControlPort en {target} (Tor {v3}), auth: {v5}", target=c['target'], v3=c.get('version') or '?', v5=','.join(c['auth'])))
         cfg["collectors"]["tor"] = {"enabled": True, "mode": "control", "control": c["target"]}
         cfg["rotation"]["tor"] = {"enabled": True, "driver": "newnym", "max_ttl": "10m", "jitter": "3m",
                                   "no_repeat_exit": 20, "exclude_exit_countries": []}
         if "NULL" in c["auth"]:
-            note("warn", "Tor", "ControlPort SIN autenticación: cualquier proceso local puede controlar Tor")
+            note("warn", "Tor", _("ControlPort SIN autenticación: cualquier proceso local puede controlar Tor"))
         if c.get("cookie_file") and not c.get("cookie_readable") and "HASHEDPASSWORD" not in c["auth"]:
-            note("warn", "Tor", f"No puedes leer {c['cookie_file']}: añade tu usuario al grupo propietario "
-                                f"(p. ej. `sudo usermod -aG debian-tor $USER`)")
+            note("warn", "Tor", _("No puedes leer {cookie_file}: añade tu usuario al grupo propietario (p. ej. `sudo usermod -aG debian-tor $USER`)", cookie_file=c['cookie_file']))
     elif tor["socks"]:
         port = tor["socks"][0]
-        note("ok", "Tor", f"SocksPort en 127.0.0.1:{port} (sin ControlPort accesible)")
-        note("info", "Tor", "Se rotará el circuito con credenciales SOCKS aleatorias (IsolateSOCKSAuth); "
-                            "para ver guard/middle/exit activa `ControlPort 9051` y `CookieAuthentication 1`")
+        note("ok", "Tor", _("SocksPort en 127.0.0.1:{port} (sin ControlPort accesible)", port=port))
+        note("info", "Tor", _("Se rotará el circuito con credenciales SOCKS aleatorias (IsolateSOCKSAuth); "
+                            "para ver guard/middle/exit activa `ControlPort 9051` y `CookieAuthentication 1`"))
         cfg["collectors"]["tor"] = {"enabled": True, "mode": "socks", "socks": f"127.0.0.1:{port}"}
         cfg["rotation"]["tor"] = {"enabled": True, "driver": "socks-isolation", "max_ttl": "10m",
                                   "jitter": "3m", "no_repeat_exit": 20, "exclude_exit_countries": []}
     elif tor["installed"]:
-        note("warn", "Tor", "Tor está instalado pero no está en ejecución")
+        note("warn", "Tor", _("Tor está instalado pero no está en ejecución"))
     else:
-        note("off", "Tor", "Tor no detectado")
+        note("off", "Tor", _("Tor no detectado"))
     cfg["collectors"].setdefault("tor", {"enabled": False})
     cfg["rotation"].setdefault("tor", {"enabled": False})
     if tor["browser"]:
-        note("info", "Tor", f"Tor Browser en {tor['browser'][0]} (su ControlPort 9151 solo existe mientras está abierto)")
+        note("info", "Tor", _("Tor Browser en {v1} (su ControlPort 9151 solo existe mientras está abierto)", v1=tor['browser'][0]))
     if any(v.strip() == "1" for v in tor["torrc"].get("UseBridges", [])):
-        note("ok", "Tor", "Usas bridges" + (f" ({', '.join(tor['transports'])})" if tor["transports"] else ""))
+        note("ok", "Tor", _("Usas bridges") + (f" ({', '.join(tor['transports'])})" if tor["transports"] else ""))
     if tor["torrc"].get("DNSPort"):
-        note("ok", "Tor", f"DNSPort configurado: {', '.join(tor['torrc']['DNSPort'])}")
+        note("ok", "Tor", _("DNSPort configurado: {v1}", v1=', '.join(tor['torrc']['DNSPort'])))
 
     # Proxies
     px = env["proxy"]
@@ -823,37 +823,35 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     proxies += [f"socks5://127.0.0.1:{p}" for p in px["ssh_tunnels"]]
     if px["proxychains"]:
         pc = px["proxychains"]
-        note("ok", "Proxy", f"proxychains ({pc['file']}, {pc['mode'] or 'modo por defecto'}): "
-                            f"{len(pc['proxies'])} proxy(s)")
+        note("ok", "Proxy", _("proxychains ({file}, {v3}): {n} proxy(s)", file=pc['file'], v3=pc['mode'] or 'modo por defecto', n=len(pc['proxies'])))
         for p in pc["proxies"]:
             host = "127.0.0.1" if p["host"] == "localhost" else p["host"]
             if f"{host}:{p['port']}" not in tor_socks:
                 proxies.append(f"{p['type']}://{host}:{p['port']}")
     for k, v in px["env"].items():
-        note("info", "Proxy", f"Variable de entorno {k}={v}")
+        note("info", "Proxy", _("Variable de entorno {k}={v}", k=k, v=v))
     if px["desktop"] and px["desktop"].get("mode") == "manual":
-        note("info", "Proxy", "Proxy del escritorio (GNOME) en modo manual")
+        note("info", "Proxy", _("Proxy del escritorio (GNOME) en modo manual"))
     kinds = {p["port"]: p["kind"] for p in px["local"]}
     for l in env.get("listening", []):
         if l["port"] in kinds and not ipaddress.ip_address(l["addr"]).is_loopback:
-            what = "Servidor web" if kinds[l["port"]] == "http-server" else "Proxy"
-            note("warn", "Proxy", f"{what} en el puerto {l['port']} escucha en {l['addr']} (todas las interfaces): "
-                                  f"accesible desde la LAN" + (f" — {l['owner']}" if l.get("owner") else ""))
+            what = _("Servidor web") if kinds[l["port"]] == "http-server" else "Proxy"
+            note("warn", "Proxy", _("{what} en el puerto {port} escucha en {addr} (todas las interfaces): accesible desde la LAN", what=what, port=l['port'], addr=l['addr']) + (f" — {l['owner']}" if l.get("owner") else ""))
         if kinds.get(l["port"]) == "http-server":
-            note("info", "Proxy", f"127.0.0.1:{l['port']} es un servidor web, no un proxy (no acepta CONNECT)")
+            note("info", "Proxy", _("127.0.0.1:{port} es un servidor web, no un proxy (no acepta CONNECT)", port=l['port']))
     for p in px["local"]:
         if p["kind"] == "desconocido":
-            note("info", "Proxy", f"Algo escucha en 127.0.0.1:{p['port']} pero no responde como proxy")
+            note("info", "Proxy", _("Algo escucha en 127.0.0.1:{port} pero no responde como proxy", port=p['port']))
     proxies = list(dict.fromkeys(proxies))
     cfg["collectors"]["proxy"] = {"enabled": bool(proxies), "pool": proxies}
     cfg["rotation"]["proxy"] = {"enabled": len(proxies) >= 2, "driver": "local-forwarder", "pool": proxies,
                                 "strategy": "lru", "max_ttl": "20m", "jitter": "5m"}
     if proxies:
-        note("ok", "Proxy", f"{len(proxies)} proxy(s) en el pool: {', '.join(proxies)}")
+        note("ok", "Proxy", _("{n} proxy(s) en el pool: {v2}", n=len(proxies), v2=', '.join(proxies)))
         if len(proxies) < 2:
-            note("warn", "Proxy", "Con un único proxy no se puede rotar")
+            note("warn", "Proxy", _("Con un único proxy no se puede rotar"))
     else:
-        note("off", "Proxy", "No se han encontrado proxies")
+        note("off", "Proxy", _("No se han encontrado proxies"))
 
     # DNS
     dns = env["dns"]
@@ -863,87 +861,83 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
         r = dns["resolved"]
         note("ok", "DNS", "systemd-resolved: " + "; ".join(f"{k}: {' '.join(v) or '-'}" for k, v in r["links"].items()))
         if r["dot"]:
-            note("ok", "DNS", "DNS-over-TLS activo")
+            note("ok", "DNS", _("DNS-over-TLS activo"))
         if tunneled:
             for link, servers in r["links"].items():
                 if link != "Global" and link not in vpn_ifaces and servers:
-                    note("warn", "DNS", f"Posible fuga: {link} tiene resolvers propios ({' '.join(servers)}) "
-                                        f"mientras el tráfico va por el túnel")
+                    note("warn", "DNS", _("Posible fuga: {link} tiene resolvers propios ({v3}) mientras el tráfico va por el túnel", link=link, v3=' '.join(servers)))
     else:
-        note("ok", "DNS", f"resolv.conf: {' '.join(dns['resolv_conf']) or '(vacío)'}")
+        note("ok", "DNS", _("resolv.conf: {v1}", v1=' '.join(dns['resolv_conf']) or '(vacío)'))
         if tunneled:
             for s in dns["resolv_conf"]:
                 try:
                     if ipaddress.ip_address(s.split("%")[0]).is_private and not is_local(s.split("%")[0]):
-                        note("warn", "DNS", f"Posible fuga: el resolver {s} es de tu red local")
+                        note("warn", "DNS", _("Posible fuga: el resolver {s} es de tu red local", s=s))
                 except ValueError:
                     pass
     if dns["local_resolvers"]:
-        note("info", "DNS", f"Resolvers locales instalados: {', '.join(dns['local_resolvers'])}")
+        note("info", "DNS", _("Resolvers locales instalados: {v1}", v1=', '.join(dns['local_resolvers'])))
 
     # IPv6
     v6 = env["ipv6"]
     if v6["disabled"]:
-        note("ok", "IPv6", "IPv6 desactivado en el sistema")
+        note("ok", "IPv6", _("IPv6 desactivado en el sistema"))
     elif tunneled and egress6 and kind_of(egress6) not in VPN_KINDS:
-        note("warn", "IPv6", f"FUGA IPv6: el IPv4 va por el túnel pero el IPv6 sale por {egress6}")
+        note("warn", "IPv6", _("FUGA IPv6: el IPv4 va por el túnel pero el IPv6 sale por {egress6}", egress6=egress6))
     elif v6["global_ifaces"]:
-        note("info", "IPv6", f"Direcciones IPv6 globales en: {', '.join(v6['global_ifaces'])}")
+        note("info", "IPv6", _("Direcciones IPv6 globales en: {v1}", v1=', '.join(v6['global_ifaces'])))
 
     # Kill-switch de terceros
     ksx = env.get("killswitch") or {}
     if ksx.get("declared_by") and ksx.get("verified_ipv4"):
         rp = ksx["route_protection"]
-        note("ok", "Kill-switch", f"{', '.join(ksx['declared_by'])}: verificado — si el túnel cae, IPv4 "
-                                  f"{rp['ipv4']['detail']}; IPv6 {rp['ipv6']['detail']}")
+        note("ok", "Kill-switch", _("{v0}: verificado — si el túnel cae, IPv4 {detail}; IPv6 {detail2}", v0=', '.join(ksx['declared_by']), detail=rp['ipv4']['detail'], detail2=rp['ipv6']['detail']))
         for c in ksx["clients"]:
             if (c.get("declared") or {}).get("killswitch") == 1:
-                note("info", "Kill-switch", f"{c['client']} en modo estándar: no protege si cierras la app o al "
-                                            "reiniciar; el modo permanente sí")
+                note("info", "Kill-switch", _("{client} en modo estándar: no protege si cierras la app o al reiniciar; el modo permanente sí", client=c['client']))
     elif ksx.get("declared_by"):
-        note("warn", "Kill-switch", f"{', '.join(ksx['declared_by'])}: declarado pero no verificable por rutas")
+        note("warn", "Kill-switch", _("{v0}: declarado pero no verificable por rutas", v0=', '.join(ksx['declared_by'])))
     de = env.get("dns_effective") or {}
     for r in (de.get("encryption") or {}).get("resolvers") or []:
         note("ok" if r["encrypted"] else ("warn" if r["encrypted"] is False else "info"), "DNS",
-             f"Resolver efectivo {r['addr']}: {r['provider'] or 'desconocido'} ({r['transport']})"
+             _("Resolver efectivo {addr}: {v3} ({transport})", addr=r['addr'], v3=r['provider'] or 'desconocido', transport=r['transport'])
              + (f" → {r['upstream']}" if r.get("upstream") else ""))
     up = (de.get("encryption") or {}).get("upstream_route")
     if up:
         note("ok" if up["dev"] in vpn_ifaces else "warn", "DNS",
-             f"La conexión DoH hacia {up['ip']} sale por {up['dev']}")
+             _("La conexión DoH hacia {ip} sale por {dev}", ip=up['ip'], dev=up['dev']))
     # Kill-switch propio
     fw = env["binaries"]["firewall"]
     backend = "nftables" if "nft" in fw else "iptables" if "iptables" in fw else None
     cfg["killswitch"] = {"enabled": bool(backend), "backend": backend}
     if backend:
-        note("ok", "Kill-switch", f"Se usará {backend} con una tabla propia"
-             + (" (convive con ufw/firewalld)" if {"ufw", "firewall-cmd"} & fw.keys() else ""))
+        note("ok", "Kill-switch", _("Se usará {backend} con una tabla propia", backend=backend)
+             + (_(" (convive con ufw/firewalld)") if {"ufw", "firewall-cmd"} & fw.keys() else ""))
         if not can_escalate:
-            note("warn", "Kill-switch", "Sin root, sudo ni pkexec: el kill-switch no se podrá aplicar")
+            note("warn", "Kill-switch", _("Sin root, sudo ni pkexec: el kill-switch no se podrá aplicar"))
     else:
-        note("warn", "Kill-switch", "No hay nft ni iptables: no habrá kill-switch durante las rotaciones")
+        note("warn", "Kill-switch", _("No hay nft ni iptables: no habrá kill-switch durante las rotaciones"))
 
     # MAC
     for i in env["interfaces"]:
         if i["kind"] in PHYSICAL_KINDS:
             level = "warn" if i["mac_origin"] == "permanente" else "ok"
-            note(level, "Identidad", f"{i['name']} ({i['kind']}) usa MAC {i['mac_origin']}")
+            note(level, "Identidad", _("{name} ({kind}) usa MAC {mac_origin}", name=i['name'], kind=i['kind'], mac_origin=i['mac_origin']))
     for k, v in env["mac_policy"].items():
         note("info", "Identidad", f"NetworkManager {k}={v}")
     ident = env["identity"]
-    note("info", "Identidad", f"hostname={ident['hostname']}, zona horaria={ident['timezone']}, idioma={ident['lang']} "
-                              "(se comparará con el país de salida)")
+    note("info", "Identidad", _("hostname={hostname}, zona horaria={timezone}, idioma={lang} (se comparará con el país de salida)", hostname=ident['hostname'], timezone=ident['timezone'], lang=ident['lang']))
 
     # GeoIP
     geo = env["geoip"]
     cfg["geoip"] = {"mmdb": geo["mmdb"][0] if geo["mmdb"] else "",
                     "tor_geoip": geo["tor_geoip"][0] if geo["tor_geoip"] else ""}
     if geo["mmdb"]:
-        note("ok", "GeoIP", f"Base offline: {geo['mmdb'][0]}")
+        note("ok", "GeoIP", _("Base offline: {v1}", v1=geo['mmdb'][0]))
     elif geo["tor_geoip"]:
-        note("info", "GeoIP", "Se usará la base GeoIP de Tor (solo país; el mapa marcará el centro del país)")
+        note("info", "GeoIP", _("Se usará la base GeoIP de Tor (solo país; el mapa marcará el centro del país)"))
     else:
-        note("warn", "GeoIP", "Sin base GeoIP offline: descarga GeoLite2-City o dbip-city-lite (.mmdb)")
+        note("warn", "GeoIP", _("Sin base GeoIP offline: descarga GeoLite2-City o dbip-city-lite (.mmdb)"))
 
     # Interfaces de usuario y dependencias
     mods = env["python"]["modules"]
@@ -953,15 +947,15 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     except ImportError:
         has_curses = False
     cfg["ui"] = {"cli": True, "tui": has_curses, "gui": env["display"]}
-    note("ok", "Interfaz", "CLI disponible")
-    note("ok" if has_curses else "warn", "Interfaz", "TUI " + ("disponible (curses)" if has_curses else "sin curses"))
+    note("ok", "Interfaz", _("CLI disponible"))
+    note("ok" if has_curses else "warn", "Interfaz", "TUI " + (_("disponible (curses)") if has_curses else _("sin curses")))
     note("ok" if env["display"] else "info", "Interfaz", "GUI " + ("disponible" if env["display"] else
-                                                                  "sin entorno gráfico (accesible por URL local)"))
+                                                                  _("sin entorno gráfico (accesible por URL local)")))
     # El núcleo solo usa la biblioteca estándar; estos módulos son mejoras opcionales.
-    optional = {"geoip2": "ciudad y ASN con bases .mmdb", "sqlcipher3": "cifrado real de la base de datos"}
+    optional = {"geoip2": _("ciudad y ASN con bases .mmdb"), "sqlcipher3": _("cifrado real de la base de datos")}
     missing = [f"{m} ({why})" for m, why in optional.items() if not mods.get(m)]
     if missing:
-        note("info", "Dependencias", "Opcionales no instaladas: " + "; ".join(missing))
+        note("info", "Dependencias", _("Opcionales no instaladas: ") + "; ".join(missing))
 
     return notes, cfg
 
@@ -981,52 +975,52 @@ def capabilities(env: dict) -> list[dict]:
     egress_kind = ifaces.get(env["egress"]["ipv4"], {}).get("kind")
     root = env["privileges"]["root"]
 
-    cap("net.interfaces", "Red", OPERATIVA if ifaces else NO_DISPONIBLE, f"{len(ifaces)} interfaces vía /sys")
+    cap("net.interfaces", "Red", OPERATIVA if ifaces else NO_DISPONIBLE, _("{n} interfaces vía /sys", n=len(ifaces)))
     cap("net.routes", "Red", OPERATIVA if env["binaries"]["identity"].get("ip") else NO_VERIFICABLE,
-        "ip -j route/rule (policy routing incluido)" if env["binaries"]["identity"].get("ip") else "sin iproute2")
+        _("ip -j route/rule (policy routing incluido)") if env["binaries"]["identity"].get("ip") else _("sin iproute2"))
     try:
         s = socket.socket(socket.AF_NETLINK, socket.SOCK_RAW, 0)
         s.close()
-        cap("net.events", "Red", OPERATIVA, "eventos netlink (rtnetlink) disponibles")
+        cap("net.events", "Red", OPERATIVA, _("eventos netlink (rtnetlink) disponibles"))
     except (OSError, AttributeError):
-        cap("net.events", "Red", NO_DISPONIBLE, "sin netlink: se usará sondeo periódico")
-    cap("net.public_ip.direct", "Red", NO_VERIFICABLE, "requiere consentimiento (expone tu IP real al servicio de eco)")
-    cap("net.router_wan", "Red", NO_VERIFICABLE, "UPnP-IGD: se comprueba en tiempo de ejecución (solo LAN)")
+        cap("net.events", "Red", NO_DISPONIBLE, _("sin netlink: se usará sondeo periódico"))
+    cap("net.public_ip.direct", "Red", NO_VERIFICABLE, _("requiere consentimiento (expone tu IP real al servicio de eco)"))
+    cap("net.router_wan", "Red", NO_VERIFICABLE, _("UPnP-IGD: se comprueba en tiempo de ejecución (solo LAN)"))
 
     # VPN
     wg_up = [n for n in up_tunnels if ifaces[n]["kind"] == "wireguard"]
     wg = env["vpn"]["wireguard"]
     if wg_up:
-        cap("vpn.wireguard", "VPN", OPERATIVA, f"túnel activo: {', '.join(wg_up)}")
+        cap("vpn.wireguard", "VPN", OPERATIVA, _("túnel activo: {v1}", v1=', '.join(wg_up)))
     elif wg["configs"]:
         cap("vpn.wireguard", "VPN", INACTIVA, f"configs: {', '.join(wg['configs'])}")
     elif not wg["readable"]:
-        cap("vpn.wireguard", "VPN", SIN_PERMISOS, "/etc/wireguard no legible sin root")
+        cap("vpn.wireguard", "VPN", SIN_PERMISOS, _("/etc/wireguard no legible sin root"))
     elif env["binaries"]["vpn"].get("wg"):
-        cap("vpn.wireguard", "VPN", INACTIVA, "wireguard-tools instalado, sin configuraciones")
+        cap("vpn.wireguard", "VPN", INACTIVA, _("wireguard-tools instalado, sin configuraciones"))
     else:
-        cap("vpn.wireguard", "VPN", NO_DISPONIBLE, "no instalado")
+        cap("vpn.wireguard", "VPN", NO_DISPONIBLE, _("no instalado"))
     ovpn_running = "openvpn" in env["processes"]
     if ovpn_running:
-        cap("vpn.openvpn", "VPN", OPERATIVA, "proceso openvpn en ejecución")
+        cap("vpn.openvpn", "VPN", OPERATIVA, _("proceso openvpn en ejecución"))
     elif env["vpn"]["openvpn_configs"]:
         cap("vpn.openvpn", "VPN", INACTIVA, f"{len(env['vpn']['openvpn_configs'])} perfiles")
     elif env["binaries"]["vpn"].get("openvpn"):
-        cap("vpn.openvpn", "VPN", INACTIVA, "openvpn instalado, sin perfiles ni túneles")
+        cap("vpn.openvpn", "VPN", INACTIVA, _("openvpn instalado, sin perfiles ni túneles"))
     else:
-        cap("vpn.openvpn", "VPN", NO_DISPONIBLE, "no instalado")
+        cap("vpn.openvpn", "VPN", NO_DISPONIBLE, _("no instalado"))
     nm = env["vpn"]["networkmanager"]
     if nm is None:
-        cap("vpn.networkmanager", "VPN", NO_DISPONIBLE, "nmcli no disponible")
+        cap("vpn.networkmanager", "VPN", NO_DISPONIBLE, _("nmcli no disponible"))
     else:
         vpns = [c for c in nm if c["type"] in ("vpn", "wireguard")]
         active = [c["name"] for c in vpns if c["active"]]
         if active:
             cap("vpn.networkmanager", "VPN", OPERATIVA, f"activa: {', '.join(active)}")
         elif vpns:
-            cap("vpn.networkmanager", "VPN", INACTIVA, f"{len(vpns)} conexiones VPN configuradas")
+            cap("vpn.networkmanager", "VPN", INACTIVA, _("{n} conexiones VPN configuradas", n=len(vpns)))
         else:
-            cap("vpn.networkmanager", "VPN", INACTIVA, "NetworkManager presente, sin conexiones VPN")
+            cap("vpn.networkmanager", "VPN", INACTIVA, _("NetworkManager presente, sin conexiones VPN"))
     ks_clients = {c["client"].lower(): c for c in (env.get("killswitch") or {}).get("clients", [])}
     for prov, info in env["vpn"]["providers"].items():
         client = ks_clients.get(prov)
@@ -1034,14 +1028,14 @@ def capabilities(env: dict) -> list[dict]:
         if conns:
             cap(f"vpn.{prov}", "VPN", OPERATIVA, f"conectado: {conns[0]['name']} ({conns[0]['device']})")
         elif client and client.get("vpn_connections") is not None and not conns and info["binary"]:
-            cap(f"vpn.{prov}", "VPN", INACTIVA, f"{info['binary']} instalado, sin conexión activa")
+            cap(f"vpn.{prov}", "VPN", INACTIVA, _("{binary} instalado, sin conexión activa", binary=info['binary']))
         else:
             cap(f"vpn.{prov}", "VPN", OPERATIVA if info.get("status") else NO_VERIFICABLE,
-                info.get("status") or f"{info['binary']} instalado; estado no consultable sin sesión/permiso")
+                info.get("status") or _("{binary} instalado; estado no consultable sin sesión/permiso", binary=info['binary']))
     if up_tunnels:
         cap("vpn.traffic", "VPN", OPERATIVA if egress_kind in VPN_KINDS else INACTIVA,
-            "la ruta por defecto usa el túnel" if egress_kind in VPN_KINDS else
-            f"hay túnel ({', '.join(up_tunnels)}) pero la ruta por defecto no lo usa")
+            _("la ruta por defecto usa el túnel") if egress_kind in VPN_KINDS else
+            _("hay túnel ({v1}) pero la ruta por defecto no lo usa", v1=', '.join(up_tunnels)))
 
     # Tor
     tor = env["tor"]
@@ -1049,22 +1043,22 @@ def capabilities(env: dict) -> list[dict]:
         c = tor["control"][0]
         cookie_ok = c.get("cookie_readable", True) or "HASHEDPASSWORD" in c["auth"]
         cap("tor.control", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
-            f"{c['target']} Tor {c.get('version')}" + ("" if cookie_ok else " — cookie no legible"))
+            f"{c['target']} Tor {c.get('version')}" + ("" if cookie_ok else _(" — cookie no legible")))
         cap("tor.circuits", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
-            "circuitos, streams y relays guard/middle/exit observables")
+            _("circuitos, streams y relays guard/middle/exit observables"))
         cap("tor.newnym", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
-            "SIGNAL NEWNYM (respetando el rate-limit de Tor; no garantiza una IP distinta)")
+            _("SIGNAL NEWNYM (respetando el rate-limit de Tor; no garantiza una IP distinta)"))
     elif tor["running"]:
-        cap("tor.control", "Tor", NO_DISPONIBLE, "Tor en ejecución sin ControlPort accesible")
+        cap("tor.control", "Tor", NO_DISPONIBLE, _("Tor en ejecución sin ControlPort accesible"))
     else:
-        cap("tor.control", "Tor", NO_DISPONIBLE if not tor["installed"] else INACTIVA, "Tor no está en ejecución")
+        cap("tor.control", "Tor", NO_DISPONIBLE if not tor["installed"] else INACTIVA, _("Tor no está en ejecución"))
     cap("tor.socks", "Tor", OPERATIVA if tor["socks"] else NO_DISPONIBLE,
-        ", ".join(f"127.0.0.1:{p}" for p in tor["socks"]) or "sin SocksPort detectado")
+        ", ".join(f"127.0.0.1:{p}" for p in tor["socks"]) or _("sin SocksPort detectado"))
     if tor["browser"]:
         open_tb = 9150 in tor["socks"]
         cap("tor.browser", "Tor", OPERATIVA if open_tb else INACTIVA,
-            "Tor Browser abierto (solo observación; su rotación es 'Nueva identidad' en el navegador)"
-            if open_tb else "Tor Browser instalado, cerrado")
+            _("Tor Browser abierto (solo observación; su rotación es 'Nueva identidad' en el navegador)")
+            if open_tb else _("Tor Browser instalado, cerrado"))
 
     # Proxy
     for p in env["proxy"]["local"]:
@@ -1072,67 +1066,67 @@ def capabilities(env: dict) -> list[dict]:
             cap(f"proxy.local.{p['port']}", "Proxy", OPERATIVA, f"{p['kind']} en 127.0.0.1:{p['port']}")
     pc = env["proxy"]["proxychains"]
     cap("proxy.proxychains", "Proxy", OPERATIVA if pc else NO_DISPONIBLE,
-        f"{pc['file']}: {len(pc['proxies'])} proxies" if pc else "sin configuración de proxychains")
+        f"{pc['file']}: {len(pc['proxies'])} proxies" if pc else _("sin configuración de proxychains"))
     desk = env["proxy"]["desktop"] or {}
     cap("proxy.system", "Proxy", OPERATIVA if desk.get("mode") in ("manual", "auto") else INACTIVA,
-        f"proxy del escritorio: {desk.get('mode', 'desconocido')}" + (f", PAC {desk['pac']}" if desk.get("pac") else ""))
+        _("proxy del escritorio: {v1}", v1=desk.get('mode', 'desconocido')) + (f", PAC {desk['pac']}" if desk.get("pac") else ""))
     cap("proxy.env", "Proxy", OPERATIVA if env["proxy"]["env"] else INACTIVA,
-        ", ".join(env["proxy"]["env"]) or "sin variables *_proxy")
+        ", ".join(env["proxy"]["env"]) or _("sin variables *_proxy"))
 
     # DNS
     dns = env["dns"]
     cap("dns.resolved", "DNS", OPERATIVA if dns["resolved"] else NO_DISPONIBLE,
-        "systemd-resolved por enlace" if dns["resolved"] else "solo resolv.conf")
+        _("systemd-resolved por enlace") if dns["resolved"] else _("solo resolv.conf"))
     cap("dns.dot", "DNS", OPERATIVA if dns["resolved"] and dns["resolved"]["dot"] else INACTIVA,
-        "DNS-over-TLS en systemd-resolved")
+        _("DNS-over-TLS en systemd-resolved"))
     de = env.get("dns_effective") or {}
     res = (de.get("encryption") or {}).get("resolvers") or []
-    desc = ", ".join(f"{r['addr']} {r['provider'] or '?'} ({r['transport']})" for r in res) or "sin resolvers"
+    desc = ", ".join(f"{r['addr']} {r['provider'] or '?'} ({r['transport']})" for r in res) or _("sin resolvers")
     cap("dns.encrypted", "DNS", {True: OPERATIVA, False: INACTIVA, None: NO_VERIFICABLE}[de.get("encrypted")],
-        f"efectivo vía {de.get('source')}: {desc}")
+        _("efectivo vía {v1}: {desc}", v1=de.get('source'), desc=desc))
     for b in (de.get("encryption") or {}).get("browsers") or []:
-        cap(f"dns.browser.{b['browser']}", "DNS", OPERATIVA, f"DoH propio del navegador: {b['mode']} {b['uri']}")
-    cap("dns.leak_active", "DNS", NO_VERIFICABLE, "test activo de fugas: requiere consentimiento")
+        cap(f"dns.browser.{b['browser']}", "DNS", OPERATIVA, _("DoH propio del navegador: {mode} {uri}", mode=b['mode'], uri=b['uri']))
+    cap("dns.leak_active", "DNS", NO_VERIFICABLE, _("test activo de fugas: requiere consentimiento"))
 
     # Kill-switch de terceros (verificado por rutas) y propio (nftables)
     ks = env.get("killswitch") or {}
     rp = ks.get("route_protection") or {}
     if ks.get("declared_by") and ks.get("verified_ipv4"):
         cap("killswitch.client", "Protección", OPERATIVA,
-            f"{', '.join(ks['declared_by'])}: verificado por rutas (IPv4 {rp['ipv4']['state']}, IPv6 {rp['ipv6']['state']})")
+            _("{v0}: verificado por rutas (IPv4 {state}, IPv6 {state2})", v0=', '.join(ks['declared_by']), state=rp['ipv4']['state'], state2=rp['ipv6']['state']))
     elif ks.get("declared_by"):
         cap("killswitch.client", "Protección", NO_VERIFICABLE,
-            f"{', '.join(ks['declared_by'])}: declarado, no verificable por rutas (¿firewall?)")
+            _("{v0}: declarado, no verificable por rutas (¿firewall?)", v0=', '.join(ks['declared_by'])))
     elif up_tunnels:
         cap("killswitch.client", "Protección", INACTIVA if not ks.get("verified_ipv4") else OPERATIVA,
-            rp.get("ipv4", {}).get("detail", "sin kill-switch de cliente"))
+            rp.get("ipv4", {}).get("detail", _("sin kill-switch de cliente")))
     else:
-        cap("killswitch.client", "Protección", NO_DISPONIBLE, "ningún cliente VPN con kill-switch detectado")
+        cap("killswitch.client", "Protección", NO_DISPONIBLE, _("ningún cliente VPN con kill-switch detectado"))
     fw = env["binaries"]["firewall"]
     if "nft" in fw or "iptables" in fw:
         cap("killswitch.own", "Protección", OPERATIVA if root else SIN_PERMISOS,
-            ("nftables" if "nft" in fw else "iptables") + ("" if root else " — requiere sudo/pkexec con confirmación"))
+            ("nftables" if "nft" in fw else "iptables") + ("" if root else _(" — requiere sudo/pkexec con confirmación")))
     else:
-        cap("killswitch.own", "Protección", NO_DISPONIBLE, "sin nft ni iptables")
+        cap("killswitch.own", "Protección", NO_DISPONIBLE, _("sin nft ni iptables"))
 
     # Geo / almacenamiento / interfaces
     geo = env["geoip"]
     mods = env["python"]["modules"]
     cap("geo.country", "Geo", OPERATIVA if geo["tor_geoip"] or geo["mmdb"] else NO_DISPONIBLE,
-        "base geoip de Tor" if geo["tor_geoip"] else ("mmdb" if geo["mmdb"] else "sin base offline"))
+        _("base geoip de Tor") if geo["tor_geoip"] else ("mmdb" if geo["mmdb"] else _("sin base offline")))
     cap("geo.city_asn", "Geo", OPERATIVA if geo["mmdb"] and mods.get("geoip2") else NO_DISPONIBLE,
-        "GeoLite2/DB-IP .mmdb + geoip2" if geo["mmdb"] else "sin .mmdb de ciudad/ASN (instálalo para ASN y ciudad)")
-    cap("storage.sqlite", "Datos", OPERATIVA, "SQLite local con permisos 0600")
+        "GeoLite2/DB-IP .mmdb + geoip2" if geo["mmdb"] else _("sin .mmdb de ciudad/ASN (instálalo para ASN y ciudad)"))
+    cap("storage.sqlite", "Datos", OPERATIVA, _("SQLite local con permisos 0600"))
     cap("storage.encryption", "Datos", OPERATIVA if mods.get("sqlcipher3") else NO_DISPONIBLE,
-        "SQLCipher" if mods.get("sqlcipher3") else "sin SQLCipher: la base NO está cifrada (solo permisos de archivo)")
+        "SQLCipher" if mods.get("sqlcipher3") else _("sin SQLCipher: la base NO está cifrada (solo permisos de archivo)"))
     cap("ui.cli", "Interfaz", OPERATIVA, "argparse")
     try:
         import curses  # noqa: F401
-        cap("ui.tui", "Interfaz", OPERATIVA, "curses (stdlib)")
+        cap("ui.tui", "Interfaz", OPERATIVA, _("curses (stdlib)"))
     except ImportError:
-        cap("ui.tui", "Interfaz", NO_DISPONIBLE, "curses no disponible")
+        cap("ui.tui", "Interfaz", NO_DISPONIBLE, _("curses no disponible"))
     cap("ui.gui", "Interfaz", OPERATIVA if env["display"] else INACTIVA,
-        "servidor web local en 127.0.0.1 + navegador" if env["display"] else "sin entorno gráfico (accesible por URL)")
+        _("servidor web local en 127.0.0.1 + navegador") if env["display"] else _("sin entorno gráfico (accesible por URL)"))
     return caps
 
 
@@ -1182,7 +1176,7 @@ def to_toml(cfg: dict, prefix: str = "") -> list[str]:
 
 def write_config(cfg: dict, path: Path, force: bool) -> None:
     if path.exists() and not force:
-        raise SystemExit(f"{path} ya existe (usa --force para sobrescribirlo)")
+        raise SystemExit(_("{path} ya existe (usa --force para sobrescribirlo)", path=path))
     path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     header = [f"# Generado por `vela discover` el {dt.datetime.now().astimezone():%Y-%m-%d %H:%M}.",
               "# Edítalo a tu gusto; vuelve a ejecutar discover si cambias de herramientas.", ""]
@@ -1193,10 +1187,10 @@ def write_config(cfg: dict, path: Path, force: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="vela discover",
-                                 description="Detecta VPN, Tor, proxies, DNS y firewall disponibles en el sistema.")
-    ap.add_argument("--json", action="store_true", help="salida completa en JSON")
-    ap.add_argument("--write-config", metavar="RUTA", type=Path, help="genera un config.toml adaptado al sistema")
-    ap.add_argument("--force", action="store_true", help="sobrescribe el config si ya existe")
+                                 description=_("Detecta VPN, Tor, proxies, DNS y firewall disponibles en el sistema."))
+    ap.add_argument("--json", action="store_true", help=_("salida completa en JSON"))
+    ap.add_argument("--write-config", metavar="RUTA", type=Path, help=_("genera un config.toml adaptado al sistema"))
+    ap.add_argument("--force", action="store_true", help=_("sobrescribe el config si ya existe"))
     args = ap.parse_args(argv)
 
     env = discover()
@@ -1209,7 +1203,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.write_config:
         path = args.write_config.expanduser()
         write_config(cfg, path, args.force)
-        print(f"\nConfiguración escrita en {path}", file=sys.stderr)
+        print(_("\nConfiguración escrita en {path}", path=path), file=sys.stderr)
     return 0
 
 

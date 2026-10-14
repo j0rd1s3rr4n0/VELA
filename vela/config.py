@@ -6,6 +6,8 @@ desactivado por defecto y requiere un consentimiento explícito en `[consent]`.
 
 from __future__ import annotations
 
+from .i18n import N_, _
+
 import copy
 import os
 import tomllib
@@ -95,7 +97,7 @@ DEFAULTS: dict = {
     },
     "killswitch": {"backend": "auto", "allow_lan": True},
     "profiles": {
-        "default": {"description": "Perfil por defecto", "use_tor": False, "require_vpn": False,
+        "default": {"description": N_("Perfil por defecto"), "use_tor": False, "require_vpn": False,
                     "require_killswitch": False, "allowed_countries": [],
                     "forbidden_countries": [], "preferred_vpn": [], "allowed_proxies": [],
                     "dns_policy": "any", "retention_days": 90},
@@ -103,6 +105,7 @@ DEFAULTS: dict = {
     "active_profile": "default",
     "correlation": {"time_similarity_threshold": 0.85},
     "gui": {"host": "127.0.0.1", "port": 0, "open_browser": True},
+    "ui": {"language": "auto"},          # auto = idioma del sistema; es, en, ca, pt, fr, de
 }
 
 DURATION_KEYS = {"network_interval", "tor_interval", "dns_interval", "public_ip_interval",
@@ -139,11 +142,11 @@ def validate(cfg: dict) -> list[str]:
                     errors.append(f"{prefix}{k}: {e}")
     walk(cfg)
     if cfg.get("active_profile") not in cfg.get("profiles", {}):
-        errors.append(f"active_profile: el perfil {cfg.get('active_profile')!r} no existe")
+        errors.append(_("active_profile: el perfil {v1!r} no existe", v1=cfg.get('active_profile')))
     if cfg["storage"]["mode"] not in ("disk", "memory"):
-        errors.append("storage.mode debe ser 'disk' o 'memory'")
+        errors.append(_("storage.mode debe ser 'disk' o 'memory'"))
     if cfg["gui"]["host"] not in ("127.0.0.1", "::1", "localhost"):
-        errors.append("gui.host debe ser una dirección de loopback")
+        errors.append(_("gui.host debe ser una dirección de loopback"))
     return errors
 
 
@@ -156,6 +159,7 @@ SETTINGS_KEYS: dict[str, object] = {
     "intel.allow_direct": bool, "leakwatch.enabled": bool, "leakwatch.on_leak": ("alert", "killswitch"),
     "storage.retention_days": int, "intel.auto_live": bool, "intel.live_daily_limit": int,
     "intel.live_notify": ("flagged", "all"), "monitor.public_ip_interval": "duration", "public_ip.realtime_interval": "duration",
+    "ui.language": ("auto", "es", "en", "ca", "pt", "fr", "de"),
 }
 
 
@@ -189,19 +193,19 @@ def set_key(cfg: dict, dotted: str, value):
 def coerce_setting(key: str, value):
     kind = SETTINGS_KEYS.get(key)
     if kind is None:
-        raise KeyError(f"ajuste no permitido desde la app: {key}")
+        raise KeyError(_("ajuste no permitido desde la app: {key}", key=key))
     if kind is bool:
         if not isinstance(value, bool):
-            raise ValueError(f"{key} debe ser true/false")
+            raise ValueError(_("{key} debe ser true/false", key=key))
     elif kind is int:
         value = int(value)
         if value < 0:
-            raise ValueError(f"{key} no puede ser negativo")
+            raise ValueError(_("{key} no puede ser negativo", key=key))
     elif kind == "duration":
         parse_duration(value)
         value = str(value)
     elif isinstance(kind, tuple) and value not in kind:
-        raise ValueError(f"{key} debe ser uno de {kind}")
+        raise ValueError(_("{key} debe ser uno de {kind}", key=key, kind=kind))
     return value
 
 
@@ -240,7 +244,7 @@ def load(path: Path | None = None) -> dict:
     cfg = deep_merge(deep_merge(DEFAULTS, user), load_overlay())
     errors = validate(cfg)
     if errors:
-        raise ValueError("configuración no válida:\n  " + "\n  ".join(errors))
+        raise ValueError(_("configuración no válida:\n  ") + "\n  ".join(errors))
     return cfg
 
 

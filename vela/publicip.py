@@ -13,6 +13,8 @@ la directa sí, por eso está desactivada por defecto.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 import json
 import re
@@ -54,7 +56,7 @@ def extract_ip(text: str) -> str | None:
 
 def open_direct(host: str, port: int, timeout: float, iface: str | None = None) -> socket.socket:
     last = None
-    for fam, stype, proto, _, addr in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+    for fam, stype, proto, _ign, addr in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
         s = socket.socket(fam, stype, proto)
         s.settimeout(timeout)
         try:
@@ -65,7 +67,7 @@ def open_direct(host: str, port: int, timeout: float, iface: str | None = None) 
         except OSError as e:
             last = e
             s.close()
-    raise last or OSError("sin direcciones")
+    raise last or OSError(_("sin direcciones"))
 
 
 def open_socks5(proxy: tuple[str, int], host: str, port: int, timeout: float,
@@ -79,17 +81,17 @@ def open_socks5(proxy: tuple[str, int], host: str, port: int, timeout: float,
             s.sendall(b"\x05\x01\x00")
         ver, method = s.recv(2)
         if ver != 5 or method == 0xFF:
-            raise OSError("SOCKS5: método de autenticación rechazado")
+            raise OSError(_("SOCKS5: método de autenticación rechazado"))
         if method == 2:
             u, p = (username or "").encode(), (password or "").encode()
             s.sendall(b"\x01" + bytes([len(u)]) + u + bytes([len(p)]) + p)
             if s.recv(2)[1:2] != b"\x00":
-                raise OSError("SOCKS5: autenticación fallida")
+                raise OSError(_("SOCKS5: autenticación fallida"))
         h = host.encode()
         s.sendall(b"\x05\x01\x00\x03" + bytes([len(h)]) + h + struct.pack(">H", port))
         head = s.recv(4)
         if len(head) < 4 or head[1] != 0:
-            raise OSError(f"SOCKS5: conexión rechazada (código {head[1] if len(head) > 1 else '?'})")
+            raise OSError(_("SOCKS5: conexión rechazada (código {v1})", v1=head[1] if len(head) > 1 else '?'))
         atyp = head[3]
         n = {1: 4, 4: 16}.get(atyp)
         if n is None:
@@ -113,7 +115,7 @@ def open_http_connect(proxy: tuple[str, int], host: str, port: int, timeout: flo
             resp += chunk
         status = resp.split(b"\r\n", 1)[0].decode(errors="replace")
         if " 200" not in status:
-            raise OSError(f"proxy HTTP: {status or 'sin respuesta'}")
+            raise OSError(_("proxy HTTP: {v1}", v1=status or 'sin respuesta'))
         return s
     except Exception:
         s.close()
@@ -137,14 +139,14 @@ def https_request(sock: socket.socket, host: str, path: str, timeout: float, hea
             data += chunk
             if len(data) > 5_000_000:
                 break
-    head, _, body = data.partition(b"\r\n\r\n")
+    head, _ign, body = data.partition(b"\r\n\r\n")
     status_line = head.split(b"\r\n", 1)[0].decode(errors="replace")
     m = re.match(r"HTTP/\S+\s+(\d{3})", status_line)
     status = int(m.group(1)) if m else 0
     if b"transfer-encoding: chunked" in head.lower():
         out, rest = b"", body
         while rest:
-            size_line, _, rest = rest.partition(b"\r\n")
+            size_line, _ign, rest = rest.partition(b"\r\n")
             size = int(size_line.split(b";")[0] or b"0", 16)
             if size == 0:
                 break
@@ -170,11 +172,11 @@ class PublicIPChecker:
 
     def _allowed(self, route: str, consent_key: str, force: bool):
         if not self.cfg["consent"].get(consent_key):
-            raise ConsentRequired(f"vía '{route}' desactivada: activa consent.{consent_key} en la configuración")
+            raise ConsentRequired(_("vía '{route}' desactivada: activa consent.{consent_key} en la configuración", route=route, consent_key=consent_key))
         min_iv = parse_duration(self.cfg["public_ip"]["min_interval"])
         last = self._last.get(route, 0)
         if not force and now() - last < min_iv:
-            raise RuntimeError(f"límite de frecuencia: vía '{route}' consultada hace {now() - last:.0f}s")
+            raise RuntimeError(_("límite de frecuencia: vía '{route}' consultada hace {v3:.0f}s", route=route, v3=now() - last))
         self._last[route] = now()
 
     def _get(self, url: str, opener) -> dict:
@@ -185,7 +187,7 @@ class PublicIPChecker:
         body = https_get(sock, u.hostname, u.path + (f"?{u.query}" if u.query else ""), timeout)
         ip = extract_ip(body)
         if not ip:
-            raise OSError("respuesta sin IP reconocible")
+            raise OSError(_("respuesta sin IP reconocible"))
         res = {"ip": ip, "endpoint": u.hostname, "rtt_ms": round((time.monotonic() - t0) * 1000)}
         try:
             data = json.loads(body)
@@ -236,13 +238,12 @@ def _ssdp_locations(timeout: float, local_ip: str | None) -> list[str]:
         s.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_IF, socket.inet_aton(local_ip))
     s.settimeout(0.5)
     for st in ("urn:schemas-upnp-org:device:InternetGatewayDevice:1", *WAN_SERVICES[1:]):
-        msg = (f"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\n"
-               f"MX: 1\r\nST: {st}\r\n\r\n")
+        msg = (f"M-SEARCH * HTTP/1.1\r\nHOST: 239.255.255.250:1900\r\nMAN: \"ssdp:discover\"\r\nMX: 1\r\nST: {st}\r\n\r\n")
         s.sendto(msg.encode(), SSDP_ADDR)
     locs, deadline = [], time.monotonic() + timeout
     while time.monotonic() < deadline:
         try:
-            data, _ = s.recvfrom(4096)
+            data, _ign = s.recvfrom(4096)
         except TimeoutError:
             continue
         except OSError:
@@ -266,7 +267,7 @@ def router_wan_ip(timeout: float = 2.5, local_ip: str | None = None) -> dict:
     except OSError as e:
         return {"ok": False, "method": "upnp", "error": f"SSDP: {e}"}
     if not locations:
-        return {"ok": False, "method": "upnp", "error": "ningún router respondió a UPnP-IGD (puede estar desactivado)"}
+        return {"ok": False, "method": "upnp", "error": _("ningún router respondió a UPnP-IGD (puede estar desactivado)")}
     errors = []
     for loc in locations:
         try:
@@ -297,4 +298,4 @@ def router_wan_ip(timeout: float = 2.5, local_ip: str | None = None) -> dict:
                             "cgnat": cgnat, "double_nat": addr.is_private and not cgnat}
         except Exception as e:  # noqa: BLE001
             errors.append(f"{loc}: {type(e).__name__}: {e}")
-    return {"ok": False, "method": "upnp", "error": "; ".join(errors) or "sin servicio WAN"}
+    return {"ok": False, "method": "upnp", "error": "; ".join(errors) or _("sin servicio WAN")}

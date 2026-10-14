@@ -8,6 +8,8 @@ o huella del navegador (usa un navegador o contenedor distinto por perfil).
 
 from __future__ import annotations
 
+from .i18n import _
+
 import datetime as dt
 
 from . import config as config_mod
@@ -49,51 +51,51 @@ def generate(env: dict, dns_effective: dict | None = None) -> dict:
     out: dict[str, dict] = {}
 
     out["diario"] = {
-        "description": "Uso diario: VPN con kill-switch y DNS cifrado; sin restricciones geográficas",
+        "description": _("Uso diario: VPN con kill-switch y DNS cifrado; sin restricciones geográficas"),
         "use_tor": False, "require_vpn": has_vpn, "require_killswitch": has_ks,
         "preferred_vpn": vpn_names, "dns_policy": "encrypted" if enc else "any",
         "allowed_countries": [], "forbidden_countries": [], "allowed_proxies": [], "retention_days": 90,
-        "_why": [f"VPN detectada: {', '.join(vpn_names) or 'túnel genérico'}" if has_vpn else "sin VPN: no se exige",
-                 "kill-switch del cliente verificado" if has_ks else "sin kill-switch detectado",
-                 "DNS cifrado detectado" if enc else "DNS sin cifrar: política 'any'"],
+        "_why": [_("VPN detectada: {v1}", v1=', '.join(vpn_names) or 'túnel genérico') if has_vpn else _("sin VPN: no se exige"),
+                 _("kill-switch del cliente verificado") if has_ks else _("sin kill-switch detectado"),
+                 _("DNS cifrado detectado") if enc else _("DNS sin cifrar: política 'any'")],
     }
     out["privado"] = {
-        "description": "Navegación privada: nunca salir por tu propio país, VPN + kill-switch obligatorios",
+        "description": _("Navegación privada: nunca salir por tu propio país, VPN + kill-switch obligatorios"),
         "use_tor": False, "require_vpn": True, "require_killswitch": True, "preferred_vpn": vpn_names,
         "dns_policy": "encrypted", "allowed_countries": [], "forbidden_countries": home_list,
         "allowed_proxies": [], "retention_days": 30,
-        "_why": [f"país de origen estimado por zona horaria: {home or 'desconocido'}",
-                 "una salida en tu propio país facilita la atribución"],
+        "_why": [_("país de origen estimado por zona horaria: {v1}", v1=home or 'desconocido'),
+                 _("una salida en tu propio país facilita la atribución")],
     }
     if has_tor:
         out["anonimo"] = {
-            "description": "Anonimato: Tor sobre VPN (el ISP no ve que usas Tor); resolver nombres por Tor; "
-                           "usa Tor Browser",
+            "description": _("Anonimato: Tor sobre VPN (el ISP no ve que usas Tor); resolver nombres por Tor; "
+                           "usa Tor Browser"),
             "use_tor": True, "require_vpn": has_vpn, "require_killswitch": has_ks, "preferred_vpn": vpn_names,
             "dns_policy": "tor", "allowed_countries": [], "forbidden_countries": home_list,
             "allowed_proxies": [], "retention_days": 7,
-            "_why": ["Tor detectado (ControlPort/SocksPort)",
-                     "Tor sobre VPN oculta el uso de Tor a tu ISP" if has_vpn else "sin VPN: Tor directo",
-                     "retención corta del historial"],
+            "_why": [_("Tor detectado (ControlPort/SocksPort)"),
+                     _("Tor sobre VPN oculta el uso de Tor a tu ISP") if has_vpn else _("sin VPN: Tor directo"),
+                     _("retención corta del historial")],
         }
         out["alto_riesgo"] = {
-            "description": "Alto riesgo: Tor + VPN + kill-switch obligatorio, sin salidas en países 14-Eyes ni "
-                           "en tu país; retención mínima (considera storage.mode = \"memory\")",
+            "description": _("Alto riesgo: Tor + VPN + kill-switch obligatorio, sin salidas en países 14-Eyes ni "
+                           "en tu país; retención mínima (considera storage.mode = \"memory\")"),
             "use_tor": True, "require_vpn": True, "require_killswitch": True, "preferred_vpn": vpn_names,
             "dns_policy": "tor", "allowed_countries": [],
             "forbidden_countries": sorted(set(FOURTEEN_EYES) | set(home_list)),
             "allowed_proxies": [], "retention_days": 1,
-            "_why": ["excluye 14-Eyes como salida (VPN y exit de Tor)",
-                     "kill-switch obligatorio; en ProtonVPN conviene el modo permanente"],
+            "_why": [_("excluye 14-Eyes como salida (VPN y exit de Tor)"),
+                     _("kill-switch obligatorio; en ProtonVPN conviene el modo permanente")],
         }
     if proxies:
         out["laboratorio"] = {
-            "description": "Pruebas/laboratorio: tráfico a través de los proxies locales detectados, siempre dentro de la VPN",
+            "description": _("Pruebas/laboratorio: tráfico a través de los proxies locales detectados, siempre dentro de la VPN"),
             "use_tor": False, "require_vpn": has_vpn, "require_killswitch": False, "preferred_vpn": vpn_names,
             "dns_policy": "any", "allowed_countries": [], "forbidden_countries": [],
             "allowed_proxies": proxies, "retention_days": 30,
-            "_why": [f"proxies locales detectados: {', '.join(proxies)}",
-                     "separado del resto para que el Correlation Risk Engine detecte mezclas"],
+            "_why": [_("proxies locales detectados: {v1}", v1=', '.join(proxies)),
+                     _("separado del resto para que el Correlation Risk Engine detecte mezclas")],
         }
     return out
 

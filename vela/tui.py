@@ -6,6 +6,8 @@ Teclas: 1-7 / Tab pestañas · ↑↓ PgUp PgDn desplazar · / filtrar · r rota
 
 from __future__ import annotations
 
+from .i18n import _
+
 import curses
 import json
 import threading
@@ -14,17 +16,17 @@ import time
 from . import worldmap
 from .util import fmt_duration, iso
 
-TABS = ["Panel", "Sesiones", "Contadores", "Timeline", "Alertas", "Mapa", "Rotación"]
+TABS = [_("Panel"), _("Sesiones"), _("Contadores"), _("Timeline"), _("Alertas"), _("Mapa"), _("Rotación")]
 SEV_PAIR = {"critical": 2, "high": 2, "medium": 3, "warning": 3, "low": 4, "info": 5}
 HELP = [
-    "1-7 / Tab   cambiar de pestaña",
-    "↑ ↓ PgUp PgDn  desplazar",
-    "/           filtrar la tabla actual (Enter vacío = quitar filtro)",
-    "r           rotar (t=Tor, p=proxy, v=VPN; d = dry-run)",
-    "l           ejecutar comprobaciones de fugas (pasivas)",
-    "u           refrescar ahora",
-    "p           MODO EMERGENCIA (detiene rotaciones, kill-switch si está permitido)",
-    "e           salir del modo emergencia",
+    _("1-7 / Tab   cambiar de pestaña"),
+    _("↑ ↓ PgUp PgDn  desplazar"),
+    _("/           filtrar la tabla actual (Enter vacío = quitar filtro)"),
+    _("r           rotar (t=Tor, p=proxy, v=VPN; d = dry-run)"),
+    _("l           ejecutar comprobaciones de fugas (pasivas)"),
+    _("u           refrescar ahora"),
+    _("p           MODO EMERGENCIA (detiene rotaciones, kill-switch si está permitido)"),
+    _("e           salir del modo emergencia"),
     "q           salir",
 ]
 
@@ -163,16 +165,16 @@ class App:
             elif ch == ord("r"):
                 self.do_rotate()
             elif ch == ord("l"):
-                self.run_bg("comprobando fugas…", lambda: self.b.call("leaks"),
+                self.run_bg(_("comprobando fugas…"), lambda: self.b.call("leaks"),
                             lambda r: f"{sum(f['status'] == 'fail' for f in r)} fallos, "
                                       f"{sum(f['status'] == 'warn' for f in r)} avisos")
             elif ch == ord("p"):
-                if self.key("¿Activar MODO EMERGENCIA? (s/N) ") in ("s", "S", "y", "Y"):
+                if self.key(_("¿Activar MODO EMERGENCIA? (s/N) ")) in ("s", "S", "y", "Y"):
                     self.run_bg("emergencia…", lambda: self.b.call("panic"),
-                                lambda r: "EMERGENCIA activa · kill-switch " +
+                                lambda r: _("EMERGENCIA activa · kill-switch ") +
                                           ("aplicado" if r["killswitch"].get("ok") else f"NO: {r['killswitch'].get('error')}"))
             elif ch == ord("e"):
-                self.run_bg("reanudando…", lambda: self.b.call("resume"), lambda r: "emergencia desactivada")
+                self.run_bg("reanudando…", lambda: self.b.call("resume"), lambda r: _("emergencia desactivada"))
         self.poller.stop.set()
 
     def run_bg(self, label, fn, fmt):
@@ -187,15 +189,15 @@ class App:
         threading.Thread(target=work, daemon=True).start()
 
     def do_rotate(self):
-        layer = {"t": "tor", "p": "proxy", "v": "vpn"}.get(self.key("Rotar: [t]Tor [p]proxy [v]VPN · Esc cancela "))
+        layer = {"t": "tor", "p": "proxy", "v": "vpn"}.get(self.key(_("Rotar: [t]Tor [p]proxy [v]VPN · Esc cancela ")))
         if not layer:
             return
-        mode = self.key(f"{layer}: [d]ry-run  [x] ejecutar  · Esc cancela ")
+        mode = self.key(_("{layer}: [d]ry-run  [x] ejecutar  · Esc cancela ", layer=layer))
         if mode not in ("d", "x"):
             return
         dry = mode == "d"
         self.run_bg(f"rotando {layer}…", lambda: self.b.call("rotate", layer=layer, dry_run=dry, force=True),
-                    lambda r: f"rotación {layer}: {r['result']} · " +
+                    lambda r: _("rotación {layer}: {result} · ", layer=layer, result=r['result']) +
                               " · ".join(f"{'✔' if s['ok'] else '✘'}{s['name']}" for s in r["steps"]))
 
     # ── dibujo ──
@@ -210,8 +212,7 @@ class App:
         title = " VELA "
         self.put(0, 0, " " * (w - 1), curses.A_REVERSE)
         self.put(0, 0, title, curses.A_REVERSE | curses.A_BOLD)
-        info = (f"perfil {st.get('profile', '?')} · exposición {ex.get('score', '?')}/100 {ex.get('level', '')} · "
-                f"{'daemon' if getattr(self.b, 'remote', False) else 'motor local'} · {time.strftime('%H:%M:%S')}")
+        info = (_("perfil {v1} · exposición {v3}/100 {v5} · {v7} · {v9}", v1=st.get('profile', '?'), v3=ex.get('score', '?'), v5=ex.get('level', ''), v7='daemon' if getattr(self.b, 'remote', False) else _('motor local'), v9=time.strftime('%H:%M:%S')))
         self.put(0, len(title) + 1, info, curses.A_REVERSE)
         if st.get("emergency"):
             self.put(0, w - 13, " EMERGENCIA ", curses.A_REVERSE | curses.color_pair(2) | curses.A_BOLD)
@@ -250,43 +251,42 @@ class App:
         st = d["status"]
         obs = st.get("obs") or {}
         net = st["net"]
-        y = self.section(y, "Topología de salida")
+        y = self.section(y, _("Topología de salida"))
         chain = obs.get("chain", [])
         self.put(y, 2, "  ──▶  ".join(f"[{c['type']}] {c.get('ip') or c.get('label')}" for c in chain))
         y += 1
         e4 = net["egress"].get("ipv4") or {}
-        self.put(y, 2, f"salida IPv4 {e4.get('dev')} · túnel {'SÍ' if net['via_tunnel'].get('ipv4') else 'no'} · "
-                       f"IPv6 {'sí' if net['egress'].get('ipv6') else 'sin ruta'} · túneles {net['tunnels'] or '-'}")
+        self.put(y, 2, _("salida IPv4 {v1} · túnel {v3} · IPv6 {v5} · túneles {v7}", v1=e4.get('dev'), v3='SÍ' if net['via_tunnel'].get('ipv4') else 'no', v5='sí' if net['egress'].get('ipv6') else 'sin ruta', v7=net['tunnels'] or '-'))
         y += 1
         wan = st.get("wan") or {}
         pub = st.get("public") or {}
-        self.put(y, 2, f"IP WAN router: {wan.get('ip') if wan.get('ok') else (wan.get('error') or 'no comprobada')[:60]}")
+        self.put(y, 2, _("IP WAN router: {v1}", v1=wan.get('ip') if wan.get('ok') else (wan.get('error') or 'no comprobada')[:60]))
         y += 1
         for route, r in pub.items():
             txt = (f"{r['ip']} ({(r.get('geo') or {}).get('country') or '?'}) {iso(r['ts'])}" if r.get("ok")
                    else (r.get("error") or "")[:80])
-            self.put(y, 2, f"IP pública [{route}]: {txt}", 0 if r.get("ok") else curses.A_DIM)
+            self.put(y, 2, _("IP pública [{route}]: {txt}", route=route, txt=txt), 0 if r.get("ok") else curses.A_DIM)
             y += 1
         y += 1
         t = st.get("tor") or {}
-        y = self.section(y, "Tor")
+        y = self.section(y, _("Tor"))
         if t.get("available"):
             g, e = t.get("guard") or {}, t.get("exit") or {}
             self.put(y, 2, f"{t.get('version')} · bootstrap {t.get('bootstrap')}% · {t.get('circuit_count')} circuitos · "
-                           f"{t.get('stream_count')} streams" + (" · Tor Browser (solo observación)" if t.get("observe_only") else ""))
+                           f"{t.get('stream_count')} streams" + (_(" · Tor Browser (solo observación)") if t.get("observe_only") else ""))
             y += 1
             tc = obs.get("tor_chain") or []
             self.put(y, 2, "  ──▶  ".join(f"{c['type'][4:]}: {c['label']} [{c.get('country') or '?'}]" for c in tc)
                      or f"guard {g.get('nick')} → exit {e.get('nick')}", curses.color_pair(7))
             y += 1
         else:
-            self.put(y, 2, t.get("error") or "no disponible", curses.A_DIM)
+            self.put(y, 2, t.get("error") or _("no disponible"), curses.A_DIM)
             y += 1
         y += 1
         dn = st.get("dns") or {}
         y = self.section(y, "DNS")
         res = (dn.get("encryption") or {}).get("resolvers") or []
-        self.put(y, 2, f"efectivo ({dn.get('effective_source')}): " +
+        self.put(y, 2, _("efectivo ({v1}): ", v1=dn.get('effective_source')) +
                  (", ".join(f"{r['addr']} {r['provider'] or '?'} [{r['transport']}]" for r in res) or "-") +
                  f" · cifrado {({True: 'sí', False: 'NO', None: '?'})[dn.get('encrypted')]}",
                  curses.color_pair(1 if dn.get("encrypted") else 3))
@@ -294,14 +294,13 @@ class App:
         rp = kx.get("route_protection") or {}
         if rp:
             y += 1
-            self.put(y, 2, f"kill-switch {', '.join(kx.get('declared_by') or []) or '-'}: si cae el túnel IPv4 "
-                           f"{rp['ipv4']['state']}, IPv6 {rp['ipv6']['state']}",
+            self.put(y, 2, _("kill-switch {v1}: si cae el túnel IPv4 {state}, IPv6 {state2}", v1=', '.join(kx.get('declared_by') or []) or '-', state=rp['ipv4']['state'], state2=rp['ipv6']['state']),
                      curses.color_pair(1 if rp["ipv4"]["state"] == "bloqueado" else 2))
         y += 2
-        y = self.section(y, "Contadores en curso")
+        y = self.section(y, _("Contadores en curso"))
         sess = st.get("session")
         if sess:
-            self.put(y, 2, f"sesión {sess['id']}  {fmt_duration(sess['duration'])}", curses.A_BOLD)
+            self.put(y, 2, _("sesión {id}  {duration}", id=sess['id'], duration=fmt_duration(sess['duration'])), curses.A_BOLD)
             y += 1
         for layer, c in (st.get("live_counters") or {}).items():
             if y >= h - 6:
@@ -309,16 +308,14 @@ class App:
             self.put(y, 2, f"{layer:18} {c['label'][:42]:42} actual {fmt_duration(c['current'])} · total {fmt_duration(c['total'])}")
             y += 1
         y += 1
-        y = self.section(y, "Rotación")
+        y = self.section(y, _("Rotación"))
         for layer, r in (st.get("rotation") or {}).items():
             rem = fmt_duration(r["remaining"]) if r.get("remaining") is not None else "—"
-            self.put(y, 2, f"{layer:6} {r['adapter']:16} activa {'sí' if r['enabled'] else 'no'} · "
-                           f"{'disponible' if r['available'] else r['reason'][:50]} · próxima en {rem} · "
-                           f"{r['rotations_last_hour']}/{r['max_per_hour']} última hora")
+            self.put(y, 2, _("{layer:6} {adapter:16} activa {v4} · {v6} · próxima en {rem} · {rotations_last_hour}/{max_per_hour} última hora", layer=layer, adapter=r['adapter'], v4='sí' if r['enabled'] else 'no', v6='disponible' if r['available'] else r['reason'][:50], rem=rem, rotations_last_hour=r['rotations_last_hour'], max_per_hour=r['max_per_hour']))
             y += 1
         fs = st.get("findings") or []
         if fs and y < h:
-            y = self.section(y + 1, f"Alertas ({len(fs)})")
+            y = self.section(y + 1, _("Alertas ({n})", n=len(fs)))
             for f in fs[: max(0, h - y)]:
                 self.put(y, 2, f"{f['severity'].upper():8} {f['title']}", curses.color_pair(SEV_PAIR.get(f["severity"], 5)))
                 y += 1
@@ -352,21 +349,21 @@ class App:
         for f in (d["status"].get("findings") or []):
             rows.append((f"{f['severity'].upper():8} {f['status']:5} {f['title']}", curses.color_pair(SEV_PAIR.get(f["severity"], 5)) | curses.A_BOLD))
             rows.append((f"    observado: {f['observed']}", 0))
-            rows.append((f"    método: {f['method']} [{f['mode']}] · confianza {f['confidence']}", curses.A_DIM))
+            rows.append((_("    método: {method} [{mode}] · confianza {confidence}", method=f['method'], mode=f['mode'], confidence=f['confidence']), curses.A_DIM))
             rows.append((f"    limitaciones: {f['limitations']}", curses.A_DIM))
-            rows.append((f"    recomendación: {f['recommendation']}", curses.color_pair(4)))
+            rows.append((_("    recomendación: {recommendation}", recommendation=f['recommendation']), curses.color_pair(4)))
         ex = d["status"].get("exposure") or {}
         rows.append(("", 0))
-        rows.append((f"Indicadores de exposición ({ex.get('score')}/100):", curses.A_BOLD))
+        rows.append((_("Indicadores de exposición ({v1}/100):", v1=ex.get('score')), curses.A_BOLD))
         for i in ex.get("indicators", []):
             rows.append((f"  {'●' if i['present'] else '○'} {i['label']} (peso {i['weight']})",
                          curses.color_pair(2) if i["present"] else curses.A_DIM))
         rows.append((ex.get("disclaimer", ""), curses.A_DIM))
-        self.lines(rows or [("sin alertas", curses.color_pair(1))], y, h)
+        self.lines(rows or [(_("sin alertas"), curses.color_pair(1))], y, h)
 
     def draw_map(self, d, y, h):
         m = d.get("map") or {}
-        _, w = self.scr.getmaxyx()
+        _ign, w = self.scr.getmaxyx()
         cols, rows_n = max(20, w - 2), max(8, h - 4)
         markers = []
         legend = []
@@ -375,7 +372,7 @@ class App:
         home = m.get("home") or {}
         if home.get("lat") is not None:
             markers.append((home["lat"], home["lon"], "H"))
-            legend.append(f"H casa ({home.get('country')}, {home.get('geo_source')})")
+            legend.append(_("H casa ({v1}, {v3})", v1=home.get('country'), v3=home.get('geo_source')))
         for hop, ch in zip(m.get("tor_chain", []), "GME"):
             if hop.get("lat") is not None:
                 markers.append((hop["lat"], hop["lon"], ch))
@@ -391,9 +388,9 @@ class App:
                 if ch in "HGME@x":
                     self.put(y + i, 1 + j, ch, curses.A_BOLD | curses.color_pair(2 if ch in "E@x" else 1))
         ly = y + rows_n
-        self.put(ly, 1, " · ".join(legend) or "sin ubicaciones conocidas", curses.A_DIM)
-        osm = " · © OpenStreetMap contributors" if worldmap.osm_rings() is not None else ""
-        self.put(ly + 1, 1, "x = exits de Tor históricos · · = otras salidas históricas" + osm + " · " + (m.get("note") or "")[:110],
+        self.put(ly, 1, " · ".join(legend) or _("sin ubicaciones conocidas"), curses.A_DIM)
+        osm = _(" · © OpenStreetMap contributors") if worldmap.osm_rings() is not None else ""
+        self.put(ly + 1, 1, _("x = exits de Tor históricos · · = otras salidas históricas") + osm + " · " + (m.get("note") or "")[:110],
                  curses.A_DIM)
 
     def draw_rotation(self, d, y, h):
@@ -401,12 +398,11 @@ class App:
         rows = []
         for layer, st in (r.get("status") or {}).items():
             rem = fmt_duration(st["remaining"]) if st.get("remaining") is not None else "—"
-            rows.append((f"{layer:6} {st['adapter']:16} activa={st['enabled']} disponible={st['available']} "
-                         f"{st['reason']} próxima en {rem} ({st['rotations_last_hour']}/{st['max_per_hour']} h)", curses.A_BOLD))
+            rows.append((_("{layer:6} {adapter:16} activa={enabled} disponible={available} {reason} próxima en {rem} ({rotations_last_hour}/{max_per_hour} h)", layer=layer, adapter=st['adapter'], enabled=st['enabled'], available=st['available'], reason=st['reason'], rem=rem, rotations_last_hour=st['rotations_last_hour'], max_per_hour=st['max_per_hour']), curses.A_BOLD))
             pol = (r.get("policies") or {}).get(layer, {})
-            rows.append((f"       política: " + ", ".join(f"{k}={v}" for k, v in pol.items()), curses.A_DIM))
+            rows.append((_("       política: ") + ", ".join(f"{k}={v}" for k, v in pol.items()), curses.A_DIM))
         rows.append(("", 0))
-        rows.append(("Historial (r = rotar):", curses.A_BOLD))
+        rows.append((_("Historial (r = rotar):"), curses.A_BOLD))
         for x in r.get("history", []):
             ok = x["result"] in ("ok", "dry_run_ok")
             rows.append((f"{iso(x['ts'])} {x['layer']:6} {x['result']:12} {'dry-run ' if x['dry_run'] else ''}"

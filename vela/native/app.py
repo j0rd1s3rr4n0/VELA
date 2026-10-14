@@ -8,6 +8,9 @@ sus datos (sin parpadeo); las demás páginas se reconstruyen solo cuando cambia
 
 from __future__ import annotations
 
+from ..i18n import _
+from ..i18n import language as i18n_language
+
 import hashlib
 import json
 import math
@@ -26,6 +29,7 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 import cairo  # noqa: E402
 
 from .. import ACRONYM, TAGLINE, osmmap, worldmap  # noqa: E402
+from ..geo import country_label  # noqa: E402
 from .. import APP_ID as VELA_APP_ID  # noqa: E402
 from ..ipc import connect  # noqa: E402
 from ..util import fmt_duration, fmt_duration_short, iso, tilde  # noqa: E402
@@ -35,8 +39,8 @@ APP_ID = VELA_APP_ID
 ICON = Path(__file__).resolve().parents[1] / "data" / "vela.svg"
 SEV_STATUS = {"critical": "critical", "high": "critical", "medium": "serious", "warning": "warning",
               "low": "warning", "info": "neutral"}
-VERDICT = {"fuga": ("critical", "Fuga"), "directa": ("serious", "Directa"), "protegida": ("good", "Protegida"),
-           "permitida": ("neutral", "Permitida"), "otra": ("neutral", "Otra")}
+VERDICT = {"fuga": ("critical", _("Fuga")), "directa": ("serious", _("Directa")), "protegida": ("good", _("Protegida")),
+           "permitida": ("neutral", _("Permitida")), "otra": ("neutral", _("Otra"))}
 VERDICT_COLOR = {"fuga": P["critical"], "directa": P["serious"], "protegida": P["good"], "permitida": P["s1"],
                  "otra": P["muted"]}
 CATEGORY_ORDER = ["wifi", "lan", "vpn", "bloqueo", "máquinas virtuales", "contenedores", "virtual"]
@@ -147,24 +151,24 @@ def table(columns: list[tuple[str, float]], rows: list[list], max_rows=200):
             grid.attach(w, j, r, 1, 1)
         r += 1
     if not rows:
-        grid.attach(lbl("sin datos", "td"), 0, 1, len(columns), 1)
+        grid.attach(lbl(_("sin datos"), "td"), 0, 1, len(columns), 1)
     return grid
 
 
 PROXY_GUIDE = [
-    "Las capas se apilan: el proxy decide a QUIÉN envía tu programa el tráfico; la VPN decide POR DÓNDE sale del "
+    _("Las capas se apilan: el proxy decide a QUIÉN envía tu programa el tráfico; la VPN decide POR DÓNDE sale del "
     "equipo. Todo lo que no es loopback (incluido lo que envía un proxy) sigue la ruta del sistema: por el túnel si la "
-    "VPN está conectada.",
-    "Proxy LOCAL (en tu equipo: mitmproxy, Burp, privoxy…): solo reenvía. El destino sigue viendo la IP de la VPN (o "
-    "tu IP real sin VPN). No añade anonimato, pero ve y puede modificar todo lo que pasa por él.",
-    "Proxy REMOTO por encima de la VPN (tú → VPN → proxy → destino): el destino ve la IP del proxy; el proxy ve la IP "
-    "de la VPN, no la tuya; la VPN ve que te conectas al proxy (y su contenido si no va cifrado).",
-    "Proxy + Tor: «Tor → proxy» (salir de Tor a un proxy) evita bloqueos a exits de Tor, pero ese proxy ve todo y "
-    "puede correlacionarte. «Proxy → Tor» (Socks5Proxy/HTTPSProxy en torrc) oculta el uso de Tor a tu red.",
-    "DNS: usa socks5h:// (o torsocks / proxy_dns en proxychains) para que los nombres los resuelva el proxy; con "
-    "socks5:// o http sin CONNECT, el DNS sale por tu resolver y revela los dominios.",
-    "Los programas que ignoran el proxy salen «Directo»: el diagrama lo muestra. Con el kill-switch de la VPN, si el "
-    "túnel cae, el proxy local también se queda sin salida (no expone tu IP).",
+    "VPN está conectada."),
+    _("Proxy LOCAL (en tu equipo: mitmproxy, Burp, privoxy…): solo reenvía. El destino sigue viendo la IP de la VPN (o "
+    "tu IP real sin VPN). No añade anonimato, pero ve y puede modificar todo lo que pasa por él."),
+    _("Proxy REMOTO por encima de la VPN (tú → VPN → proxy → destino): el destino ve la IP del proxy; el proxy ve la IP "
+    "de la VPN, no la tuya; la VPN ve que te conectas al proxy (y su contenido si no va cifrado)."),
+    _("Proxy + Tor: «Tor → proxy» (salir de Tor a un proxy) evita bloqueos a exits de Tor, pero ese proxy ve todo y "
+    "puede correlacionarte. «Proxy → Tor» (Socks5Proxy/HTTPSProxy en torrc) oculta el uso de Tor a tu red."),
+    _("DNS: usa socks5h:// (o torsocks / proxy_dns en proxychains) para que los nombres los resuelva el proxy; con "
+    "socks5:// o http sin CONNECT, el DNS sale por tu resolver y revela los dominios."),
+    _("Los programas que ignoran el proxy salen «Directo»: el diagrama lo muestra. Con el kill-switch de la VPN, si el "
+    "túnel cae, el proxy local también se queda sin salida (no expone tu IP)."),
 ]
 
 
@@ -173,17 +177,17 @@ def tor_pill(t):
     t = t or {}
     v = t.get("verdict")
     w = pill({"exit": "serious", "relay": "warning", "no": "good"}.get(v, "neutral"),
-             {"exit": "Tor exit", "relay": "Tor relay", "no": "No"}.get(v, "?"))
+             {"exit": _("Tor exit"), "relay": _("Tor relay"), "no": "No"}.get(v, "?"))
     tip = []
     if t.get("relays"):
-        tip.append("Relays: " + ", ".join(f"{r['nick']} ({' '.join(r['flags'][:4])})" for r in t["relays"]))
-    tip.append("Consenso local: " + ("sí" if t.get("consensus") else "no"))
-    tip.append("Lista oficial de salidas: " + ("sí" if t.get("in_exit_list") else "no"))
+        tip.append(_("Relays: ") + ", ".join(f"{r['nick']} ({' '.join(r['flags'][:4])})" for r in t["relays"]))
+    tip.append(_("Consenso local: ") + (_("sí") if t.get("consensus") else _("no")))
+    tip.append(_("Lista oficial de salidas: ") + (_("sí") if t.get("in_exit_list") else _("no")))
     exo = t.get("exonerator")
     if exo:
-        tip.append(f"ExoneraTor ({exo.get('date')}): " + (exo.get("result") or exo.get("detail") or "—"))
+        tip.append(_("ExoneraTor ({v1}): ", v1=exo.get('date')) + (exo.get("result") or exo.get("detail") or "—"))
     else:
-        tip.append("ExoneraTor: no consultado")
+        tip.append(_("ExoneraTor: no consultado"))
     w.set_tooltip_text("\n".join(tip))
     return w
 
@@ -271,6 +275,13 @@ MAP_STYLE = {"ocean": "#121419", "land": "#20242a", "coast": "#353b44", "grid": 
 MAP_YTOP = osmmap.lonlat_to_norm(0, 82)[1]
 MAP_YBOT = osmmap.lonlat_to_norm(0, -60)[1]
 MAP_YSPAN = MAP_YBOT - MAP_YTOP
+
+
+def reason_label(reason: str) -> str:
+    """Motivo de cierre de sesión (identificador guardado en español) en el idioma de la interfaz."""
+    if reason.startswith("cambio de "):
+        return _("cambio de {what}", what=reason[len("cambio de "):])
+    return _(reason)
 
 
 class MapView(Gtk.DrawingArea):
@@ -434,12 +445,12 @@ class MapView(Gtk.DrawingArea):
         set_rgb(cr, MAP_STYLE["grid"])
         cr.set_line_width(1)
         for lon in range(-180, 181, step):
-            x, _ = self.proj(lon, 0, w, h)
+            x, _ign = self.proj(lon, 0, w, h)
             if 0 <= x <= w:
                 cr.move_to(round(x) + 0.5, 0)
                 cr.line_to(round(x) + 0.5, h)
         for lat in range(-60, 85, step):
-            _, y = self.proj(0, lat, w, h)
+            _ign, y = self.proj(0, lat, w, h)
             if 0 <= y <= h:
                 cr.move_to(0, round(y) + 0.5)
                 cr.line_to(w, round(y) + 0.5)
@@ -521,6 +532,7 @@ class MapView(Gtk.DrawingArea):
         def free(r):
             return all(r[0] > q[2] or r[2] < q[0] or r[1] > q[3] or r[3] < q[1] for q in taken)
 
+        lang = i18n_language()
         min_city = 6_000_000 if z < 4.6 else 2_000_000 if z < 5.4 else 900_000 if z < 6.2 else \
             300_000 if z < 7 else 0
         min_country = 8_000_000 if z < 2.6 else 1_000_000 if z < 3.6 else 0
@@ -536,8 +548,9 @@ class MapView(Gtk.DrawingArea):
             y = (p["y"] - MAP_YTOP) * ks + self.oy
             if not (-40 <= x <= w + 40 and -10 <= y <= h + 10):
                 continue
+            label = (p.get("names") or {}).get(lang) or p["name"]
             if kind == "country":
-                name = p["name"].upper()
+                name = label.upper()
                 size = 7.5 if z < 3 else 8.5
                 tw, th = measure(cr, name, size, True)
                 r = (x - tw / 2 - 2, y - th / 2 - 1, x + tw / 2 + 2, y + th / 2 + 1)
@@ -547,14 +560,14 @@ class MapView(Gtk.DrawingArea):
                     shown += 1
             else:
                 size = 8.0 if kind == "capital" else 7.5
-                tw, th = measure(cr, p["name"], size, kind == "capital")
+                tw, th = measure(cr, label, size, kind == "capital")
                 r = (x - 3, y - th / 2 - 1, x + 6 + tw + 2, y + th / 2 + 1)
                 if free(r):
                     taken.append(r)
                     set_rgb(cr, MAP_STYLE["dot"] if kind == "city" else MAP_STYLE["city"])
                     cr.arc(x, y, 2.2 if kind == "capital" else 1.7, 0, 2 * math.pi)
                     cr.fill()
-                    text(cr, x + 5, y, p["name"], size, MAP_STYLE["city"] if kind == "capital" else MAP_STYLE["country"],
+                    text(cr, x + 5, y, label, size, MAP_STYLE["city"] if kind == "capital" else MAP_STYLE["country"],
                          bold=kind == "capital", valign="middle")
                     shown += 1
             if shown >= 220:
@@ -675,7 +688,7 @@ class MapView(Gtk.DrawingArea):
         z = self.zoom_level(w, h)
         text(cr, w - 8, h - 6, f"zoom {z:.1f} · ×{self.s:.1f}", 8, P["muted"], align="right", valign="bottom")
         note = (osmmap.ATTRIBUTION if osmmap.load() else
-                "Mapa básico · genera el mapa OpenStreetMap en Ajustes → Mapa")
+                _("Mapa básico · genera el mapa OpenStreetMap en Ajustes → Mapa"))
         tw, th = measure(cr, note, 7.5)
         set_rgb(cr, MAP_STYLE["ocean"], 0.8)
         cr.rectangle(0, h - th - 6, tw + 14, th + 6)
@@ -708,20 +721,20 @@ class MapView(Gtk.DrawingArea):
                 verd[f["verdict"]] = verd.get(f["verdict"], 0) + 1
             return (f"{cc_flag(p['country'])} {p['name'] or '?'} — {len(p['flows'])} conexiones\n"
                     + " · ".join(f"{k}: {v}" for k, v in verd.items()) + "\n"
-                    + "Programas: " + ", ".join(f"{k} ({v})" for k, v in sorted(procs.items(), key=lambda kv: -kv[1])[:5])
+                    + _("Programas: {names}", names=", ".join(f"{k} ({v})" for k, v in sorted(procs.items(), key=lambda kv: -kv[1])[:5]))
                     + "\nIPs: " + ", ".join(ips[:5]) + (" …" if len(ips) > 5 else "")
-                    + (f"\n🧅 {p['tor']} conexiones a nodos Tor" if p["tor"] else "")
-                    + (f"\n⚠ {p['vt_bad']} marcadas en VirusTotal" if p["vt_bad"] else "")
-                    + "\nClic para ver el detalle")
+                    + (_("\n🧅 {tor} conexiones a nodos Tor", tor=p['tor']) if p["tor"] else "")
+                    + (_("\n⚠ {vt_bad} marcadas en VirusTotal", vt_bad=p['vt_bad']) if p["vt_bad"] else "")
+                    + _("\nClic para ver el detalle"))
         if kind == "hop":
-            return f"{p['type']}: {p.get('label')}\n{p.get('ip') or ''} · {p.get('country') or '?'} (ubicación estimada)"
+            return _("{type}: {v2}\n{v4} · {v6} (ubicación estimada)", type=p['type'], v2=p.get('label'), v4=p.get('ip') or '', v6=p.get('country') or '?')
         if kind == "history":
             return f"{p['layer']}: {p['label']} ({p.get('country') or '?'})\n{iso(p['started'])} → " \
-                   f"{iso(p['ended']) if p['ended'] else 'activo'}"
+                   f"{iso(p['ended']) if p['ended'] else _('activo')}"
         if kind == "heat":
-            return f"{p['name']}: {fmt_duration(p['seconds'])} de salida (7 días)"
+            return _("{name}: {duration} de salida (7 días)", name=p['name'], duration=fmt_duration(p['seconds']))
         if kind == "home":
-            return f"Tu origen (estimado por {p.get('geo_source')})"
+            return _("Tu origen (estimado por {v1})", v1=p.get('geo_source'))
         return None
 
     def _scroll(self, _c, _dx, dy):
@@ -757,19 +770,19 @@ class MapView(Gtk.DrawingArea):
 
 # ── ventana ─────────────────────────────────────────────────────────────────
 
-PAGES = [("dash", "Panel de mando", "utilities-system-monitor-symbolic"),
-         ("live", "Tiempo real", "network-transmit-receive-symbolic"),
-         ("nets", "Redes", "network-wired-symbolic"),
-         ("map", "Mapa", "mark-location-symbolic"),
-         ("hist", "Historial", "document-open-recent-symbolic"),
-         ("fix", "Alertas y acciones", "dialog-warning-symbolic"),
-         ("intel", "Threat intel", "security-high-symbolic"),
-         ("prof", "Perfiles", "system-users-symbolic"),
-         ("settings", "Ajustes", "emblem-system-symbolic")]
-KEY_ROWS = [("virustotal", "VirusTotal", "virustotal"), ("shodan", "Shodan", "shodan"),
-            ("greynoise", "GreyNoise (opcional: sin clave usa la API comunitaria)", "greynoise"),
-            ("censys_token", "Censys · token de la Platform", "censys"),
-            ("censys_org", "Censys · ID de organización (opcional)", None)]
+PAGES = [("dash", _("Panel de mando"), "utilities-system-monitor-symbolic"),
+         ("live", _("Tiempo real"), "network-transmit-receive-symbolic"),
+         ("nets", _("Redes"), "network-wired-symbolic"),
+         ("map", _("Mapa"), "mark-location-symbolic"),
+         ("hist", _("Historial"), "document-open-recent-symbolic"),
+         ("fix", _("Alertas y acciones"), "dialog-warning-symbolic"),
+         ("intel", _("Threat intel"), "security-high-symbolic"),
+         ("prof", _("Perfiles"), "system-users-symbolic"),
+         ("settings", _("Ajustes"), "emblem-system-symbolic")]
+KEY_ROWS = [("virustotal", "VirusTotal", "virustotal"), ("shodan", _("Shodan"), "shodan"),
+            ("greynoise", _("GreyNoise (opcional: sin clave usa la API comunitaria)"), "greynoise"),
+            ("censys_token", _("Censys · token de la Platform"), "censys"),
+            ("censys_org", _("Censys · ID de organización (opcional)"), None)]
 
 
 def state_path() -> Path:
@@ -835,7 +848,7 @@ class Window(Adw.ApplicationWindow):
         brand.set_margin_top(4)
         brand.set_margin_start(16)
         brand.set_margin_bottom(14)
-        brand.set_tooltip_text(f"VELA — {ACRONYM}\n{TAGLINE}")
+        brand.set_tooltip_text(f"VELA — {ACRONYM}\n{_(TAGLINE)}")
         logo = Gtk.Image.new_from_file(str(ICON))
         logo.set_pixel_size(34)
         brand.append(logo)
@@ -877,43 +890,43 @@ class Window(Adw.ApplicationWindow):
         # contenido
         self.stack = Gtk.Stack(transition_type=Gtk.StackTransitionType.NONE)
         self.pages = {}
-        for key, _title, _ in PAGES:
+        for key, _title, _ign in PAGES:
             box = vbox(12)
             self.pages[key] = box
             self.stack.add_named(scroller(box), key)
         header = Adw.HeaderBar()
-        self.title = lbl("Panel de mando", "page-title")
+        self.title = lbl(_("Panel de mando"), "page-title")
         header.set_title_widget(self.title)
-        self.profile_dd = Gtk.DropDown(tooltip_text="Perfil OPSEC activo")
+        self.profile_dd = Gtk.DropDown(tooltip_text=_("Perfil OPSEC activo"))
         self._profiles = []
         self._profile_handler = self.profile_dd.connect("notify::selected", self.on_profile)
         header.pack_start(self.profile_dd)
         self.head_pill = hbox(0)
         header.pack_start(self.head_pill)
-        panic = Gtk.Button(label="Emergencia")
+        panic = Gtk.Button(label=_("Emergencia"))
         panic.add_css_class("destructive-action")
         panic.connect("clicked", self.on_panic)
         header.pack_end(panic)
-        ref = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text="Actualizar")
-        ref.connect("clicked", lambda *_: self.refresh(full=True))
+        ref = Gtk.Button(icon_name="view-refresh-symbolic", tooltip_text=_("Actualizar"))
+        ref.connect("clicked", lambda *_ign: self.refresh(full=True))
         header.pack_end(ref)
         self.toasts = Adw.ToastOverlay(child=self.stack)
         content_tv = Adw.ToolbarView()
         content_tv.add_top_bar(header)
-        self.banner = Adw.Banner(title="MODO EMERGENCIA ACTIVO — rotaciones detenidas", button_label="Reanudar")
-        self.banner.connect("button-clicked", lambda *_: self.call_bg("resume", {}, lambda r: self.toast("Emergencia desactivada")))
+        self.banner = Adw.Banner(title=_("MODO EMERGENCIA ACTIVO — rotaciones detenidas"), button_label="Reanudar")
+        self.banner.connect("button-clicked", lambda *_ign: self.call_bg("resume", {}, lambda r: self.toast(_("Emergencia desactivada"))))
         content_tv.add_top_bar(self.banner)
         content_tv.set_content(self.toasts)
         content_tv.add_css_class("content-bg")
 
         split = Adw.NavigationSplitView(min_sidebar_width=210, max_sidebar_width=240)
         split.set_sidebar(Adw.NavigationPage(child=side_tv, title="VELA"))
-        split.set_content(Adw.NavigationPage(child=content_tv, title="Panel"))
+        split.set_content(Adw.NavigationPage(child=content_tv, title=_("Panel")))
         self.set_content(split)
 
         self.build_dash()
         self.build_map()
-        keys = [k for k, _, _ in PAGES]
+        keys = [k for k, _ign, _ign in PAGES]
         start = keys.index(self.state["page"]) if self.state.get("page") in keys else 0
         self.nav.select_row(self.nav.get_row_at_index(start))
         GLib.timeout_add_seconds(4, lambda: (self.refresh(), True)[1])
@@ -922,7 +935,7 @@ class Window(Adw.ApplicationWindow):
         self.refresh(full=True)
         threading.Thread(target=self._events, daemon=True).start()
 
-    def _save_state(self, *_):
+    def _save_state(self, *_ign):
         w, h = self.get_default_size()
         save_state({"width": w, "height": h, "maximized": self.is_maximized(), "page": self.current()})
         return False
@@ -935,7 +948,7 @@ class Window(Adw.ApplicationWindow):
         if row is None:
             return
         self.stack.set_visible_child_name(row.key)
-        self.title.set_text(dict((k, t) for k, t, _ in PAGES)[row.key])
+        self.title.set_text(dict((k, t) for k, t, _ign in PAGES)[row.key])
         self.sig.pop(row.key, None)
         self.render()
         if row.key == "live" and "routes" not in self.data:
@@ -1000,15 +1013,15 @@ class Window(Adw.ApplicationWindow):
                 rx, tx = int((base / "rx_bytes").read_text()), int((base / "tx_bytes").read_text())
                 t = time.monotonic()
                 if self._last_counters and self._last_counters[0] == dev:
-                    _, t0, rx0, tx0 = self._last_counters
+                    _ign, t0, rx0, tx0 = self._last_counters
                     dt = max(0.1, t - t0)
                     self.traffic["rx"].append(max(0, (rx - rx0) / dt))
                     self.traffic["tx"].append(max(0, (tx - tx0) / dt))
                 self._last_counters = (dev, t, rx, tx)
                 span = len(self.traffic["rx"]) * 2
-                self.traffic_chart.set([("Descarga", P["s1"], list(self.traffic["rx"])),
-                                        ("Subida", P["s2"], list(self.traffic["tx"]))],
-                                       (f"hace {span // 60} min {span % 60} s" if span >= 60 else f"hace {span} s", "ahora"))
+                self.traffic_chart.set([(_("Descarga"), P["s1"], list(self.traffic["rx"])),
+                                        (_("Subida"), P["s2"], list(self.traffic["tx"]))],
+                                       (_("hace {m} min {s} s", m=span // 60, s=span % 60) if span >= 60 else _("hace {s} s", s=span), _("ahora")))
                 last = lambda k: self.traffic[k][-1] if self.traffic[k] else None  # noqa: E731
                 self.traffic_dev.set_text(f"{dev} · ↓ {human_bps(last('rx'))}   ↑ {human_bps(last('tx'))}")
             except OSError:
@@ -1063,18 +1076,18 @@ class Window(Adw.ApplicationWindow):
         i = dd.get_selected()
         if 0 <= i < len(self._profiles) and self._profiles[i] != (self.data.get("status") or {}).get("profile"):
             name = self._profiles[i]
-            self.call_bg("profile_activate", {"name": name}, lambda r: (self.toast(f"Perfil activo: {name}"),
+            self.call_bg("profile_activate", {"name": name}, lambda r: (self.toast(_("Perfil activo: {name}", name=name)),
                                                                       self.refresh(full=True)))
 
-    def on_panic(self, *_):
-        dlg = Adw.AlertDialog(heading="¿Activar el modo de emergencia?",
-                              body="Detiene las rotaciones y, si está permitido, bloquea las conexiones no verificadas. "
-                                   "No borra datos ni cambia la configuración.")
-        dlg.add_response("cancel", "Cancelar")
-        dlg.add_response("panic", "Activar")
+    def on_panic(self, *_ign):
+        dlg = Adw.AlertDialog(heading=_("¿Activar el modo de emergencia?"),
+                              body=_("Detiene las rotaciones y, si está permitido, bloquea las conexiones no verificadas. "
+                                   "No borra datos ni cambia la configuración."))
+        dlg.add_response("cancel", _("Cancelar"))
+        dlg.add_response("panic", _("Activar"))
         dlg.set_response_appearance("panic", Adw.ResponseAppearance.DESTRUCTIVE)
         dlg.connect("response", lambda d, r: r == "panic" and self.call_bg("panic", {}, lambda res: (
-            self.toast("Emergencia activa · kill-switch " + ("aplicado" if res["killswitch"].get("ok") else "no aplicado")),
+            self.toast(_("Emergencia activa · kill-switch ") + (_("aplicado") if res["killswitch"].get("ok") else _("no aplicado"))),
             self.refresh(full=True))))
         dlg.present(self)
 
@@ -1086,7 +1099,7 @@ class Window(Adw.ApplicationWindow):
         ex = st["exposure"]
         stx = {"baja": "good", "media": "warning", "alta": "critical"}[ex["level"]]
         clear(self.head_pill)
-        self.head_pill.append(pill(stx, f"Exposición {ex['score']}/100"))
+        self.head_pill.append(pill(stx, _("Exposición {score}/100", score=ex['score'])))
         self.banner.set_revealed(bool(st.get("emergency")))
         prof = self.data.get("profiles")
         if prof:
@@ -1105,8 +1118,8 @@ class Window(Adw.ApplicationWindow):
         nleak = (lw.get("summary") or {}).get("fugas", 0)
         self.badges["live"].set_text(str(nleak))
         self.badges["live"].set_visible(nleak > 0)
-        self.side_status.set_text(f"{'daemon conectado' if getattr(self.b, 'remote', False) else 'motor local'}\n"
-                                  f"actualizado {time.strftime('%H:%M:%S')}")
+        self.side_status.set_text(f"{_('daemon conectado') if getattr(self.b, 'remote', False) else _('motor local')}\n"
+                                  + _("actualizado {t}", t=time.strftime('%H:%M:%S')))
         page = self.current()
         if page == "dash":
             self.update_dash()
@@ -1128,18 +1141,18 @@ class Window(Adw.ApplicationWindow):
         box = self.pages["dash"]
         row1 = hbox(12, homogeneous=True)
         self.kpi_tunnel, self.kpi_ip, self.kpi_ks, self.kpi_dns, self.kpi_session = (
-            KPI("Túnel VPN"), KPI("IP pública"), KPI("Kill-switch"), KPI("DNS"), KPI("Sesión actual"))
+            KPI(_("Túnel VPN")), KPI(_("IP pública")), KPI(_("Kill-switch")), KPI(_("DNS")), KPI(_("Sesión actual")))
         for k in (self.kpi_tunnel, self.kpi_ip, self.kpi_ks, self.kpi_dns, self.kpi_session):
             row1.append(k.widget)
         box.append(row1)
 
         row2 = hbox(12)
         self.gauge = Gauge()
-        g = card("Exposición observable", self.gauge)
+        g = card(_("Exposición observable"), self.gauge)
         g.set_size_request(250, -1)
         row2.append(g)
         dn = hbox(14)
-        self.donut = Donut("conexiones")
+        self.donut = Donut(_("conexiones"))
         self.donut.set_size_request(150, 150)
         self.donut.set_hexpand(False)
         dn.append(self.donut)
@@ -1147,7 +1160,7 @@ class Window(Adw.ApplicationWindow):
         self.donut_legend.set_valign(Gtk.Align.CENTER)
         self.donut_legend.set_hexpand(True)
         dn.append(self.donut_legend)
-        c = card("Conexiones a Internet ahora", dn)
+        c = card(_("Conexiones a Internet ahora"), dn)
         c.set_size_request(330, -1)
         row2.append(c)
         tv = vbox(6)
@@ -1155,26 +1168,26 @@ class Window(Adw.ApplicationWindow):
         self.traffic_dev = lbl("", "kpi-sub")
         tv.append(self.traffic_chart)
         leg = hbox(16)
-        leg.append(legend_row([("Descarga", P["s1"]), ("Subida", P["s2"])]))
+        leg.append(legend_row([(_("Descarga"), P["s1"]), (_("Subida"), P["s2"])]))
         leg.append(Gtk.Box(hexpand=True))
         leg.append(self.traffic_dev)
         tv.append(leg)
-        tc = card("Tráfico de la interfaz de salida", tv)
+        tc = card(_("Tráfico de la interfaz de salida"), tv)
         tc.set_hexpand(True)
         row2.append(tc)
         box.append(row2)
 
         self.chain_box = Gtk.FlowBox(selection_mode=Gtk.SelectionMode.NONE, max_children_per_line=10,
                                      column_spacing=8, row_spacing=8, homogeneous=False)
-        box.append(card("Topología de salida", self.chain_box))
+        box.append(card(_("Topología de salida"), self.chain_box))
 
         row3 = hbox(12)
         self.alerts_box = vbox(0)
-        a = card("Alertas activas", self.alerts_box)
+        a = card(_("Alertas activas"), self.alerts_box)
         a.set_hexpand(True)
         row3.append(a)
         self.proc_bars = HBars(color=P["s1"], label_w=130)
-        pc = card("Procesos con más conexiones", self.proc_bars)
+        pc = card(_("Procesos con más conexiones"), self.proc_bars)
         pc.set_size_request(420, -1)
         row3.append(pc)
         box.append(row3)
@@ -1183,12 +1196,12 @@ class Window(Adw.ApplicationWindow):
         self.events_chart = Columns(height=120)
         ev = vbox(6)
         ev.append(self.events_chart)
-        ev.append(legend_row([("Crítico / alto", P["critical"]), ("Aviso", P["warning"]), ("Info", P["muted"])]))
-        e = card("Eventos · últimas 24 h", ev)
+        ev.append(legend_row([(_("Crítico / alto"), P["critical"]), (_("Aviso"), P["warning"]), (_("Info"), P["muted"])]))
+        e = card(_("Eventos · últimas 24 h"), ev)
         e.set_hexpand(True)
         row4.append(e)
         self.country_bars = HBars(color=P["s1"], label_w=110)
-        cc = card("Tiempo por país de salida · 7 días", self.country_bars)
+        cc = card(_("Tiempo por país de salida · 7 días"), self.country_bars)
         cc.set_size_request(420, -1)
         row4.append(cc)
         box.append(row4)
@@ -1200,30 +1213,30 @@ class Window(Adw.ApplicationWindow):
         # KPIs
         if net["via_tunnel"].get("ipv4"):
             vpn = obs.get("vpn") or {}
-            self.kpi_tunnel.set(vpn.get("label") or ", ".join(net["tunnels"]), f"salida por {net['egress']['ipv4']['dev']}",
-                                "good", "Conectado")
+            self.kpi_tunnel.set(vpn.get("label") or ", ".join(net["tunnels"]), _("salida por {dev}", dev=net['egress']['ipv4']['dev']),
+                                "good", _("Conectado"))
         else:
-            self.kpi_tunnel.set("Desconectado", f"salida directa por {(net['egress'].get('ipv4') or {}).get('dev')}",
-                                "critical", "Sin túnel")
+            self.kpi_tunnel.set(_("Desconectado"), _("salida directa por {v1}", v1=(net['egress'].get('ipv4') or {}).get('dev')),
+                                "critical", _("Sin túnel"))
         pub = (st.get("public") or {}).get("default") or {}
         if pub.get("ok"):
             g = pub.get("geo") or {}
             real = pub.get("is_real_ip")
-            stx, lab = (("critical", "IP real") if real and pub.get("via_tunnel") else
-                        ("good", "IP de la VPN") if pub.get("via_tunnel") else ("serious", "IP real"))
-            self.kpi_ip.set(pub["ip"], f"{g.get('country_name') or '?'} · {pub.get('endpoint')} · hace "
-                                       f"{int(time.time() - pub['ts'])} s", stx, lab)
+            stx, lab = (("critical", _("IP real")) if real and pub.get("via_tunnel") else
+                        ("good", _("IP de la VPN")) if pub.get("via_tunnel") else ("serious", _("IP real")))
+            self.kpi_ip.set(pub["ip"], _("{country} · {endpoint} · hace {s} s", country=g.get('country_name') or '?',
+                                         endpoint=pub.get('endpoint'), s=int(time.time() - pub['ts'])), stx, lab)
         else:
-            self.kpi_ip.set("—", pub.get("error") or "pendiente", "neutral", "Sin dato")
+            self.kpi_ip.set("—", pub.get("error") or _("pendiente"), "neutral", _("Sin dato"))
         kx = (st.get("killswitch") or {}).get("external") or {}
         rp = kx.get("route_protection") or {}
         if rp:
             ok4 = rp["ipv4"]["state"] == "bloqueado"
             active = ok4 and net["tunnels"]
-            self.kpi_ks.set(", ".join(kx.get("declared_by") or []) or "Ninguno",
-                            f"si cae el túnel: IPv4 {rp['ipv4']['state']} · IPv6 {rp['ipv6']['state']}",
+            self.kpi_ks.set(", ".join(kx.get("declared_by") or []) or _("Ninguno"),
+                            _("si cae el túnel: IPv4 {state} · IPv6 {state2}", state=_(rp['ipv4']['state']), state2=_(rp['ipv6']['state'])),
                             "good" if active else ("serious" if not net["tunnels"] else "critical"),
-                            "Activo" if active else "Inactivo")
+                            _("Activo") if active else _("Inactivo"))
         d = st.get("dns") or {}
         res = (d.get("encryption") or {}).get("resolvers") or []
         main = res[0] if res else {}
@@ -1231,10 +1244,10 @@ class Window(Adw.ApplicationWindow):
         self.kpi_dns.set(main.get("provider") or (main.get("addr") or "—"),
                          ", ".join(f"{r['addr']} {r['transport']}" for r in res)[:60],
                          "good" if enc else ("critical" if enc is False else "neutral"),
-                         "Cifrado" if enc else ("En claro" if enc is False else "?"))
+                         _("Cifrado") if enc else (_("En claro") if enc is False else "?"))
         s = st.get("session")
         self.kpi_session.set(fmt_duration(s["duration"]) if s else "—",
-                             f"perfil {st['profile']}" + (f" · desde {iso(s['started'])[11:16]}" if s else ""),
+                             _("perfil {profile}", profile=st['profile']) + (_(" · desde {t}", t=iso(s['started'])[11:16]) if s else ""),
                              "neutral", st["profile"])
         # medidor + donut
         ex = st["exposure"]
@@ -1245,8 +1258,8 @@ class Window(Adw.ApplicationWindow):
         self.donut.set(segs)
         clear(self.donut_legend)
         self.donut_legend.append(legend([(n, c, str(int(v))) for n, v, c in segs]))
-        hint = ("Sin VPN: todas muestran tu IP real" if not lw.get("tunnel_up") and sm.get("directas") else
-                "Hay conexiones fuera del túnel" if sm.get("fugas") else "Todo el tráfico va por el túnel")
+        hint = (_("Sin VPN: todas muestran tu IP real") if not lw.get("tunnel_up") and sm.get("directas") else
+                _("Hay conexiones fuera del túnel") if sm.get("fugas") else _("Todo el tráfico va por el túnel"))
         self.donut_legend.append(lbl(hint, "kpi-sub", wrap=True))
         # topología
         clear(self.chain_box)
@@ -1264,7 +1277,7 @@ class Window(Adw.ApplicationWindow):
         clear(self.alerts_box)
         order = ["critical", "high", "medium", "low", "info"]
         fs = sorted(st.get("findings") or [], key=lambda f: order.index(f["severity"]))
-        self.alerts_box.append(table([("Severidad", 0.8), ("Alerta", 2.6), ("Observado", 2.4)],
+        self.alerts_box.append(table([(_("Severidad"), 0.8), (_("Alerta"), 2.6), (_("Observado"), 2.4)],
                                      [[pill(SEV_STATUS[f["severity"]], f["severity"].upper()), f["title"], f["observed"]]
                                       for f in fs], max_rows=8))
         # procesos
@@ -1283,11 +1296,12 @@ class Window(Adw.ApplicationWindow):
                 buckets[k]["crit" if sev in ("critical", "high") else
                            "warn" if sev in ("warning", "medium", "low") else "info"] += 1
         self.events_chart.set(buckets, [("info", "Info", P["muted"]), ("warn", "Aviso", P["warning"]),
-                                        ("crit", "Crítico / alto", P["critical"])], ("hace 24 h", "ahora"))
+                                        ("crit", _("Crítico / alto"), P["critical"])], (_("hace 24 h"), _("ahora")))
         stats = self.data.get("stats") or {}
         merged = {}
         for x in (stats.get("time_by_country") or []) + (stats.get("time_by_tor_country") or []):
-            merged[x["label"]] = merged.get(x["label"], 0) + x["seconds"]
+            name = country_label(x.get("key"), x["label"]) if len(str(x.get("key") or "")) == 2 else x["label"]
+            merged[name] = merged.get(name, 0) + x["seconds"]
         self.country_bars.set([(k, v, fmt_duration_short(v)) for k, v in sorted(merged.items(), key=lambda kv: -kv[1])[:6]])
 
     # ── páginas ──
@@ -1301,14 +1315,14 @@ class Window(Adw.ApplicationWindow):
         live = r.get("intel_live") or {}
         row = hbox(12, homogeneous=True)
         for title, val, status, lab in (
-                ("Túnel", ", ".join(r.get("tunnels") or []) or "ninguno", "good" if r.get("tunnel_up") else "critical",
-                 "Activo" if r.get("tunnel_up") else "Caído"),
-                ("Fugas", s.get("fugas", 0), "critical" if s.get("fugas") else "good",
-                 "Fuera del túnel" if s.get("fugas") else "Sin fugas"),
-                ("Directas", s.get("directas", 0), "serious" if s.get("directas") else "good",
-                 "Con tu IP real" if s.get("directas") else "Ninguna"),
-                ("Marcadas en VirusTotal", r.get("vt_flagged", 0), "critical" if r.get("vt_flagged") else "good",
-                 "Revisar" if r.get("vt_flagged") else "Ninguna")):
+                (_("Túnel"), ", ".join(r.get("tunnels") or []) or _("ninguno"), "good" if r.get("tunnel_up") else "critical",
+                 _("Activo") if r.get("tunnel_up") else _("Caído")),
+                (_("Fugas"), s.get("fugas", 0), "critical" if s.get("fugas") else "good",
+                 _("Fuera del túnel") if s.get("fugas") else _("Sin fugas")),
+                (_("Directas"), s.get("directas", 0), "serious" if s.get("directas") else "good",
+                 _("Con tu IP real") if s.get("directas") else _("Ninguna")),
+                (_("Marcadas en VirusTotal"), r.get("vt_flagged", 0), "critical" if r.get("vt_flagged") else "good",
+                 _("Revisar") if r.get("vt_flagged") else _("Ninguna"))):
             k = KPI(title)
             k.set(val, "", status, lab)
             row.append(k.widget)
@@ -1319,17 +1333,17 @@ class Window(Adw.ApplicationWindow):
             sk.set(rt["nodes"], rt["links"])
             inner = vbox(10)
             inner.append(sk)
-            inner.append(legend_row([("Por el túnel VPN", P["good"]), ("Directo · IP real", P["serious"]),
-                                     ("Proxy", P["s1"]), ("Tor", "#9085e9")]))
+            inner.append(legend_row([(_("Por el túnel VPN"), P["good"]), (_("Directo · IP real"), P["serious"]),
+                                     (_("Proxy"), P["s1"]), (_("Tor"), "#9085e9")]))
             for line in rt.get("explain") or []:
                 inner.append(lbl("• " + line, "td", wrap=True))
-            guide = Gtk.Expander(label="Cómo encaja un proxy con la VPN y Tor")
+            guide = Gtk.Expander(label=_("Cómo encaja un proxy con la VPN y Tor"))
             g = vbox(4)
             for t in PROXY_GUIDE:
                 g.append(lbl("• " + t, "kpi-sub", wrap=True))
             guide.set_child(g)
             inner.append(guide)
-            box.append(card("Cómo viaja tu tráfico ahora (pasa el ratón por las bandas)", inner))
+            box.append(card(_("Cómo viaja tu tráfico ahora (pasa el ratón por las bandas)"), inner))
         order = ["fuga", "directa", "otra", "permitida", "protegida"]
         flows = sorted(r.get("flows") or [], key=lambda f: (-(f["vt"] or {}).get("malicious", 0),
                                                              order.index(f["verdict"])))
@@ -1339,42 +1353,40 @@ class Window(Adw.ApplicationWindow):
             if vt:
                 st = "critical" if vt["malicious"] >= 3 else "warning" if (vt["malicious"] or vt["suspicious"]) else "good"
                 vt_cell = pill(st, f"{vt['malicious']}/{vt['total']}")
-                vt_cell.set_tooltip_text(f"VirusTotal: {vt['malicious']} maliciosos, {vt['suspicious']} sospechosos de "
-                                         f"{vt['total']} motores · reputación {vt.get('reputation')} · {vt.get('as_owner') or ''}")
+                vt_cell.set_tooltip_text(_("VirusTotal: {malicious} maliciosos, {suspicious} sospechosos de {total} motores · reputación {v7} · {v9}", malicious=vt['malicious'], suspicious=vt['suspicious'], total=vt['total'], v7=vt.get('reputation'), v9=vt.get('as_owner') or ''))
             else:
                 vt_cell = lbl("—", "td")
-                vt_cell.set_tooltip_text("Sin puntuación todavía: " + str(live.get("status") or ""))
+                vt_cell.set_tooltip_text(_("Sin puntuación todavía: ") + str(live.get("status") or ""))
             geo = f"{cc_flag(f.get('country'))} {f.get('country') or '—'}" + (" 🧅" if f.get("tor") else "")
             geo_l = lbl(geo, "td")
             geo_l.set_tooltip_text(" · ".join(str(x) for x in (f.get("country_name"), f.get("city"), f.get("org"),
                                                                (f"Tor {f['tor']} ({f.get('tor_nick')})" if f.get("tor") else None),
                                                                f"AS{f['asn']}" if f.get("asn") else None) if x)
-                                   or "sin datos GeoIP")
-            copy_btn = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Copiar IP")
+                                   or _("sin datos GeoIP"))
+            copy_btn = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copiar IP"))
             copy_btn.add_css_class("flat")
             copy_btn.add_css_class("mini")
             copy_btn.connect("clicked", lambda _b, ip=f["remote"]: self.copy(ip, "IP copiada"))
             rows.append([pill(VERDICT[f["verdict"]][0], VERDICT[f["verdict"]][1] + (" DNS" if f["dns"] else "")),
                          f["process"], f"{f['remote']}:{f['rport']}", geo_l, vt_cell, f["iface"] or "?", copy_btn])
         tools = hbox(8)
-        cp = Gtk.Button(label="Copiar tabla", tooltip_text="Copia todas las conexiones (TSV, para pegar en una hoja o informe)")
-        cp.connect("clicked", lambda *_: self.copy(self._flows_tsv(flows), f"{len(flows)} conexiones copiadas"))
+        cp = Gtk.Button(label=_("Copiar tabla"), tooltip_text=_("Copia todas las conexiones (TSV, para pegar en una hoja o informe)"))
+        cp.connect("clicked", lambda *_ign: self.copy(self._flows_tsv(flows), _("{n} conexiones copiadas", n=len(flows))))
         tools.append(cp)
-        ci = Gtk.Button(label="Copiar IPs", tooltip_text="Solo las IPs de destino, una por línea")
-        ci.connect("clicked", lambda *_: self.copy("\n".join(dict.fromkeys(f["remote"] for f in flows)), "IPs copiadas"))
+        ci = Gtk.Button(label=_("Copiar IPs"), tooltip_text=_("Solo las IPs de destino, una por línea"))
+        ci.connect("clicked", lambda *_ign: self.copy("\n".join(dict.fromkeys(f["remote"] for f in flows)), _("IPs copiadas")))
         tools.append(ci)
         tools.append(Gtk.Box(hexpand=True))
-        tools.append(lbl(f"VirusTotal automático: {live.get('status', '—')} · en cola {live.get('queued', 0)} · "
-                         f"hoy {live.get('today', 0)}/{live.get('limit', '—')}", "kpi-sub"))
+        tools.append(lbl(_("VirusTotal automático: {v1} · en cola {v3} · hoy {v5}/{v7}", v1=live.get('status', '—'), v3=live.get('queued', 0), v5=live.get('today', 0), v7=live.get('limit', '—')), "kpi-sub"))
         inner = vbox(8)
         inner.append(tools)
-        inner.append(table([("Veredicto", 0.9), ("Proceso", 1.3), ("Destino", 1.8), ("País", 0.6), ("VirusTotal", 0.8),
-                            ("Interfaz", 0.8), ("", 0.2)], rows, max_rows=150))
-        box.append(card("Conexiones en tiempo real (cada 2 s) · geolocalización local, sin enviar datos", inner))
+        inner.append(table([(_("Veredicto"), 0.9), (_("Proceso"), 1.3), (_("Destino"), 1.8), (_("País"), 0.6), ("VirusTotal", 0.8),
+                            (_("Interfaz"), 0.8), ("", 0.2)], rows, max_rows=150))
+        box.append(card(_("Conexiones en tiempo real (cada 2 s) · geolocalización local, sin enviar datos"), inner))
 
     @staticmethod
     def _flows_tsv(flows) -> str:
-        head = "veredicto\tproceso\tproto\torigen\tdestino\tpuerto\tpais\tvt_maliciosos\tvt_total\tinterfaz"
+        head = _("veredicto\tproceso\tproto\torigen\tdestino\tpuerto\tpais\tvt_maliciosos\tvt_total\tinterfaz")
         lines = [head]
         for f in flows:
             vt = f.get("vt") or {}
@@ -1397,34 +1409,34 @@ class Window(Adw.ApplicationWindow):
         for i in ifs:
             r = rates.get(i["name"], {})
             w = i.get("wifi") or {}
-            rows.append([i["name"], pill("neutral", i["category"] + ("" if i["up"] else " · caída")), ", ".join(i["subnets"]) or "—",
+            rows.append([i["name"], pill("neutral", _(i["category"]) + ("" if i["up"] else _(" · caída"))), ", ".join(i["subnets"]) or "—",
                          (f"{w['ssid']} · {w['security']} · {w['signal']}%" if w else (i["gateway"] or "—")),
                          f"↓ {human_bps(r.get('rx_bps'))}  ↑ {human_bps(r.get('tx_bps'))}", str(len(i["neighbors"]))])
-        box.append(card("Interfaces y redes", table([("Interfaz", 1.2), ("Tipo", 1.2), ("Subred", 1.4),
-                                                     ("Red / gateway", 2.2), ("Tráfico", 1.6), ("Vecinos", 0.6)], rows)))
+        box.append(card(_("Interfaces y redes"), table([(_("Interfaz"), 1.2), (_("Tipo"), 1.2), (_("Subred"), 1.4),
+                                                     ("Red / gateway", 2.2), (_("Tráfico"), 1.6), (_("Vecinos"), 0.6)], rows)))
         row = hbox(12)
-        neigh = [[x["ip"], x["mac"], x["vendor"] or "desconocido", i["name"],
+        neigh = [[x["ip"], x["mac"], x["vendor"] or _("desconocido"), i["name"],
                   pill("neutral", "gateway") if x["ip"] == i["gateway"] else ""] for i in ifs for x in i["neighbors"]]
-        nc = card("Dispositivos vistos (tabla ARP, sin escanear)", table(
-            [("IP", 1.1), ("MAC", 1.3), ("Fabricante", 1.8), ("Interfaz", 1), ("", 0.6)], neigh))
+        nc = card(_("Dispositivos vistos (tabla ARP, sin escanear)"), table(
+            [("IP", 1.1), ("MAC", 1.3), (_("Fabricante"), 1.8), (_("Interfaz"), 1), ("", 0.6)], neigh))
         nc.set_hexpand(True)
         row.append(nc)
         if n.get("libvirt") is not None:
-            lv = card("Redes de máquinas virtuales", table([("Red", 1.6), ("Forward", 0.8), ("Aislamiento", 1.0)], [
-                [v["name"], v["forward"], pill("critical", "NO aislada") if v["isolation_broken"] else
-                 pill("good", "Aislada") if v["forward"] == "isolated" else pill("neutral", "Con salida")]
+            lv = card(_("Redes de máquinas virtuales"), table([(_("Red"), 1.6), (_("Forward"), 0.8), (_("Aislamiento"), 1.0)], [
+                [v["name"], v["forward"], pill("critical", _("NO aislada")) if v["isolation_broken"] else
+                 pill("good", _("Aislada")) if v["forward"] == "isolated" else pill("neutral", _("Con salida"))]
                 for v in n["libvirt"]]))
             lv.set_size_request(440, -1)
             row.append(lv)
         box.append(row)
         row = hbox(12)
         if n.get("docker") is not None:
-            dc = card("Redes Docker", table([("Red", 1.6), ("Driver", 0.8), ("Bridge", 1.2)],
+            dc = card(_("Redes Docker"), table([(_("Red"), 1.6), (_("Driver"), 0.8), (_("Bridge"), 1.2)],
                                            [[d["name"], d["driver"], d["bridge"] or "—"] for d in n["docker"]]))
             dc.set_hexpand(True)
             row.append(dc)
-        kc = card("Redes conocidas (huella SSID + MAC del gateway)", table(
-            [("Red", 1.2), ("Subred", 1.2), ("MAC gateway", 1.4), ("Dispositivos", 0.8), ("Última vez", 1.2)],
+        kc = card(_("Redes conocidas (huella SSID + MAC del gateway)"), table(
+            [(_("Red"), 1.2), (_("Subred"), 1.2), (_("MAC gateway"), 1.4), (_("Dispositivos"), 0.8), (_("Última vez"), 1.2)],
             [[k["label"], k["subnet"], k["gateway_mac"], str(k["devices"]), iso(k["last"])] for k in n.get("known") or []]))
         kc.set_hexpand(True)
         row.append(kc)
@@ -1436,31 +1448,31 @@ class Window(Adw.ApplicationWindow):
         self.mapv = MapView(600, on_select=self.on_map_select)
         self._map_sel = (None, None)
         tools = hbox(6)
-        for icon, tip, fn in (("zoom-in-symbolic", "Acercar", lambda: self.mapv.zoom(1.5)),
-                              ("zoom-out-symbolic", "Alejar", lambda: self.mapv.zoom(1 / 1.5)),
-                              ("zoom-fit-best-symbolic", "Ver el mundo entero", lambda: self.mapv.reset())):
+        for icon, tip, fn in (("zoom-in-symbolic", _("Acercar"), lambda: self.mapv.zoom(1.5)),
+                              ("zoom-out-symbolic", _("Alejar"), lambda: self.mapv.zoom(1 / 1.5)),
+                              ("zoom-fit-best-symbolic", _("Ver el mundo entero"), lambda: self.mapv.reset())):
             b = Gtk.Button(icon_name=icon, tooltip_text=tip)
             b.connect("clicked", lambda _b, f=fn: f())
             tools.append(b)
         tools.append(Gtk.Separator(orientation=Gtk.Orientation.VERTICAL))
-        for key, label in (("live", "Conexiones en vivo"), ("chain", "Cadena VPN"), ("tor", "Circuito Tor"),
-                           ("history", "Historial"), ("heat", "Tiempo por país")):
+        for key, label in (("live", _("Conexiones en vivo")), ("chain", _("Cadena VPN")), ("tor", _("Circuito Tor")),
+                           ("history", _("Historial")), ("heat", _("Tiempo por país"))):
             t = Gtk.ToggleButton(label=label, active=self.mapv.layers[key])
             t.connect("toggled", lambda b, k=key: (self.mapv.layers.__setitem__(k, b.get_active()), self.mapv.queue_draw()))
             tools.append(t)
         tools.append(Gtk.Box(hexpand=True))
-        tools.append(lbl("Rueda: zoom · arrastrar: mover · doble clic: acercar · clic en un punto: detalle", "kpi-sub"))
+        tools.append(lbl(_("Rueda: zoom · arrastrar: mover · doble clic: acercar · clic en un punto: detalle"), "kpi-sub"))
         inner = vbox(8)
         inner.append(tools)
         frame = Gtk.Frame(child=self.mapv)
         inner.append(frame)
-        inner.append(legend_row([("Fuga", P["critical"]), ("Directa (IP real)", P["serious"]), ("Protegida (túnel)", P["good"]),
-                                 ("Cadena VPN", P["s1"]), ("Circuito Tor", "#9085e9"), ("Origen", P["ink"])]))
-        box.append(card("Mapa de conexiones", inner))
+        inner.append(legend_row([(_("Fuga"), P["critical"]), (_("Directa (IP real)"), P["serious"]), (_("Protegida (túnel)"), P["good"]),
+                                 (_("Cadena VPN"), P["s1"]), (_("Circuito Tor"), "#9085e9"), (_("Origen"), P["ink"])]))
+        box.append(card(_("Mapa de conexiones"), inner))
         self.map_detail = vbox(0)
         box.append(self.map_detail)
         self.map_circuits = vbox(0)
-        box.append(card("Circuitos Tor observables", self.map_circuits))
+        box.append(card(_("Circuitos Tor observables"), self.map_circuits))
         self.map_note = lbl("", "kpi-sub", wrap=True)
         box.append(self.map_note)
         self._map_circ_sig = None
@@ -1475,7 +1487,7 @@ class Window(Adw.ApplicationWindow):
             self._map_circ_sig = sig
             clear(self.map_circuits)
             self.map_circuits.append(table(
-                [("Circuito", 0.7), ("Streams", 0.5), ("Guard", 1.4), ("Middle", 1.4), ("Exit", 1.4)],
+                [(_("Circuito"), 0.7), (_("Streams"), 0.5), (_("Guard"), 1.4), (_("Middle"), 1.4), (_("Exit"), 1.4)],
                 [[c["id"], str(c["streams"])] + [f"{cc_flag(h['country'])} {h['nick']} ({h['country'] or '?'})"
                                                  for h in c["path"][:3]]
                  for c in (m.get("tor_circuits") or []) if len(c["path"]) >= 3], max_rows=20))
@@ -1502,7 +1514,7 @@ class Window(Adw.ApplicationWindow):
                 vt = f.get("vt")
                 vt_cell = (pill("critical" if vt["malicious"] >= 3 else "warning" if (vt["malicious"] or vt["suspicious"])
                                 else "good", f"{vt['malicious']}/{vt['total']}") if vt else lbl("—", "td"))
-                cb = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Copiar IP")
+                cb = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copiar IP"))
                 cb.add_css_class("flat")
                 cb.add_css_class("mini")
                 cb.connect("clicked", lambda _b, ip=f["remote"]: self.copy(ip, "IP copiada"))
@@ -1510,61 +1522,61 @@ class Window(Adw.ApplicationWindow):
                              f"{f['remote']}:{f['rport']}", f"🧅 {f['tor']}" if f.get("tor") else "—", vt_cell,
                              f.get("org") or "—", cb])
             tools = hbox(8)
-            z = Gtk.Button(label="Acercar aquí")
-            z.connect("clicked", lambda *_: self.mapv.focus(p["lon"], p["lat"]))
+            z = Gtk.Button(label=_("Acercar aquí"))
+            z.connect("clicked", lambda *_ign: self.mapv.focus(p["lon"], p["lat"]))
             tools.append(z)
-            ci = Gtk.Button(label="Copiar IPs")
-            ci.connect("clicked", lambda *_: self.copy("\n".join(dict.fromkeys(f["remote"] for f in flows)), "IPs copiadas"))
+            ci = Gtk.Button(label=_("Copiar IPs"))
+            ci.connect("clicked", lambda *_ign: self.copy("\n".join(dict.fromkeys(f["remote"] for f in flows)), _("IPs copiadas")))
             tools.append(ci)
-            ct = Gtk.Button(label="Copiar tabla")
-            ct.connect("clicked", lambda *_: self.copy(self._flows_tsv(flows), f"{len(flows)} conexiones copiadas"))
+            ct = Gtk.Button(label=_("Copiar tabla"))
+            ct.connect("clicked", lambda *_ign: self.copy(self._flows_tsv(flows), _("{n} conexiones copiadas", n=len(flows))))
             tools.append(ct)
             inner = vbox(8)
             inner.append(tools)
-            inner.append(table([("Veredicto", 0.9), ("Proceso", 1.3), ("Destino", 1.7), ("Tor", 0.8), ("VirusTotal", 0.8),
-                                ("Organización", 1.6), ("", 0.2)], rows))
-            title = f"{cc_flag(p['country'])} {p['name'] or 'Ubicación desconocida'} · {len(flows)} conexiones"
+            inner.append(table([(_("Veredicto"), 0.9), (_("Proceso"), 1.3), (_("Destino"), 1.7), (_("Tor"), 0.8), ("VirusTotal", 0.8),
+                                (_("Organización"), 1.6), ("", 0.2)], rows))
+            title = f"{cc_flag(p['country'])} {p['name'] or _('Ubicación desconocida')} · {len(flows)} conexiones"
             self.map_detail.append(card(title, inner))
             return
         if kind == "hop":
-            pairs = [("Tipo", p.get("type")), ("Nodo", p.get("label")), ("IP", p.get("ip")),
-                     ("País", f"{cc_flag(p.get('country'))} {p.get('country') or '?'}"), ("Huella", p.get("fp"))]
+            pairs = [(_("Tipo"), p.get("type")), (_("Nodo"), p.get("label")), ("IP", p.get("ip")),
+                     (_("País"), f"{cc_flag(p.get('country'))} {p.get('country') or '?'}"), (_("Huella"), p.get("fp"))]
         elif kind == "history":
-            pairs = [("Capa", p["layer"]), ("Elemento", p["label"]), ("País", f"{cc_flag(p.get('country'))} {p.get('country')}"),
-                     ("Desde", iso(p["started"])), ("Hasta", iso(p["ended"]) if p["ended"] else "activo")]
+            pairs = [(_("Capa"), p["layer"]), (_("Elemento"), p["label"]), (_("País"), f"{cc_flag(p.get('country'))} {p.get('country')}"),
+                     (_("Desde"), iso(p["started"])), (_("Hasta"), iso(p["ended"]) if p["ended"] else _("activo"))]
         elif kind == "home":
-            pairs = [("Origen", p.get("country")), ("Estimado por", p.get("geo_source"))]
+            pairs = [(_("Origen"), p.get("country")), (_("Estimado por"), p.get("geo_source"))]
         else:
-            pairs = [("País", p.get("name")), ("Tiempo de salida (7 días)", fmt_duration(p.get("seconds")))]
-        grid = table([("Campo", 1.0), ("Valor", 3.0)], [[k, v if v is not None else "—"] for k, v in pairs])
+            pairs = [(_("País"), p.get("name")), (_("Tiempo de salida (7 días)"), fmt_duration(p.get("seconds")))]
+        grid = table([(_("Campo"), 1.0), (_("Valor"), 3.0)], [[k, v if v is not None else "—"] for k, v in pairs])
         ip = p.get("ip") or (p.get("label") if kind == "history" else None)
         suffix = None
         if ip:
-            suffix = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text="Copiar")
+            suffix = Gtk.Button(icon_name="edit-copy-symbolic", tooltip_text=_("Copiar"))
             suffix.add_css_class("flat")
-            suffix.connect("clicked", lambda *_: self.copy(str(ip), "Copiado"))
-        self.map_detail.append(card("Detalle", grid, suffix))
+            suffix.connect("clicked", lambda *_ign: self.copy(str(ip), _("Copiado")))
+        self.map_detail.append(card(_("Detalle"), grid, suffix))
 
     def render_hist(self):
         box = self.pages["hist"]
         clear(box)
-        box.append(card("Sesiones", table(
-            [("Inicio", 1.2), ("Duración", 1.0), ("Interfaz", 0.8), ("VPN", 1.4), ("IP pública", 1.2), ("Cierre", 1.4)],
+        box.append(card(_("Sesiones"), table(
+            [(_("Inicio"), 1.2), (_("Duración"), 1.0), (_("Interfaz"), 0.8), (_("VPN"), 1.4), (_("IP pública"), 1.2), (_("Cierre"), 1.4)],
             [[iso(s["started"]), fmt_duration(s["duration"]), s["egress_iface"], s["vpn"] or "—", s["public_ip"] or "—",
-              s["end_reason"] or pill("good", "activa")] for s in self.data.get("sessions") or []], max_rows=40)))
-        box.append(card("Contadores de tiempo", table(
-            [("Elemento", 2.2), ("Capa", 1.0), ("País", 0.5), ("Usos", 0.4), ("Total", 1.0), ("En curso", 1.0)],
+              reason_label(s["end_reason"]) if s["end_reason"] else pill("good", _("activa"))] for s in self.data.get("sessions") or []], max_rows=40)))
+        box.append(card(_("Contadores de tiempo"), table(
+            [(_("Elemento"), 2.2), (_("Capa"), 1.0), (_("País"), 0.5), (_("Usos"), 0.4), (_("Total"), 1.0), (_("En curso"), 1.0)],
             [[c["label"], c["layer"], c["country"] or "—", str(c["uses"]), c["total_fmt"], c.get("current_fmt") or ""]
              for c in self.data.get("counters") or []], max_rows=60)))
-        box.append(card("Timeline", table(
-            [("Hora", 1.1), ("Severidad", 0.8), ("Evento", 1.4), ("Detalle", 3.2)],
+        box.append(card(_("Timeline"), table(
+            [(_("Hora"), 1.1), (_("Severidad"), 0.8), (_("Evento"), 1.4), (_("Detalle"), 3.2)],
             [[iso(e["ts"]), pill(SEV_STATUS.get(e["severity"], "neutral"), e["severity"]), e["kind"],
               json.dumps(e["data"], ensure_ascii=False)[:140]] for e in self.data.get("timeline") or []], max_rows=80)))
 
     def render_fix(self):
         box = self.pages["fix"]
         clear(box)
-        box.append(lbl("Los comandos no se ejecutan solos: cópialos, revísalos y lánzalos tú.", "kpi-sub"))
+        box.append(lbl(_("Los comandos no se ejecutan solos: cópialos, revísalos y lánzalos tú."), "kpi-sub"))
         for fx in self.data.get("fixes") or []:
             inner = vbox(6)
             if fx.get("why") or fx.get("finding"):
@@ -1572,20 +1584,20 @@ class Window(Adw.ApplicationWindow):
             for s in fx["steps"]:
                 line = hbox(8)
                 desc = vbox(3)
-                tags = (" · root" if s["root"] else "") + (" · corta la conexión" if s["disruptive"] else "")
+                tags = (" · root" if s["root"] else "") + (_(" · corta la conexión") if s["disruptive"] else "")
                 desc.append(lbl(s["desc"] + tags, "td", wrap=True))
                 if s.get("cmd"):
                     desc.append(lbl(s["cmd"], "cmd", wrap=True, selectable=True))
                 desc.set_hexpand(True)
                 line.append(desc)
                 if s.get("cmd"):
-                    b = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Copiar")
+                    b = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copiar"))
                     b.add_css_class("flat")
                     b.connect("clicked", lambda _b, c=s["cmd"]: self.copy(c))
                     line.append(b)
                 inner.append(line)
             if fx.get("verify") and fx["verify"] != "—":
-                inner.append(lbl(f"Comprobar: {fx['verify']}", "kpi-sub", wrap=True))
+                inner.append(lbl(_("Comprobar: {cmd}", cmd=fx['verify']), "kpi-sub", wrap=True))
             sev = SEV_STATUS.get(fx.get("severity", "info"), "neutral")
             box.append(card(fx["title"], inner, pill(sev, (fx.get("severity") or "info").upper())))
 
@@ -1595,24 +1607,22 @@ class Window(Adw.ApplicationWindow):
         clear(box)
         keys = self.data.get("intel_keys") or {}
         stored = intel_mod.load_keys()
-        kg = Adw.PreferencesGroup(title="API keys",
-                                  description="Escribe la clave y pulsa Intro o ✓ para guardarla. Se guardan solo en este "
-                                              f"equipo ({tilde(intel_mod.secrets_path())}, permisos 0600) y nunca se muestran, "
-                                              "ni se envían al daemon ni a los logs.")
+        kg = Adw.PreferencesGroup(title=_("API keys"),
+                                  description=_("Escribe la clave y pulsa Intro o ✓ para guardarla. Se guardan solo en este equipo ({v1}, permisos 0600) y nunca se muestran, ni se envían al daemon ni a los logs.", v1=tilde(intel_mod.secrets_path())))
         for name, title, provider in KEY_ROWS:
             row = Adw.PasswordEntryRow(title=title, show_apply_button=True)
             row.connect("apply", self.on_key_apply, name)
             if name in stored:
-                saved = pill("good", "guardada")
+                saved = pill("good", _("guardada"))
                 saved.set_valign(Gtk.Align.CENTER)
                 row.add_suffix(saved)
                 if provider:
-                    t = Gtk.Button(label="Probar", valign=Gtk.Align.CENTER, tooltip_text="Consulta 8.8.8.8 con esta clave")
+                    t = Gtk.Button(label=_("Probar"), valign=Gtk.Align.CENTER, tooltip_text=_("Consulta 8.8.8.8 con esta clave"))
                     t.add_css_class("flat")
                     t.connect("clicked", lambda _b, p=provider: self.call_bg(
                         "intel_test", {"provider": p}, lambda r: self.toast(f"{r['provider']}: {r['detail']}")))
                     row.add_suffix(t)
-                d = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Borrar clave")
+                d = Gtk.Button(icon_name="user-trash-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Borrar clave"))
                 d.add_css_class("flat")
                 d.connect("clicked", lambda _b, n=name: self.on_key_delete(n))
                 row.add_suffix(d)
@@ -1622,17 +1632,17 @@ class Window(Adw.ApplicationWindow):
         for p, stx in (keys.get("providers") or {}).items():
             k = KPI(p)
             ok = not stx.startswith("falta")
-            k.set("Configurado" if ok else "Sin clave", stx, "good" if ok else "warning", "Listo" if ok else "Pendiente")
+            k.set(_("Configurado") if ok else _("Sin clave"), stx, "good" if ok else "warning", _("Listo") if ok else _("Pendiente"))
             row.append(k.widget)
         box.append(row)
         bar = hbox(8)
-        btn = Gtk.Button(label="Escanear historial")
+        btn = Gtk.Button(label=_("Escanear historial"))
         btn.add_css_class("suggested-action")
         btn.set_sensitive(bool(keys.get("consent")))
-        btn.connect("clicked", lambda *_: self.call_bg("intel_scan", {"background": True},
+        btn.connect("clicked", lambda *_ign: self.call_bg("intel_scan", {"background": True},
                                                        lambda r: self.toast(f"Escaneando {r['count']} IPs…")))
         bar.append(btn)
-        bar.append(lbl("Las consultas solo salen por VPN o Tor (o sin VPN si lo permites en Ajustes).", "kpi-sub"))
+        bar.append(lbl(_("Las consultas solo salen por VPN o Tor (o sin VPN si lo permites en Ajustes)."), "kpi-sub"))
         box.append(bar)
         order = {"malicioso": 0, "expuesto": 1, "sospechoso": 2}
         results = sorted(self.data.get("intel") or [], key=lambda x: order.get(x["verdict"], 9))
@@ -1645,13 +1655,12 @@ class Window(Adw.ApplicationWindow):
             geo.set_tooltip_text(" · ".join(str(x) for x in (g.get("country_name"), g.get("city"),
                                                               f"AS{r['asn']}" if r.get("asn") else None,
                                                               f"fuente: {g.get('source')}" if g.get("source") else None)
-                                             if x) or "sin datos GeoIP")
+                                             if x) or _("sin datos GeoIP"))
             vt = r.get("vt")
             if vt:
                 vst = "critical" if vt["malicious"] >= 3 else "warning" if (vt["malicious"] or vt["suspicious"]) else "good"
                 vt_cell = pill(vst, f"{vt['malicious']}/{vt['total']}")
-                vt_cell.set_tooltip_text(f"{vt['malicious']} maliciosos, {vt['suspicious']} sospechosos de {vt['total']} "
-                                         f"motores · reputación {vt.get('reputation')}")
+                vt_cell.set_tooltip_text(_("{malicious} maliciosos, {suspicious} sospechosos de {total} motores · reputación {v6}", malicious=vt['malicious'], suspicious=vt['suspicious'], total=vt['total'], v6=vt.get('reputation')))
             else:
                 vt_cell = lbl((r["results"].get("virustotal") or {}).get("status") or "—", "td")
             gn = r["results"].get("greynoise") or {}
@@ -1661,9 +1670,9 @@ class Window(Adw.ApplicationWindow):
                                      (r["results"].get("shodan") or {}).get("status") or "—"))
             sh_cell = lbl(sh_txt, "td")
             if ports:
-                sh_cell.set_tooltip_text("Puertos: " + ", ".join(map(str, ports[:30])) +
+                sh_cell.set_tooltip_text(_("Puertos: ") + ", ".join(map(str, ports[:30])) +
                                          ("\nCVE: " + ", ".join(r["shodan_vulns"][:10]) if r.get("shodan_vulns") else ""))
-            copy_btn = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Copiar IP")
+            copy_btn = Gtk.Button(icon_name="edit-copy-symbolic", valign=Gtk.Align.CENTER, tooltip_text=_("Copiar IP"))
             copy_btn.add_css_class("flat")
             copy_btn.add_css_class("mini")
             copy_btn.connect("clicked", lambda _b, ip=r["ip"]: self.copy(ip, "IP copiada"))
@@ -1671,29 +1680,29 @@ class Window(Adw.ApplicationWindow):
                          gn.get("verdict") or gn.get("status") or "—", vt_cell, sh_cell,
                          (r["results"].get("censys") or {}).get("verdict") or "—", copy_btn])
         tools = hbox(8)
-        cp = Gtk.Button(label="Copiar tabla", tooltip_text="Todos los resultados en formato tabulado")
-        cp.connect("clicked", lambda *_: self.copy(self._intel_tsv(results), f"{len(results)} resultados copiados"))
+        cp = Gtk.Button(label=_("Copiar tabla"), tooltip_text=_("Todos los resultados en formato tabulado"))
+        cp.connect("clicked", lambda *_ign: self.copy(self._intel_tsv(results), _("{n} resultados copiados", n=len(results))))
         tools.append(cp)
-        ci = Gtk.Button(label="Copiar IPs")
-        ci.connect("clicked", lambda *_: self.copy("\n".join(r["ip"] for r in results), "IPs copiadas"))
+        ci = Gtk.Button(label=_("Copiar IPs"))
+        ci.connect("clicked", lambda *_ign: self.copy("\n".join(r["ip"] for r in results), _("IPs copiadas")))
         tools.append(ci)
-        ex = Gtk.Button(label="Comprobar en ExoneraTor",
-                        tooltip_text="Confirma por Tor si cada IP fue relay de Tor (hasta anteayer). El consenso local "
-                                     "y la lista oficial de salidas ya se usan siempre, sin consultas por IP")
-        ex.connect("clicked", lambda *_: self.call_bg("intel_tor_check", {"background": True}, lambda r: self.toast(
-            f"ExoneraTor: comprobando {r['count']} IPs por Tor…")))
+        ex = Gtk.Button(label=_("Comprobar en ExoneraTor"),
+                        tooltip_text=_("Confirma por Tor si cada IP fue relay de Tor (hasta anteayer). El consenso local "
+                                     "y la lista oficial de salidas ya se usan siempre, sin consultas por IP"))
+        ex.connect("clicked", lambda *_ign: self.call_bg("intel_tor_check", {"background": True}, lambda r: self.toast(
+            _("ExoneraTor: comprobando {count} IPs por Tor…", count=r['count']))))
         tools.append(ex)
         inner = vbox(8)
         inner.append(tools)
-        inner.append(table([("IP", 1.2), ("País", 0.6), ("Tor", 0.7), ("Organización", 1.7), ("Veredicto", 0.9), ("GreyNoise", 0.8),
-                            ("VirusTotal", 0.8), ("Shodan", 0.9), ("Censys", 0.6), ("", 0.2)], rows))
-        box.append(card("Resultados · geolocalización local", inner))
-        box.append(lbl("Los exits de Tor y servidores VPN suelen figurar como maliciosos por el abuso de otros usuarios: "
-                       "indica listas de bloqueo, no algo sobre tu tráfico.", "kpi-sub", wrap=True))
+        inner.append(table([("IP", 1.2), (_("País"), 0.6), (_("Tor"), 0.7), (_("Organización"), 1.7), (_("Veredicto"), 0.9), ("GreyNoise", 0.8),
+                            ("VirusTotal", 0.8), (_("Shodan"), 0.9), (_("Censys"), 0.6), ("", 0.2)], rows))
+        box.append(card(_("Resultados · geolocalización local"), inner))
+        box.append(lbl(_("Los exits de Tor y servidores VPN suelen figurar como maliciosos por el abuso de otros usuarios: "
+                       "indica listas de bloqueo, no algo sobre tu tráfico."), "kpi-sub", wrap=True))
 
     @staticmethod
     def _intel_tsv(results) -> str:
-        lines = ["ip\tpais\ttor\torganizacion\tasn\tveredicto\tgreynoise\tvt_maliciosos\tvt_total\tshodan_puertos"]
+        lines = [_("ip\tpais\ttor\torganizacion\tasn\tveredicto\tgreynoise\tvt_maliciosos\tvt_total\tshodan_puertos")]
         for r in results:
             vt = r.get("vt") or {}
             lines.append("\t".join(str(x if x is not None else "") for x in (
@@ -1711,16 +1720,16 @@ class Window(Adw.ApplicationWindow):
             return
         try:
             intel_mod.save_key(name, value)
-            self.toast(f"Clave de {name} guardada")
+            self.toast(_("Clave de {name} guardada", name=name))
         except Exception as e:  # noqa: BLE001
-            self.toast(f"No se pudo guardar: {e}")
+            self.toast(_("No se pudo guardar: {e}", e=e))
         self.sig.pop("intel", None)
         self.call_bg("intel_keys", {}, lambda r: (self.data.__setitem__("intel_keys", r), self.render()))
 
     def on_key_delete(self, name):
         from .. import intel as intel_mod
         intel_mod.delete_key(name)
-        self.toast(f"Clave de {name} borrada")
+        self.toast(_("Clave de {name} borrada", name=name))
         self.sig.pop("intel", None)
         self.call_bg("intel_keys", {}, lambda r: (self.data.__setitem__("intel_keys", r), self.render()))
 
@@ -1735,78 +1744,80 @@ class Window(Adw.ApplicationWindow):
         v = s["values"]
         auto = s.get("autostart") or {}
 
+        box.append(self.language_group(v))
+
         def switch(group, key, title, subtitle, invert=False):
             r = Adw.SwitchRow(title=GLib.markup_escape_text(title), subtitle=GLib.markup_escape_text(subtitle))
             r.set_active(bool(v.get(key)) != invert)
             r.connect("notify::active", lambda row, _p: self.set_setting(key, row.get_active() != invert))
             group.add(r)
 
-        g = Adw.PreferencesGroup(title="Monitorización y persistencia",
-                                 description="El historial solo se guarda mientras el daemon está en marcha.")
-        ar = Adw.SwitchRow(title="Iniciar con la sesión", subtitle="Servicio de usuario de systemd: monitoriza y guarda el "
-                           "historial aunque la app esté cerrada" + ("" if auto.get("available") else " (systemd no disponible)"))
+        g = Adw.PreferencesGroup(title=_("Monitorización y persistencia"),
+                                 description=_("El historial solo se guarda mientras el daemon está en marcha."))
+        ar = Adw.SwitchRow(title=_("Iniciar con la sesión"), subtitle=_("Servicio de usuario de systemd: monitoriza y guarda el "
+                           "historial aunque la app esté cerrada") + ("" if auto.get("available") else _(" (systemd no disponible)")))
         ar.set_active(bool(auto.get("enabled")))
         ar.set_sensitive(bool(auto.get("available")))
         ar.connect("notify::active", self.on_autostart)
         g.add(ar)
-        tr = Adw.SwitchRow(title="Icono en la bandeja del sistema",
-                           subtitle="Estado y controles desde la barra superior, también al iniciar sesión")
+        tr = Adw.SwitchRow(title=_("Icono en la bandeja del sistema"),
+                           subtitle=_("Estado y controles desde la barra superior, también al iniciar sesión"))
         tr.set_active(bool(auto.get("tray_autostart")))
         tr.connect("notify::active", self.on_tray)
         g.add(tr)
-        switch(g, "public_ip.require_tunnel", "Comprobar la IP pública siempre",
-               "Desactivado: solo por la VPN. Activado: también sin VPN (el servicio de eco ve tu IP real)", invert=True)
-        switch(g, "leakwatch.enabled", "Vigilante de fugas en tiempo real", "Revisa las conexiones cada 2 s")
+        switch(g, "public_ip.require_tunnel", _("Comprobar la IP pública siempre"),
+               _("Desactivado: solo por la VPN. Activado: también sin VPN (el servicio de eco ve tu IP real)"), invert=True)
+        switch(g, "leakwatch.enabled", _("Vigilante de fugas en tiempo real"), _("Revisa las conexiones cada 2 s"))
         ret = Adw.SpinRow.new_with_range(0, 3650, 1)
-        ret.set_title("Retención del historial (días)")
-        ret.set_subtitle("0 = sin límite")
+        ret.set_title(_("Retención del historial (días)"))
+        ret.set_subtitle(_("0 = sin límite"))
         ret.set_value(v.get("storage.retention_days") or 0)
         ret.connect("notify::value", lambda r, _p: self.set_setting("storage.retention_days", int(r.get_value()), quiet=True))
         g.add(ret)
         box.append(g)
 
-        g = Adw.PreferencesGroup(title="Consentimientos",
-                                 description="Todo lo que genera tráfico hacia terceros o modifica el sistema.")
+        g = Adw.PreferencesGroup(title=_("Consentimientos"),
+                                 description=_("Todo lo que genera tráfico hacia terceros o modifica el sistema."))
         for key, title, sub_ in (
-                ("consent.direct_ip_checks", "Consultar la IP pública por la ruta por defecto", "El servicio de eco verá tu IP de salida"),
-                ("consent.tor_ip_checks", "Comprobar la IP de salida de Tor", "Vía check.torproject.org a través de Tor"),
-                ("consent.threat_intel_lookups", "Threat intel (GreyNoise, VirusTotal, Shodan, Censys)", "Los servicios sabrán qué IPs consultas"),
-                ("consent.active_dns_leak_test", "Test activo de fugas DNS", "Un servicio externo verá tus resolvers"),
-                ("consent.allow_rotation_changes", "Permitir rotaciones reales", "Cambia conexiones VPN/proxy/Tor de verdad"),
-                ("consent.allow_killswitch", "Permitir el kill-switch propio (nftables)", "Necesita sudo sin contraseña o pkexec")):
+                ("consent.direct_ip_checks", _("Consultar la IP pública por la ruta por defecto"), _("El servicio de eco verá tu IP de salida")),
+                ("consent.tor_ip_checks", _("Comprobar la IP de salida de Tor"), _("Vía check.torproject.org a través de Tor")),
+                ("consent.threat_intel_lookups", _("Threat intel (GreyNoise, VirusTotal, Shodan, Censys)"), _("Los servicios sabrán qué IPs consultas")),
+                ("consent.active_dns_leak_test", _("Test activo de fugas DNS"), _("Un servicio externo verá tus resolvers")),
+                ("consent.allow_rotation_changes", _("Permitir rotaciones reales"), _("Cambia conexiones VPN/proxy/Tor de verdad")),
+                ("consent.allow_killswitch", _("Permitir el kill-switch propio (nftables)"), _("Necesita sudo sin contraseña o pkexec"))):
             switch(g, key, title, sub_)
         box.append(g)
 
-        g = Adw.PreferencesGroup(title="Fugas y threat intel")
-        cr = Adw.ComboRow(title="Si se detecta una fuga", subtitle="Aplicar el kill-switch exige el consentimiento de arriba")
-        cr.set_model(Gtk.StringList.new(["Solo avisar", "Aplicar el kill-switch"]))
+        g = Adw.PreferencesGroup(title=_("Fugas y threat intel"))
+        cr = Adw.ComboRow(title=_("Si se detecta una fuga"), subtitle=_("Aplicar el kill-switch exige el consentimiento de arriba"))
+        cr.set_model(Gtk.StringList.new([_("Solo avisar"), _("Aplicar el kill-switch")]))
         cr.set_selected(1 if v.get("leakwatch.on_leak") == "killswitch" else 0)
         cr.connect("notify::selected", lambda r, _p: self.set_setting("leakwatch.on_leak",
                                                                        "killswitch" if r.get_selected() == 1 else "alert"))
         g.add(cr)
-        switch(g, "intel.auto_live", "Consultar automáticamente en VirusTotal las IPs a las que te conectas",
-               "Puntuación en Tiempo real + aviso si es sospechosa. VirusTotal (Google) verá esos destinos")
-        nt = Adw.ComboRow(title="Notificar puntuaciones de VirusTotal")
-        nt.set_model(Gtk.StringList.new(["Solo sospechosas o maliciosas", "Todas las IPs puntuadas"]))
+        switch(g, "intel.auto_live", _("Consultar automáticamente en VirusTotal las IPs a las que te conectas"),
+               _("Puntuación en Tiempo real + aviso si es sospechosa. VirusTotal (Google) verá esos destinos"))
+        nt = Adw.ComboRow(title=_("Notificar puntuaciones de VirusTotal"))
+        nt.set_model(Gtk.StringList.new([_("Solo sospechosas o maliciosas"), _("Todas las IPs puntuadas")]))
         nt.set_selected(1 if v.get("intel.live_notify") == "all" else 0)
         nt.connect("notify::selected", lambda r, _p: self.set_setting("intel.live_notify",
                                                                        "all" if r.get_selected() == 1 else "flagged"))
         g.add(nt)
         lim = Adw.SpinRow.new_with_range(0, 5000, 10)
-        lim.set_title("Tope diario de consultas automáticas")
-        lim.set_subtitle("La API gratuita de VirusTotal permite 500 al día y 4 por minuto")
+        lim.set_title(_("Tope diario de consultas automáticas"))
+        lim.set_subtitle(_("La API gratuita de VirusTotal permite 500 al día y 4 por minuto"))
         lim.set_value(v.get("intel.live_daily_limit") or 400)
         lim.connect("notify::value", lambda r, _p: self.set_setting("intel.live_daily_limit", int(r.get_value()), quiet=True))
         g.add(lim)
-        switch(g, "intel.via_tor", "Consultas de threat intel por Tor", "Algunos servicios limitan o bloquean Tor")
-        switch(g, "intel.allow_direct", "Permitir consultas sin VPN", "Saldrían desde tu IP real")
+        switch(g, "intel.via_tor", _("Consultas de threat intel por Tor"), _("Algunos servicios limitan o bloquean Tor"))
+        switch(g, "intel.allow_direct", _("Permitir consultas sin VPN"), _("Saldrían desde tu IP real"))
         box.append(g)
         box.append(self.map_group())
-        box.append(lbl(f"Guardado en {tilde(s['path'])} (no se modifica tu config.toml)", "kpi-sub"))
+        box.append(lbl(_("Guardado en {v1} (no se modifica tu config.toml)", v1=tilde(s['path'])), "kpi-sub"))
 
     # ── mapa OpenStreetMap ──
-    MAP_VIA = [("auto", "Automático: Tor y, si no hay, la VPN"), ("tor", "Solo por Tor"), ("vpn", "Solo por la VPN"),
-               ("direct", "Directo (tu IP real; solo descarga ficheros públicos del mundo entero)")]
+    MAP_VIA = [("auto", _("Automático: Tor y, si no hay, la VPN")), ("tor", _("Solo por Tor")), ("vpn", _("Solo por la VPN")),
+               ("direct", _("Directo (tu IP real; solo descarga ficheros públicos del mundo entero)"))]
 
     def map_group(self):
         """Grupo persistente (sobrevive a los redibujados de Ajustes mientras se genera el mapa)."""
@@ -1814,20 +1825,20 @@ class Window(Adw.ApplicationWindow):
             self._map_status_update()
             return self._map_grp
         g = Adw.PreferencesGroup(
-            title="Mapa (OpenStreetMap)",
-            description="Mapa propio hecho con datos de OpenStreetMap e incorporado en la app: costas, países, "
+            title=_("Mapa (OpenStreetMap)"),
+            description=_("Mapa propio hecho con datos de OpenStreetMap e incorporado en la app: costas, países, "
                         "capitales y ciudades, con estilo oscuro y más detalle al acercar. Funciona sin conexión: "
-                        "mirar el mapa no pide nada a ningún servidor. Actualizarlo es opcional (descarga ≈25 MB).")
-        self._map_row = Adw.ActionRow(title="Estado")
+                        "mirar el mapa no pide nada a ningún servidor. Actualizarlo es opcional (descarga ≈25 MB)."))
+        self._map_row = Adw.ActionRow(title=_("Estado"))
         g.add(self._map_row)
-        self._map_via = Adw.ComboRow(title="Descargar por")
-        self._map_via.set_model(Gtk.StringList.new([t for _, t in self.MAP_VIA]))
+        self._map_via = Adw.ComboRow(title=_("Descargar por"))
+        self._map_via.set_model(Gtk.StringList.new([t for _ign, t in self.MAP_VIA]))
         g.add(self._map_via)
         self._map_bar = Gtk.ProgressBar(show_text=True, visible=False, valign=Gtk.Align.CENTER, hexpand=True)
-        self._map_btn = Gtk.Button(label="Generar mapa", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
+        self._map_btn = Gtk.Button(label=_("Generar mapa"), valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
         self._map_btn.connect("clicked", lambda _b: self.map_build())
-        act = Adw.ActionRow(title="Actualizar con datos recientes de OpenStreetMap",
-                            subtitle="Fuentes: osmdata.openstreetmap.de (tierra) y Overpass API (nombres de lugares)")
+        act = Adw.ActionRow(title=_("Actualizar con datos recientes de OpenStreetMap"),
+                            subtitle=_("Fuentes: osmdata.openstreetmap.de (tierra) y Overpass API (nombres de lugares)"))
         act.add_suffix(self._map_bar)
         act.add_suffix(self._map_btn)
         g.add(act)
@@ -1838,11 +1849,10 @@ class Window(Adw.ApplicationWindow):
     def _map_status_update(self):
         st = osmmap.status()
         if st["installed"]:
-            self._map_row.set_subtitle(f"En uso: {st['source']} · {st['bytes'] / 1e6:.1f} MB · {st['places']} lugares · "
-                                       f"datos de {iso(st['created'])[:10]} · {st['attribution']} (ODbL)")
-            self._map_btn.set_label("Actualizar")
+            self._map_row.set_subtitle(_("En uso: {source} · {v3:.1f} MB · {places} lugares · datos de {v7} · {attribution} (ODbL)", source=st['source'], v3=st['bytes'] / 1e6, places=st['places'], v7=iso(st['created'])[:10], attribution=st['attribution']))
+            self._map_btn.set_label(_("Actualizar"))
         else:
-            self._map_row.set_subtitle("No instalado: el mapa usa un contorno básico dibujado a mano")
+            self._map_row.set_subtitle(_("No instalado: el mapa usa un contorno básico dibujado a mano"))
 
     def map_build(self):
         import subprocess
@@ -1861,7 +1871,7 @@ class Window(Adw.ApplicationWindow):
                 for line in pr.stdout:
                     line = line.rstrip()
                     if line.startswith("progress "):
-                        _, f, msg = line.split(" ", 2)
+                        _ign, f, msg = line.split(" ", 2)
                         GLib.idle_add(lambda f=float(f), m=msg: (self._map_bar.set_fraction(f), self._map_bar.set_text(m),
                                                                 False)[-1])
                     elif line.startswith("error "):
@@ -1870,7 +1880,7 @@ class Window(Adw.ApplicationWindow):
                         res = json.loads(line[7:])
                 pr.wait()
                 if pr.returncode and not err:
-                    err = f"código {pr.returncode}"
+                    err = _("código {returncode}", returncode=pr.returncode)
             except Exception as e:  # noqa: BLE001
                 err = str(e)
             GLib.idle_add(self._map_done, err, res)
@@ -1880,28 +1890,68 @@ class Window(Adw.ApplicationWindow):
         self._map_btn.set_sensitive(True)
         self._map_bar.set_visible(False)
         if err:
-            self.toast(f"No se pudo generar el mapa: {err}")
+            self.toast(_("No se pudo generar el mapa: {err}", err=err))
         else:
-            extra = f" (sin nombres: {res['places_error']})" if res and res.get("places_error") else ""
-            self.toast(f"Mapa OpenStreetMap listo{extra}")
+            extra = _(" (sin nombres: {places_error})", places_error=res['places_error']) if res and res.get("places_error") else ""
+            self.toast(_("Mapa OpenStreetMap listo{extra}", extra=extra))
             self.mapv._base = None
             self.mapv.queue_draw()
         self._map_status_update()
         return False
 
+    # ── idioma ──
+    LANG_CODES = ["auto", "es", "en", "ca", "pt", "fr", "de"]
+
+    def language_group(self, v):
+        from .. import i18n
+        g = Adw.PreferencesGroup(title=_("Idioma") + " · Language")
+        row = Adw.ComboRow(title=_("Idioma de la interfaz"),
+                           subtitle=_("Automático usa el idioma del sistema. Se aplica al reiniciar la app."))
+        names = [_("Automático (sistema: {lang})", lang=i18n.LANGS.get(i18n._from_env() or i18n.FALLBACK))]
+        names += [i18n.LANGS[c] for c in self.LANG_CODES[1:]]
+        row.set_model(Gtk.StringList.new(names))
+        cur = v.get("ui.language") or "auto"
+        row.set_selected(self.LANG_CODES.index(cur) if cur in self.LANG_CODES else 0)
+
+        def changed(r, _p):
+            code = self.LANG_CODES[r.get_selected()]
+            if code == (v.get("ui.language") or "auto"):
+                return
+            v["ui.language"] = code
+            self.call_bg("settings_set", {"changes": {"ui.language": code}}, lambda _r: self.ask_restart())
+        row.connect("notify::selected", changed)
+        g.add(row)
+        return g
+
+    def ask_restart(self):
+        d = Adw.AlertDialog(heading=_("Idioma cambiado"),
+                            body=_("Reinicia VELA para ver toda la interfaz en el nuevo idioma."))
+        d.add_response("later", _("Más tarde"))
+        d.add_response("restart", _("Reiniciar ahora"))
+        d.set_response_appearance("restart", Adw.ResponseAppearance.SUGGESTED)
+
+        def done(dlg, res):
+            if dlg.choose_finish(res) == "restart":
+                import os
+                os.environ.pop("VELA_LANG", None)
+                root = str(Path(__file__).resolve().parents[2])
+                os.environ["PYTHONPATH"] = root + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else "")
+                os.execv(sys.executable, [sys.executable, "-m", "vela", "app"])
+        d.choose(self, None, done)
+
     def set_setting(self, key, value, quiet=False):
         self.call_bg("settings_set", {"changes": {key: value}},
-                     lambda r: (None if quiet else self.toast("Ajuste guardado"),
+                     lambda r: (None if quiet else self.toast(_("Ajuste guardado")),
                                 self.call_bg("settings_get", {}, lambda s: self.data.__setitem__("settings", s))))
 
     def on_tray(self, row, _p):
         from .. import autostart
         if row.get_active():
             autostart.tray_enable()
-            self.toast("Icono de bandeja activado")
+            self.toast(_("Icono de bandeja activado"))
         else:
             autostart.tray_disable()
-            self.toast("Icono de bandeja desactivado")
+            self.toast(_("Icono de bandeja desactivado"))
 
     def on_autostart(self, row, _p):
         from .. import autostart
@@ -1909,7 +1959,7 @@ class Window(Adw.ApplicationWindow):
 
         def work():
             res = autostart.enable() if want else autostart.disable()
-            GLib.idle_add(self.toast, ("Arranque con la sesión activado" if want else "Arranque con la sesión desactivado")
+            GLib.idle_add(self.toast, (_("Arranque con la sesión activado") if want else _("Arranque con la sesión desactivado"))
                           if res.get("ok") else f"systemd: {res.get('error')}")
             if want:
                 ensure_daemon()
@@ -1925,19 +1975,18 @@ class Window(Adw.ApplicationWindow):
             inner = vbox(6)
             inner.append(lbl(p.get("description") or "", "kpi-sub", wrap=True))
             tags = hbox(6)
-            tags.append(pill("good" if p.get("use_tor") else "neutral", "Tor" if p.get("use_tor") else "sin Tor"))
+            tags.append(pill("good" if p.get("use_tor") else "neutral", _("Tor") if p.get("use_tor") else _("sin Tor")))
             tags.append(pill("good" if p.get("require_vpn") else "neutral",
-                             "VPN obligatoria" if p.get("require_vpn") else "VPN opcional"))
+                             _("VPN obligatoria") if p.get("require_vpn") else _("VPN opcional")))
             tags.append(pill("good" if p.get("require_killswitch") else "neutral", "kill-switch"))
             inner.append(tags)
-            inner.append(lbl(f"DNS {p.get('dns_policy')} · retención {p.get('retention_days')} d · prohibidos "
-                             f"{', '.join(p.get('forbidden_countries') or []) or '—'}", "td", wrap=True))
+            inner.append(lbl(_("DNS {v1} · retención {v3} d · prohibidos {v5}", v1=p.get('dns_policy'), v3=p.get('retention_days'), v5=', '.join(p.get('forbidden_countries') or []) or '—'), "td", wrap=True))
             if name == prof.get("active"):
-                suffix = pill("good", "Activo")
+                suffix = pill("good", _("Activo"))
             else:
-                suffix = Gtk.Button(label="Activar")
+                suffix = Gtk.Button(label=_("Activar"))
                 suffix.connect("clicked", lambda _b, n=name: self.call_bg("profile_activate", {"name": n}, lambda r: (
-                    self.toast(f"Perfil activo: {n}"), self.refresh(full=True))))
+                    self.toast(_("Perfil activo: {n}", n=n)), self.refresh(full=True))))
             flow.append(card(name, inner, suffix))
         box.append(flow)
 

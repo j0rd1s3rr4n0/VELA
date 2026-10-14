@@ -10,6 +10,8 @@ por circuitos nuevos, pero Tor puede elegir el mismo exit y no se garantiza una 
 
 from __future__ import annotations
 
+from .i18n import _
+
 import binascii
 import hashlib
 import hmac
@@ -38,7 +40,7 @@ def parse_target(target) -> str | tuple[str, int]:
         return t[5:]
     if t.startswith("/"):
         return t
-    host, _, port = t.rpartition(":")
+    host, _ign, port = t.rpartition(":")
     return (host or "127.0.0.1", int(port))
 
 
@@ -78,7 +80,7 @@ def parse_circuit_line(line: str) -> dict | None:
         circ["path"] = parse_path(rest[0])
         rest = rest[1:]
     for tok in rest:
-        k, _, v = tok.partition("=")
+        k, _ign, v = tok.partition("=")
         if k == "PURPOSE":
             circ["purpose"] = v
         elif k == "BUILD_FLAGS":
@@ -162,7 +164,7 @@ class TorControl:
         while b"\r\n" not in self._buf:
             chunk = self.sock.recv(65536)
             if not chunk:
-                raise TorControlError("conexión cerrada por Tor")
+                raise TorControlError(_("conexión cerrada por Tor"))
             self._buf += chunk
         line, self._buf = self._buf.split(b"\r\n", 1)
         return line.decode("utf-8", "replace")
@@ -216,8 +218,7 @@ class TorControl:
         elif "HASHEDPASSWORD" in methods and self.password is not None:
             self.command('AUTHENTICATE "' + self.password.replace("\\", "\\\\").replace('"', '\\"') + '"')
         else:
-            raise PermissionError(f"no hay método de autenticación utilizable (métodos: {methods}, "
-                                  f"cookie: {cookie_path or '-'})")
+            raise PermissionError(_("no hay método de autenticación utilizable (métodos: {methods}, cookie: {v3})", methods=methods, v3=cookie_path or '-'))
 
     def _safecookie(self, cookie_path: str):
         with open(cookie_path, "rb") as f:
@@ -228,12 +229,12 @@ class TorControl:
         sh = re.search(r"SERVERHASH=([0-9A-Fa-f]+)", text)
         sn = re.search(r"SERVERNONCE=([0-9A-Fa-f]+)", text)
         if not sh or not sn:
-            raise TorControlError("respuesta AUTHCHALLENGE inválida")
+            raise TorControlError(_("respuesta AUTHCHALLENGE inválida"))
         server_nonce = binascii.unhexlify(sn.group(1))
         msg = cookie + client_nonce + server_nonce
         expected = hmac.new(SERVER_KEY, msg, hashlib.sha256).digest()
         if not hmac.compare_digest(expected, binascii.unhexlify(sh.group(1))):
-            raise TorControlError("SERVERHASH no coincide: el otro extremo no conoce la cookie")
+            raise TorControlError(_("SERVERHASH no coincide: el otro extremo no conoce la cookie"))
         self.command("AUTHENTICATE " + hmac.new(CLIENT_KEY, msg, hashlib.sha256).hexdigest())
 
     # ── consultas ──
@@ -242,7 +243,7 @@ class TorControl:
         out = {}
         for code, sep, text, data in reply:
             if "=" in text:
-                k, _, v = text.partition("=")
+                k, _ign, v = text.partition("=")
                 out[k] = "\n".join(data) if sep == "+" else v
         return out
 
@@ -323,7 +324,7 @@ class TorObserver:
             except (OSError, TorControlError, PermissionError) as e:
                 errors.append(f"{t}: {e}")
         self.target = None
-        raise TorControlError("; ".join(errors) or "sin candidatos")
+        raise TorControlError("; ".join(errors) or _("sin candidatos"))
 
     def _relay(self, ctl: TorControl, fp: str) -> dict:
         cached = self._relay_cache.get(fp)
@@ -401,10 +402,10 @@ class TorObserver:
 
     def newnym(self) -> dict:
         if self.observe_only:
-            return {"ok": False, "error": "Tor Browser: usa 'Nueva identidad' en el navegador"}
+            return {"ok": False, "error": _("Tor Browser: usa 'Nueva identidad' en el navegador")}
         wait = NEWNYM_MIN_INTERVAL - (time.monotonic() - self._last_newnym)
         if wait > 0:
-            return {"ok": False, "error": f"rate-limit: espera {wait:.0f}s", "retry_in": wait}
+            return {"ok": False, "error": _("rate-limit: espera {wait:.0f}s", wait=wait), "retry_in": wait}
         try:
             with self._connect() as ctl:
                 ctl.signal("NEWNYM")

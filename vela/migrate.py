@@ -11,6 +11,8 @@ Si el daemon antiguo sigue en marcha no toca nada (la base de datos estaría abi
 
 from __future__ import annotations
 
+from .i18n import _
+
 import os
 import shutil
 import subprocess
@@ -63,8 +65,8 @@ def migrate() -> list[str]:
     done: list[str] = []
     old_rt = _runtime_base() / LEGACY
     if _alive(old_rt / "opsecd.pid"):
-        return ["el daemon antiguo (opsecd) sigue en marcha: detenlo con «systemctl --user stop opsecd» y vuelve "
-                "a ejecutar cualquier comando de vela para migrar"]
+        return [_("el daemon antiguo (opsecd) sigue en marcha: detenlo con «systemctl --user stop opsecd» y vuelve "
+                "a ejecutar cualquier comando de vela para migrar")]
     # 1) servicio de systemd (antes de mover nada: el antiguo apunta a rutas viejas)
     old_unit = Path.home() / ".config/systemd/user" / OLD_UNIT
     unit_enabled = False
@@ -82,7 +84,7 @@ def migrate() -> list[str]:
             old.rename(new)
             done.append(f"{old} → {new}")
         elif old.is_dir():
-            done.append(f"{old} se conserva: ya existe {new} (revisa a mano si queda algo dentro)")
+            done.append(_("{old} se conserva: ya existe {new} (revisa a mano si queda algo dentro)", old=old, new=new))
     cache = _cache_dir()
     if _legacy(cache).is_dir() and not cache.exists():
         _legacy(cache).rename(cache)
@@ -93,7 +95,7 @@ def migrate() -> list[str]:
         for suf in ("", "-wal", "-shm", "-journal"):
             if (data / f"opsec.db{suf}").exists():
                 (data / f"opsec.db{suf}").rename(data / f"vela.db{suf}")
-        done.append("base de datos opsec.db → vela.db (historial conservado)")
+        done.append(_("base de datos opsec.db → vela.db (historial conservado)"))
     state = xdg_dir("state")
     if (state / "opsecd.log").exists() and not (state / "velad.log").exists():
         (state / "opsecd.log").rename(state / "velad.log")
@@ -104,18 +106,18 @@ def migrate() -> list[str]:
     if unit_enabled:
         from . import autostart
         r = autostart.enable()
-        done.append("servicio velad.service habilitado (como lo estaba opsecd)" if r.get("ok") else
-                    f"no se pudo habilitar velad.service: {r.get('error')}")
+        done.append(_("servicio velad.service habilitado (como lo estaba opsecd)") if r.get("ok") else
+                    _("no se pudo habilitar velad.service: {v1}", v1=r.get('error')))
     if OLD_TRAY.exists():
         OLD_TRAY.unlink()
         from . import autostart
         autostart.tray_enable(start_now=False)
-        done.append("autoarranque de la bandeja → vela-tray.desktop")
+        done.append(_("autoarranque de la bandeja → vela-tray.desktop"))
     if OLD_LAUNCHER.exists():
         OLD_LAUNCHER.unlink()
         try:
             from .native.app import install_desktop
-            done.append(f"lanzador del menú → {install_desktop()}")
+            done.append(_("lanzador del menú → {v1}", v1=install_desktop()))
         except Exception as e:  # noqa: BLE001 (sin GTK: se instala luego con «vela app --install»)
-            done.append(f"lanzador antiguo retirado; instala el nuevo con «vela app --install» ({e})")
+            done.append(_("lanzador antiguo retirado; instala el nuevo con «vela app --install» ({e})", e=e))
     return done

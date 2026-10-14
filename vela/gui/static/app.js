@@ -1,4 +1,21 @@
 "use strict";
+// ── idioma: catálogo servido por la propia GUI (/i18n.json); el texto fuente está en español ──
+let I18N = {}, LOCALE = "es-ES";
+function tr(s, v) { let r = I18N[s] || s; if (v) r = r.replace(/\{(\w+)\}/g, (m, k) => (k in v ? String(v[k]) : m)); return r; }
+async function loadI18n() {
+  try {
+    const j = await (await fetch("/i18n.json")).json();
+    I18N = j.catalog || {}; LOCALE = j.locale || LOCALE; document.documentElement.lang = j.lang || "es";
+  } catch (e) { /* sin catálogo: español */ }
+  // textos fijos del HTML: nodos de texto y atributos title/placeholder
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const k = n.nodeValue.trim();
+    if (k && I18N[k]) n.nodeValue = n.nodeValue.replace(k, I18N[k]);
+  }
+  for (const el of document.querySelectorAll("[title],[placeholder],[aria-label]"))
+    for (const a of ["title", "placeholder", "aria-label"]) { const k = el.getAttribute(a); if (k && I18N[k]) el.setAttribute(a, I18N[k]); }
+}
 // VELA — GUI. Sin dependencias ni recursos externos.
 // Todo el DOM se construye con textContent (nunca innerHTML con datos): los nombres de relays,
 // SSID u otros datos observados no pueden inyectar código.
@@ -28,7 +45,7 @@ const $ = (id) => document.getElementById(id);
 const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const pad = (n) => String(n).padStart(2, "0");
 function dur(sec) { sec = Math.max(0, Math.floor(sec || 0)); const d = Math.floor(sec / 86400), hh = Math.floor(sec % 86400 / 3600), m = Math.floor(sec % 3600 / 60); return `${pad(d)}d ${pad(hh)}h ${pad(m)}m ${pad(sec % 60)}s`; }
-function ts(t) { if (!t) return "—"; const d = new Date(t * 1000); return d.toLocaleString("es-ES", { hour12: false }); }
+function ts(t) { if (!t) return "—"; const d = new Date(t * 1000); return d.toLocaleString(LOCALE, { hour12: false }); }
 function setKids(el, ...kids) { el.replaceChildren(...kids.flat().filter((k) => k != null)); }
 function kv(el, pairs) { setKids(el, pairs.flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")])); }
 function toast(msg, bad) { const t = $("toast"); t.textContent = msg; t.className = "toast" + (bad ? " bad" : ""); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add("hidden"), 6000); }
@@ -47,7 +64,7 @@ function initToken() {
   const m = location.hash.match(/t=([\w-]+)/);
   if (m) { TOKEN = m[1]; try { sessionStorage.setItem("vela_t", TOKEN); } catch (e) { /* sin storage */ } history.replaceState(null, "", "/"); }
   else { try { TOKEN = sessionStorage.getItem("vela_t"); } catch (e) { TOKEN = null; } }
-  if (!TOKEN) document.body.prepend(h("div", { class: "emergency" }, "Falta el token de acceso: abre la URL completa que mostró `vela gui`."));
+  if (!TOKEN) document.body.prepend(h("div", { class: "emergency" }, tr("Falta el token de acceso: abre la URL completa que mostró `vela gui`.")));
 }
 
 function initTheme() {
@@ -67,7 +84,7 @@ function initTabs() {
 // ── estado general ─────────────────────────────────────────────────────────
 async function refreshStatus() {
   try { S.status = await api("status"); S.statusAt = Date.now() / 1000; renderStatus(); }
-  catch (e) { $("modeBadge").textContent = "sin conexión"; $("modeBadge").className = "badge bad"; }
+  catch (e) { $("modeBadge").textContent = tr("sin conexión"); $("modeBadge").className = "badge bad"; }
 }
 
 function renderStatus() {
@@ -80,46 +97,46 @@ function renderStatus() {
   $("emergencyBar").classList.toggle("hidden", !st.emergency);
   const obs = st.obs || {};
   renderChain($("chain"), obs.chain || []);
-  renderChain($("torChain"), obs.tor_chain || [], "Tor: ");
+  renderChain($("torChain"), obs.tor_chain || [], tr("Tor: "));
   // score
   setKids($("score"), h("div", { class: `scorebig level-${ex.level}` }, `${ex.score}`, h("span", { class: "muted small" }, " /100")),
     ex.indicators.map((i) => h("div", { class: "ind" }, h("span", { class: i.present ? "on" : "off" }, i.present ? "●" : (i.present === false ? "○" : "?")), `${i.label} (${i.weight})`)),
     h("p", { class: "muted small" }, ex.disclaimer));
   const net = st.net, e4 = net.egress.ipv4 || {}, wan = st.wan || {}, pub = st.public || {};
-  kv($("ids"), [["IP local", `${net.local_ip || "—"} (${e4.dev || "?"})`], ["Gateway", net.gateway],
-    ["IP WAN router", wan.ok ? `${wan.ip}${wan.cgnat ? " · CGNAT" : ""}${wan.double_nat ? " · doble NAT" : ""}` : (wan.error || "no comprobada")],
+  kv($("ids"), [["IP local", `${net.local_ip || "—"} (${e4.dev || "?"})`], [tr("Gateway"), net.gateway],
+    [tr("IP WAN router"), wan.ok ? `${wan.ip}${wan.cgnat ? " · CGNAT" : ""}${wan.double_nat ? " · doble NAT" : ""}` : (wan.error || "no comprobada")],
     ...Object.entries(pub).map(([r, x]) => [`IP pública [${r}]`, x.ok ? `${x.ip} · ${(x.geo || {}).country_name || "?"} · ${ts(x.ts)}` : x.error]),
-    ["IPv6", net.egress.ipv6 ? `sale por ${net.egress.ipv6.dev}` : "sin ruta a Internet"]]);
+    ["IPv6", net.egress.ipv6 ? `sale por ${net.egress.ipv6.dev}` : tr("sin ruta a Internet")]]);
   const sess = st.session;
-  kv($("session"), sess ? [["ID", sess.id], ["Duración", h("span", { id: "sessDur", class: "mono" }, dur(sess.duration))], ["Inicio", ts(sess.started)], ["Huella", sess.fingerprint], ["Perfil", sess.profile]]
-    : [["Estado", st.emergency ? "emergencia" : "sin sesión registrada (arranca el daemon para registrar historial)"]]);
+  kv($("session"), sess ? [["ID", sess.id], [tr("Duración"), h("span", { id: "sessDur", class: "mono" }, dur(sess.duration))], [tr("Inicio"), ts(sess.started)], [tr("Huella"), sess.fingerprint], [tr("Perfil"), sess.profile]]
+    : [[tr("Estado"), st.emergency ? "emergencia" : tr("sin sesión registrada (arranca el daemon para registrar historial)")]]);
   const vpnRot = st.rotation.vpn, fw = st.forwarder;
-  kv($("vpnproxy"), [["Túneles", net.tunnels.join(", ") || "ninguno"], ["Tráfico por túnel", net.via_tunnel.ipv4 ? "sí" : "no"],
-    ["VPN", obs.vpn ? obs.vpn.label : "—"], ["Rotación VPN", vpnRot ? `${vpnRot.adapter}${vpnRot.available ? "" : " · " + vpnRot.reason}` : "sin adaptador en este sistema"],
-    ["Proxy activo", obs.proxy ? obs.proxy.label : "—"], ["Forwarder", fw ? `${fw.listen} → ${fw.upstream}` : "no iniciado"],
+  kv($("vpnproxy"), [[tr("Túneles"), net.tunnels.join(", ") || "ninguno"], [tr("Tráfico por túnel"), net.via_tunnel.ipv4 ? "sí" : "no"],
+    ["VPN", obs.vpn ? obs.vpn.label : "—"], [tr("Rotación VPN"), vpnRot ? `${vpnRot.adapter}${vpnRot.available ? "" : " · " + vpnRot.reason}` : tr("sin adaptador en este sistema")],
+    [tr("Proxy activo"), obs.proxy ? obs.proxy.label : "—"], [tr("Forwarder"), fw ? `${fw.listen} → ${fw.upstream}` : "no iniciado"],
     ...ksRows(st.killswitch)]);
   const t = st.tor || {};
-  kv($("tor"), t.available ? [["Instancia", `${t.version} · ${t.target}`], ["Bootstrap", `${t.bootstrap}%`], ["Circuitos / streams", `${t.circuit_count} / ${t.stream_count}`],
-    ["Guard", t.guard ? `${t.guard.nick} ${t.guard.ip} (${t.guard.country || "?"})` : "—"], ["Exit", t.exit ? `${t.exit.nick} ${t.exit.ip} (${t.exit.country || "?"})` : "—"],
-    ["Modo", t.observe_only ? "Tor Browser: solo observación" : "gestionable (NEWNYM)"]] : [["Estado", t.error || "no disponible"]]);
+  kv($("tor"), t.available ? [[tr("Instancia"), `${t.version} · ${t.target}`], [tr("Bootstrap"), `${t.bootstrap}%`], ["Circuitos / streams", `${t.circuit_count} / ${t.stream_count}`],
+    [tr("Guard"), t.guard ? `${t.guard.nick} ${t.guard.ip} (${t.guard.country || "?"})` : "—"], [tr("Exit"), t.exit ? `${t.exit.nick} ${t.exit.ip} (${t.exit.country || "?"})` : "—"],
+    [tr("Modo"), t.observe_only ? tr("Tor Browser: solo observación") : tr("gestionable (NEWNYM)")]] : [[tr("Estado"), t.error || "no disponible"]]);
   const d = st.dns || {}, enc = d.encryption || {};
-  kv($("dns"), [["Origen", d.effective_source], ...(enc.resolvers || []).map((r) => [r.addr, `${r.provider || "desconocido"} · ${r.transport}${r.upstream ? " → " + r.upstream : ""}`]),
-    ["Cifrado", h("span", { class: d.encrypted ? "status-ok" : d.encrypted === false ? "status-fail" : "status-unknown" }, d.encrypted ? "sí" : d.encrypted === false ? "NO" : "no verificable")],
-    ["Conexión DoH", enc.upstream_route ? `${enc.upstream_route.ip} por ${enc.upstream_route.dev}` : "—"],
-    ...(enc.browsers || []).map((b) => [b.browser, `DoH propio: ${b.mode}`]), ["Split DNS", (d.split_dns || []).join(", ") || "no"]]);
+  kv($("dns"), [[tr("Origen"), d.effective_source], ...(enc.resolvers || []).map((r) => [r.addr, `${r.provider || "desconocido"} · ${r.transport}${r.upstream ? " → " + r.upstream : ""}`]),
+    [tr("Cifrado"), h("span", { class: d.encrypted ? "status-ok" : d.encrypted === false ? "status-fail" : "status-unknown" }, d.encrypted ? "sí" : d.encrypted === false ? "NO" : "no verificable")],
+    [tr("Conexión DoH"), enc.upstream_route ? `${enc.upstream_route.ip} por ${enc.upstream_route.dev}` : "—"],
+    ...(enc.browsers || []).map((b) => [b.browser, tr("DoH propio: {p0}", { p0: b.mode })]), [tr("Split DNS"), (d.split_dns || []).join(", ") || "no"]]);
   setKids($("rotSummary"), Object.entries(st.rotation).map(([layer, r]) => h("div", { class: "alert info" },
     h("div", { class: "title" }, `${layer} · ${r.adapter}`),
-    h("div", {}, r.enabled ? h("span", { class: "countdown", "data-deadline": String(r.deadline || "") }, r.remaining != null ? dur(r.remaining) : "—") : h("span", { class: "muted" }, "rotación automática desactivada")),
+    h("div", {}, r.enabled ? h("span", { class: "countdown", "data-deadline": String(r.deadline || "") }, r.remaining != null ? dur(r.remaining) : "—") : h("span", { class: "muted" }, tr("rotación automática desactivada"))),
     h("div", { class: "meta" }, `${r.rotations_last_hour}/${r.max_per_hour} en la última hora${r.available ? "" : " · " + r.reason}`))));
-  if (!Object.keys(st.rotation).length) setKids($("rotSummary"), h("p", { class: "muted" }, "Ningún adaptador de rotación disponible."));
-  setKids($("alerts"), st.findings.length ? st.findings.map(alertEl) : [h("p", { class: "muted" }, "Sin alertas activas.")]);
+  if (!Object.keys(st.rotation).length) setKids($("rotSummary"), h("p", { class: "muted" }, tr("Ningún adaptador de rotación disponible.")));
+  setKids($("alerts"), st.findings.length ? st.findings.map(alertEl) : [h("p", { class: "muted" }, tr("Sin alertas activas."))]);
   if (S.map) drawMap($("miniMap"), S.map, { mini: true });
 }
 
 function ksRows(ks) {
   const x = (ks || {}).external || {}, rp = x.route_protection || {};
   const st = (f) => rp[f] ? h("span", { class: rp[f].state === "bloqueado" ? "status-ok" : "status-fail" }, `${rp[f].state} · ${rp[f].detail}`) : "—";
-  const rows = [["Kill-switch", (x.declared_by || []).join(", ") || (ks && ks.active ? "propio (nftables)" : "ningún cliente")], ["Si cae el túnel IPv4", st("ipv4")], ["Si cae el túnel IPv6", st("ipv6")]];
+  const rows = [["Kill-switch", (x.declared_by || []).join(", ") || (ks && ks.active ? tr("propio (nftables)") : tr("ningún cliente"))], [tr("Si cae el túnel IPv4"), st("ipv4")], [tr("Si cae el túnel IPv6"), st("ipv6")]];
   for (const c of x.clients || []) if (c.declared) rows.push([`${c.client} (config)`, `kill-switch ${c.declared.killswitch_mode || c.declared.killswitch}`]);
   return rows;
 }
@@ -137,7 +154,7 @@ function renderChain(el, chain, prefix) {
 function alertEl(f) {
   return h("div", { class: `alert ${f.severity}` }, h("div", { class: "title" }, h("span", { class: `sev sev-${f.severity}` }, f.severity), " ", f.title, " ", h("span", { class: `status-${f.status} small` }, `[${f.status}]`)),
     h("div", {}, f.observed), h("div", { class: "meta" }, `${f.mode} · ${f.method} · confianza ${f.confidence}`),
-    h("div", { class: "meta" }, `Limitaciones: ${f.limitations}`), h("div", { class: "meta" }, `Recomendación: ${f.recommendation}`));
+    h("div", { class: "meta" }, tr("Limitaciones: {p0}", { p0: f.limitations })), h("div", { class: "meta" }, tr("Recomendación: {p0}", { p0: f.recommendation })));
 }
 
 function tickClock() {
@@ -215,8 +232,8 @@ function hideTip() { const t = $("tooltip"); if (t) t.classList.add("hidden"); }
 function selectNode(info, el) {
   document.querySelectorAll(".node.sel").forEach((x) => x.classList.remove("sel")); el.classList.add("sel");
   const box = $("mapSelection"); if (!box) return;
-  setKids(box, h("h2", {}, "Selección"), h("dl", { class: "kv" }, Object.entries(info).flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")])),
-    h("p", { class: "muted small" }, "Ubicación estimada por GeoIP local: no es la ubicación física real del servidor."));
+  setKids(box, h("h2", {}, tr("Selección")), h("dl", { class: "kv" }, Object.entries(info).flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v ?? "—")])),
+    h("p", { class: "muted small" }, tr("Ubicación estimada por GeoIP local: no es la ubicación física real del servidor.")));
 }
 function chainPoints(chain) { return chain.filter((c) => c.lat != null && c.lon != null).map((c) => ({ ...c, p: proj(c.lon, c.lat) })); }
 
@@ -253,7 +270,7 @@ function drawMap(svg, m, opts) {
       }
       for (const c of pts) svg.append(nodeEl(c.p, css(LAYER_COLOR[c.type] || "--accent"), 6.5, { salto: c.type, nodo: c.label, IP: c.ip, país: c.country, ASN: c.asn, origen: c.geo_source }));
     }
-    if (home) svg.append(nodeEl(home, css("--c-home"), 6, { salto: "casa (estimada)", país: m.home.country, origen: m.home.geo_source }));
+    if (home) svg.append(nodeEl(home, css("--c-home"), 6, { salto: tr("casa (estimada)"), país: m.home.country, origen: m.home.geo_source }));
   }
 }
 
@@ -264,7 +281,7 @@ async function loadMap() {
   drawMap($("bigMap"), S.map);
   $("mapNote").textContent = S.map.note;
   setKids($("circuits"), S.map.tor_circuits.length ? S.map.tor_circuits.map((c) => h("div", { class: "alert info" }, h("div", { class: "title" }, `Circuito ${c.id} · ${c.streams} streams`),
-    h("div", {}, c.path.map((p) => `${p.role}: ${p.nick} (${p.country || "?"})`).join(" → ")))) : [h("p", { class: "muted" }, "Sin circuitos observables.")]);
+    h("div", {}, c.path.map((p) => `${p.role}: ${p.nick} (${p.country || "?"})`).join(" → ")))) : [h("p", { class: "muted" }, tr("Sin circuitos observables."))]);
 }
 function initMap() {
   for (const el of document.querySelectorAll("#tab-map input")) el.addEventListener("change", () => S.map && drawMap($("bigMap"), S.map, { time: sliderTime() }));
@@ -288,16 +305,16 @@ const matches = (obj, q) => !q || JSON.stringify(obj).toLowerCase().includes(q.t
 async function loadSessions() {
   const rng = $("sessRange").value; const rows = await api("sessions", { limit: 500, since: rng ? Date.now() / 1000 - rng : null });
   const q = $("sessFilter").value;
-  setKids($("sessionsTable"), tableEl([["started", "Inicio", (r) => ts(r.started)], ["ended", "Fin", (r) => r.ended ? ts(r.ended) : "activa"], ["duration", "Duración", (r) => dur(r.duration)],
-    ["profile", "Perfil"], ["egress_iface", "Interfaz"], ["local_ip", "IP local"], ["wan_ip", "IP WAN"], ["public_ip", "IP pública"], ["vpn", "VPN"], ["proxy", "Proxy"],
-    ["tor_exit", "Exit Tor", (r) => (r.tor_exit || "—").slice(0, 10)], ["country", "País"], ["fingerprint", "Huella"], ["end_reason", "Cierre"]],
+  setKids($("sessionsTable"), tableEl([["started", tr("Inicio"), (r) => ts(r.started)], ["ended", tr("Fin"), (r) => r.ended ? ts(r.ended) : "activa"], ["duration", tr("Duración"), (r) => dur(r.duration)],
+    ["profile", tr("Perfil")], ["egress_iface", tr("Interfaz")], ["local_ip", "IP local"], ["wan_ip", "IP WAN"], ["public_ip", "IP pública"], ["vpn", "VPN"], ["proxy", tr("Proxy")],
+    ["tor_exit", tr("Exit Tor"), (r) => (r.tor_exit || "—").slice(0, 10)], ["country", tr("País")], ["fingerprint", tr("Huella")], ["end_reason", tr("Cierre")]],
   rows.filter((r) => matches(r, q)), (r) => r.ended ? "" : "active"));
 }
 async function loadCounters() {
   const rows = await api("counters", { layer: $("cntLayer").value || null }); const q = $("cntFilter").value;
   const sel = $("cntLayer"); if (sel.options.length <= 1) [...new Set(rows.map((r) => r.layer))].sort().forEach((l) => sel.append(h("option", { value: l }, l)));
-  setKids($("countersTable"), tableEl([["layer", "Capa"], ["label", "Elemento"], ["country", "País"], ["asn", "ASN"], ["uses", "Usos"], ["total", "Tiempo total", (r) => dur(r.total)],
-    ["current", "En curso", (r) => r.current ? dur(r.current) : "—"], ["first_seen", "Primer uso", (r) => ts(r.first_seen)], ["last_seen", "Último uso", (r) => ts(r.last_seen)]],
+  setKids($("countersTable"), tableEl([["layer", tr("Capa")], ["label", tr("Elemento")], ["country", tr("País")], ["asn", "ASN"], ["uses", tr("Usos")], ["total", tr("Tiempo total"), (r) => dur(r.total)],
+    ["current", "En curso", (r) => r.current ? dur(r.current) : "—"], ["first_seen", tr("Primer uso"), (r) => ts(r.first_seen)], ["last_seen", tr("Último uso"), (r) => ts(r.last_seen)]],
   rows.filter((r) => matches(r, q)), (r) => r.active ? "active" : ""));
 }
 async function loadTimeline() {
@@ -308,15 +325,15 @@ async function loadTimeline() {
 async function loadRotation() {
   const r = await api("rotation_status");
   setKids($("rotationCards"), Object.entries(r.status).map(([layer, st]) => h("article", { class: "card" }, h("h2", {}, `${layer} · ${st.adapter}`),
-    h("dl", { class: "kv" }, ...[["Automática", st.enabled ? "activada" : "desactivada"], ["Disponible", st.available ? "sí" : st.reason], ["Próxima", st.remaining != null ? dur(st.remaining) : "—"], ["Última hora", `${st.rotations_last_hour}/${st.max_per_hour}`],
+    h("dl", { class: "kv" }, ...[[tr("Automática"), st.enabled ? "activada" : "desactivada"], [tr("Disponible"), st.available ? "sí" : st.reason], [tr("Próxima"), st.remaining != null ? dur(st.remaining) : "—"], [tr("Última hora"), `${st.rotations_last_hour}/${st.max_per_hour}`],
       ...Object.entries(r.policies[layer] || {}).map(([k, v]) => [k, JSON.stringify(v)])].flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)])),
-    h("div", { class: "toolbar" }, h("button", { onclick: () => doRotate(layer, true) }, "Simular (dry-run)"), h("button", { class: "danger", onclick: () => doRotate(layer, false) }, "Rotar ahora")))));
-  if (!Object.keys(r.status).length) setKids($("rotationCards"), h("p", { class: "muted" }, "No hay adaptadores de rotación disponibles en este sistema."));
-  setKids($("rotHistory"), tableEl([["ts", "Fecha", (x) => ts(x.ts)], ["layer", "Capa"], ["adapter", "Adaptador"], ["dry_run", "Dry-run", (x) => x.dry_run ? "sí" : "no"], ["from_target", "Desde"], ["to_target", "Hacia"],
-    ["result", "Resultado"], ["detail", "Pasos", (x) => ((x.detail || {}).steps || []).map((p) => `${p.ok ? "✔" : "✘"}${p.name}${p.detail ? " (" + p.detail + ")" : ""}`).join(" · ")]], r.history));
+    h("div", { class: "toolbar" }, h("button", { onclick: () => doRotate(layer, true) }, tr("Simular (dry-run)")), h("button", { class: "danger", onclick: () => doRotate(layer, false) }, tr("Rotar ahora"))))));
+  if (!Object.keys(r.status).length) setKids($("rotationCards"), h("p", { class: "muted" }, tr("No hay adaptadores de rotación disponibles en este sistema.")));
+  setKids($("rotHistory"), tableEl([["ts", tr("Fecha"), (x) => ts(x.ts)], ["layer", tr("Capa")], ["adapter", tr("Adaptador")], ["dry_run", "Dry-run", (x) => x.dry_run ? "sí" : "no"], ["from_target", tr("Desde")], ["to_target", tr("Hacia")],
+    ["result", tr("Resultado")], ["detail", tr("Pasos"), (x) => ((x.detail || {}).steps || []).map((p) => `${p.ok ? "✔" : "✘"}${p.name}${p.detail ? " (" + p.detail + ")" : ""}`).join(" · ")]], r.history));
 }
 async function doRotate(layer, dry) {
-  if (!dry && !(await confirmBox(`¿Rotar ${layer} ahora? Se seguirá el ciclo seguro (verificación y rollback).`))) return;
+  if (!dry && !(await confirmBox(tr("¿Rotar {p0} ahora? Se seguirá el ciclo seguro (verificación y rollback).", { p0: layer })))) return;
   try { const r = await api("rotate", { layer, dry_run: dry, force: true }); toast(`Rotación ${layer}: ${r.result} — ${r.steps.map((p) => (p.ok ? "✔" : "✘") + p.name + (p.ok ? "" : ` (${p.detail})`)).join(" · ")}`, !["ok", "dry_run_ok"].includes(r.result)); }
   catch (e) { toast(e.message, true); }
   loadRotation(); refreshStatus();
@@ -326,24 +343,24 @@ async function loadProfiles() {
   const sel = $("profileSel"); sel.replaceChildren(...Object.keys(r.profiles).map((n) => h("option", { value: n, selected: n === r.active }, n)));
   setKids($("profilesList"), Object.entries(r.profiles).map(([n, p]) => h("article", { class: "card" }, h("h2", {}, n + (n === r.active ? " · activo" : "")),
     h("dl", { class: "kv" }, Object.entries(p).flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, JSON.stringify(v))])),
-    n === r.active ? null : h("button", { onclick: () => activate(n) }, "Activar"))));
+    n === r.active ? null : h("button", { onclick: () => activate(n) }, tr("Activar")))));
   const c = await api("correlation");
   setKids($("correlation"), c.pairs.length ? c.pairs.map((p) => h("div", { class: `alert ${p.level === "high" ? "high" : p.level === "none" ? "info" : "medium"}` }, h("div", { class: "title" }, `${p.profiles.join(" ↔ ")} · riesgo ${p.level}`),
-    p.risks.map((x) => h("div", { class: "meta" }, `${x.severity}: ${x.detail}`)))) : [h("p", { class: "muted" }, "No hay dos perfiles con historial para comparar.")], h("p", { class: "muted small" }, c.note));
+    p.risks.map((x) => h("div", { class: "meta" }, `${x.severity}: ${x.detail}`)))) : [h("p", { class: "muted" }, tr("No hay dos perfiles con historial para comparar."))], h("p", { class: "muted small" }, c.note));
 }
 async function genProfiles(write) {
-  if (write && !(await confirmBox("¿Añadir los perfiles propuestos a tu config.toml? Los que ya existan no se tocan."))) return;
+  if (write && !(await confirmBox(tr("¿Añadir los perfiles propuestos a tu config.toml? Los que ya existan no se tocan.")))) return;
   try {
     const r = await api("profiles_generate", { write });
-    setKids($("profileGen"), h("h2", {}, write ? "Perfiles añadidos" : "Perfiles propuestos para este sistema"),
+    setKids($("profileGen"), h("h2", {}, write ? tr("Perfiles añadidos") : tr("Perfiles propuestos para este sistema")),
       Object.entries(r.profiles).map(([n, p]) => h("div", { class: "alert info" }, h("div", { class: "title" }, n + (r.existing.includes(n) ? " (ya existe)" : "")),
-        h("div", {}, p.description), h("div", { class: "meta" }, `Tor ${p.use_tor ? "sí" : "no"} · VPN ${p.require_vpn ? "obligatoria" : "opcional"} · kill-switch ${p.require_killswitch ? "obligatorio" : "opcional"} · DNS ${p.dns_policy} · prohibidos: ${p.forbidden_countries.join(", ") || "—"} · retención ${p.retention_days} d`),
+        h("div", {}, p.description), h("div", { class: "meta" }, tr("Tor {p0} · VPN {p1} · kill-switch {p2} · DNS {p3} · prohibidos: {p4} · retención {p5} d", { p0: p.use_tor ? "sí" : "no", p1: p.require_vpn ? "obligatoria" : "opcional", p2: p.require_killswitch ? "obligatorio" : "opcional", p3: p.dns_policy, p4: p.forbidden_countries.join(", ") || "—", p5: p.retention_days })),
         p._why.map((w) => h("div", { class: "meta" }, "· " + w)))),
-      write ? h("p", {}, `Escritos en ${r.written.path}: ${r.written.written.join(", ") || "ninguno"}`) : h("pre", { class: "pre" }, r.toml));
+      write ? h("p", {}, tr("Escritos en {p0}: {p1}", { p0: r.written.path, p1: r.written.written.join(", ") || "ninguno" })) : h("pre", { class: "pre" }, r.toml));
     if (write) loadProfiles();
   } catch (e) { toast(e.message, true); }
 }
-async function activate(n) { try { await api("profile_activate", { name: n }); toast(`Perfil activo: ${n}`); loadProfiles(); refreshStatus(); } catch (e) { toast(e.message, true); } }
+async function activate(n) { try { await api("profile_activate", { name: n }); toast(tr("Perfil activo: {p0}", { p0: n })); loadProfiles(); refreshStatus(); } catch (e) { toast(e.message, true); } }
 
 function bars(items, cls) {
   const max = Math.max(1, ...items.map((x) => x.seconds));
@@ -353,22 +370,22 @@ async function loadStats() {
   const r = await api("stats", { period: $("statsPeriod").value }); const an = await api("anomalies");
   const tech = Object.entries(r.time_by_technology).map(([k, v]) => ({ label: k, seconds: v }));
   setKids($("statsBody"),
-    h("article", { class: "card" }, h("h2", {}, "Tiempo por tecnología"), bars(tech)),
-    h("article", { class: "card" }, h("h2", {}, "País de salida"), r.time_by_country.length ? bars(r.time_by_country) : h("p", { class: "muted" }, "Sin IP pública comprobada en el periodo.")),
-    h("article", { class: "card" }, h("h2", {}, "País del exit de Tor"), r.time_by_tor_country.length ? bars(r.time_by_tor_country, "tor") : h("p", { class: "muted" }, "Sin datos.")),
-    h("article", { class: "card" }, h("h2", {}, "Rotaciones y fallos"), h("dl", { class: "kv" }, ...[["Total", r.rotations.total], ["Correctas", r.rotations.ok], ["Fallidas", r.rotations.failed], ["Por hora", r.rotations.per_hour], ["Fallos de conexión", r.connection_failures], ["Sesiones", r.sessions], ["Exposición directa", dur(r.direct_exposure_seconds)]].flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]))),
-    h("article", { class: "card" }, h("h2", {}, "Reutilización"), Object.entries(r.reuse).flatMap(([l, items]) => items.length ? [h("div", {}, h("b", {}, l + ": "), items.map((i) => `${i.label}×${i.uses}`).join(", "))] : []).concat([h("p", { class: "muted small" }, "Elementos de identidad usados más de una vez en el periodo.")])),
-    h("article", { class: "card" }, h("h2", {}, "Anomalías"), an.length ? an.map((a) => h("div", { class: `alert ${a.severity}` }, a.detail)) : h("p", { class: "muted" }, "Ninguna detectada.")));
+    h("article", { class: "card" }, h("h2", {}, tr("Tiempo por tecnología")), bars(tech)),
+    h("article", { class: "card" }, h("h2", {}, tr("País de salida")), r.time_by_country.length ? bars(r.time_by_country) : h("p", { class: "muted" }, tr("Sin IP pública comprobada en el periodo."))),
+    h("article", { class: "card" }, h("h2", {}, tr("País del exit de Tor")), r.time_by_tor_country.length ? bars(r.time_by_tor_country, "tor") : h("p", { class: "muted" }, tr("Sin datos."))),
+    h("article", { class: "card" }, h("h2", {}, tr("Rotaciones y fallos")), h("dl", { class: "kv" }, ...[[tr("Total"), r.rotations.total], [tr("Correctas"), r.rotations.ok], [tr("Fallidas"), r.rotations.failed], [tr("Por hora"), r.rotations.per_hour], [tr("Fallos de conexión"), r.connection_failures], [tr("Sesiones"), r.sessions], [tr("Exposición directa"), dur(r.direct_exposure_seconds)]].flatMap(([k, v]) => [h("dt", {}, k), h("dd", {}, v)]))),
+    h("article", { class: "card" }, h("h2", {}, tr("Reutilización")), Object.entries(r.reuse).flatMap(([l, items]) => items.length ? [h("div", {}, h("b", {}, l + ": "), items.map((i) => `${i.label}×${i.uses}`).join(", "))] : []).concat([h("p", { class: "muted small" }, tr("Elementos de identidad usados más de una vez en el periodo."))])),
+    h("article", { class: "card" }, h("h2", {}, tr("Anomalías")), an.length ? an.map((a) => h("div", { class: `alert ${a.severity}` }, a.detail)) : h("p", { class: "muted" }, tr("Ninguna detectada."))));
 }
 async function loadAudit() {
-  setKids($("auditBody"), h("p", { class: "muted" }, "Ejecutando auditoría…"));
+  setKids($("auditBody"), h("p", { class: "muted" }, tr("Ejecutando auditoría…")));
   const a = await api("audit"); const caps = a.capabilities;
   setKids($("auditBody"),
     h("article", { class: "card" }, h("h2", {}, `Exposición ${a.summary.exposure.score}/100 (${a.summary.exposure.level})`), h("p", { class: "muted small" }, a.summary.exposure.disclaimer)),
-    h("h2", {}, "Hallazgos"), a.findings.map(alertEl),
-    h("h2", {}, "Matriz de capacidades"), tableEl([["area", "Área"], ["id", "Capacidad"], ["status", "Estado", (r) => h("span", { class: `status-${r.status}` }, r.status)], ["detail", "Detalle"]], caps),
-    h("h2", {}, "Pruebas realizadas"), tableEl([["check", "Prueba"], ["mode", "Modo"], ["method", "Método"]], a.tests_performed),
-    h("h2", {}, "Limitaciones de observabilidad"), h("ul", {}, a.limitations.map((l) => h("li", {}, l))),
+    h("h2", {}, tr("Hallazgos")), a.findings.map(alertEl),
+    h("h2", {}, tr("Matriz de capacidades")), tableEl([["area", tr("Área")], ["id", tr("Capacidad")], ["status", tr("Estado"), (r) => h("span", { class: `status-${r.status}` }, r.status)], ["detail", tr("Detalle")]], caps),
+    h("h2", {}, tr("Pruebas realizadas")), tableEl([["check", tr("Prueba")], ["mode", tr("Modo")], ["method", tr("Método")]], a.tests_performed),
+    h("h2", {}, tr("Limitaciones de observabilidad")), h("ul", {}, a.limitations.map((l) => h("li", {}, l))),
     h("p", { class: "muted" }, a.storage.note));
 }
 async function exportData(fmt) {
@@ -420,6 +437,7 @@ async function loadTab() {
 function renderAll() { renderStatus(); if (S.tab === "map" && S.map) drawMap($("bigMap"), S.map, { time: sliderTime() }); }
 
 async function main() {
+  await loadI18n();
   initToken(); initTheme(); initTabs(); initMap();
   $("panicBtn").onclick = async () => { if (await confirmBox("¿Activar el MODO EMERGENCIA? Detiene rotaciones y, si está permitido, bloquea conexiones no verificadas. No borra datos.")) { const r = await api("panic"); toast("Emergencia activada · kill-switch " + (r.killswitch.ok ? "aplicado" : "NO aplicado: " + r.killswitch.error), true); refreshStatus(); } };
   $("resumeBtn").onclick = async () => { await api("resume"); toast("Emergencia desactivada"); refreshStatus(); };

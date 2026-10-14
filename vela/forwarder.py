@@ -8,6 +8,8 @@ abiertas conservan su upstream hasta cerrarse.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import re
 import select
 import socket
@@ -18,7 +20,7 @@ import threading
 def parse_proxy(url: str) -> tuple[str, str, int]:
     m = re.match(r"^(\w+)://(?:[^@/]+@)?\[?([^\]/]+?)\]?:(\d+)/?$", url)
     if not m:
-        raise ValueError(f"URL de proxy no válida: {url}")
+        raise ValueError(_("URL de proxy no válida: {url}", url=url))
     return m.group(1).lower(), m.group(2), int(m.group(3))
 
 
@@ -28,7 +30,7 @@ class _Handler(socketserver.BaseRequestHandler):
         upstream = fw.upstream
         if not upstream:
             return
-        _, host, port = parse_proxy(upstream)
+        _ign, host, port = parse_proxy(upstream)
         try:
             remote = socket.create_connection((host, port), timeout=10)
         except OSError:
@@ -39,7 +41,7 @@ class _Handler(socketserver.BaseRequestHandler):
         socks = [client, remote]
         try:
             while True:
-                r, _, x = select.select(socks, [], socks, 300)
+                r, _ign, x = select.select(socks, [], socks, 300)
                 if x or not r:
                     break
                 for s in r:
@@ -60,9 +62,9 @@ class _Server(socketserver.ThreadingTCPServer):
 
 class ProxyForwarder:
     def __init__(self, listen: str = "127.0.0.1:1088", upstream: str | None = None):
-        host, _, port = listen.rpartition(":")
+        host, _ign, port = listen.rpartition(":")
         if host not in ("127.0.0.1", "::1", "localhost"):
-            raise ValueError("el forwarder solo puede escuchar en loopback")
+            raise ValueError(_("el forwarder solo puede escuchar en loopback"))
         self.addr = (host, int(port))
         self.upstream = upstream
         self.connections = 0
@@ -88,7 +90,7 @@ class ProxyForwarder:
     @staticmethod
     def probe_upstream(url: str, timeout: float = 5) -> tuple[bool, str | None]:
         try:
-            _, host, port = parse_proxy(url)
+            _ign, host, port = parse_proxy(url)
             with socket.create_connection((host, port), timeout=timeout):
                 return True, None
         except (OSError, ValueError) as e:

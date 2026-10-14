@@ -6,6 +6,8 @@ eventos CIRC/STREAM de Tor) con sondeos de respaldo a intervalos configurables.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import logging
 import os
 import signal
@@ -29,7 +31,7 @@ def pid_path():
 def run(foreground: bool = True, log_level: str = "INFO") -> int:
     logging.basicConfig(level=log_level, format="%(asctime)s velad %(levelname)s %(message)s")
     if ping():
-        print(f"velad ya está en marcha ({socket_path()})", file=sys.stderr)
+        print(_("velad ya está en marcha ({v1})", v1=socket_path()), file=sys.stderr)
         return 1
     try:                                   # red de seguridad: más margen de descriptores
         import resource
@@ -49,7 +51,7 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
 
     watcher = NetlinkWatcher(lambda: engine.mark_dirty("network", "dns", "public", "rediscover"))
     watcher.start()
-    log.info("netlink: %s", "eventos activos" if watcher.available else "no disponible, solo sondeo")
+    log.info("netlink: %s", _("eventos activos") if watcher.available else _("no disponible, solo sondeo"))
     engine.tor_obs.start_events(lambda ev: engine.mark_dirty("tor"))
     from .leakwatch import LeakWatcher
     from .util import parse_duration
@@ -57,17 +59,17 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
     if lw_cfg.get("enabled", True):
         engine.leakwatcher = LeakWatcher(engine, interval=parse_duration(lw_cfg.get("interval", "2s")))
         engine.leakwatcher.start()
-        log.info("vigilante de fugas en tiempo real: cada %s", lw_cfg.get("interval", "2s"))
+        log.info(_("vigilante de fugas en tiempo real: cada %s"), lw_cfg.get("interval", "2s"))
     from .intel import LiveIntel
     engine.intel_live = LiveIntel(engine)
     engine.intel_live.start()
     engine.emit("daemon_start", "info", {"pid": os.getpid(), "netlink": watcher.available})
-    log.info("escuchando en %s", socket_path())
+    log.info(_("escuchando en %s"), socket_path())
 
     stop = threading.Event()
 
     def _sig(signum, _frame):
-        log.info("señal %s: deteniendo", signum)
+        log.info(_("señal %s: deteniendo"), signum)
         stop.set()
 
     signal.signal(signal.SIGTERM, _sig)
@@ -78,7 +80,7 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
         try:
             engine.tick()
         except Exception:  # noqa: BLE001 — el daemon no debe caer por un fallo puntual
-            log.exception("error en el ciclo de monitorización")
+            log.exception(_("error en el ciclo de monitorización"))
         if now() - last_retention > 3600:
             engine.retention()
             last_retention = now()
@@ -98,18 +100,18 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
 def start_background() -> int:
     """Lanza el daemon desacoplado de la terminal (log en ~/.local/state/vela/velad.log)."""
     if ping():
-        print("velad ya está en marcha")
+        print(_("velad ya está en marcha"))
         return 0
     logdir = private_dir(xdg_dir("state"))
     logf = open(logdir / "velad.log", "ab")
     pid = os.fork()
     if pid:
-        for _ in range(100):
+        for _ign in range(100):
             time.sleep(0.1)
             if ping():
-                print(f"velad iniciado (pid {pid}), log: {logdir / 'velad.log'}")
+                print(_("velad iniciado (pid {pid}), log: {v3}", pid=pid, v3=logdir / 'velad.log'))
                 return 0
-        print(f"velad no respondió; revisa {logdir / 'velad.log'}", file=sys.stderr)
+        print(_("velad no respondió; revisa {v1}", v1=logdir / 'velad.log'), file=sys.stderr)
         return 1
     os.setsid()
     os.dup2(logf.fileno(), 1)
@@ -123,19 +125,19 @@ def stop_daemon() -> int:
     try:
         pid = int(pid_path().read_text())
     except (OSError, ValueError):
-        print("velad no está en marcha")
+        print(_("velad no está en marcha"))
         return 1
     try:
         os.kill(pid, signal.SIGTERM)
     except ProcessLookupError:
-        print("velad no está en marcha (pid obsoleto)")
+        print(_("velad no está en marcha (pid obsoleto)"))
         return 1
-    for _ in range(50):
+    for _ign in range(50):
         time.sleep(0.1)
         if not ping():
-            print("velad detenido")
+            print(_("velad detenido"))
             return 0
-    print("velad no se detuvo a tiempo", file=sys.stderr)
+    print(_("velad no se detuvo a tiempo"), file=sys.stderr)
     return 1
 
 

@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from .i18n import _
+
 import json
 import os
 import queue
@@ -72,7 +74,7 @@ class _Handler(socketserver.StreamRequestHandler):
                 self._subscribe(srv)
                 return
             if method not in METHODS:
-                self.wfile.write((_jsonable({"id": rid, "error": f"método desconocido: {method}"}) + "\n").encode())
+                self.wfile.write((_jsonable({"id": rid, "error": _("método desconocido: {method}", method=method)}) + "\n").encode())
                 continue
             try:
                 result = srv.dispatch(method, params)
@@ -113,7 +115,7 @@ class IPCServer:
         private_dir(self.path.parent)
         if self.path.exists():
             if ping(self.path):
-                raise IPCError(f"ya hay un daemon escuchando en {self.path}")
+                raise IPCError(_("ya hay un daemon escuchando en {path}", path=self.path))
             self.path.unlink()
         old = os.umask(0o177)
         try:
@@ -177,7 +179,7 @@ class Client:
                 pass
             s.close()
         if not line:
-            raise IPCError("el daemon cerró la conexión")
+            raise IPCError(_("el daemon cerró la conexión"))
         resp = json.loads(line)
         if "error" in resp:
             raise IPCError(resp["error"])
@@ -215,7 +217,7 @@ class LocalBackend:
 
     def call(self, method: str, **params):
         if method not in METHODS:
-            raise IPCError(f"método desconocido: {method}")
+            raise IPCError(_("método desconocido: {method}", method=method))
         if method == "export":
             from . import report
             return json.loads(_jsonable(report.export_data(self.engine, params.get("since"))))

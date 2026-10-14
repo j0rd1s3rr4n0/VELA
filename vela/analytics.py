@@ -7,6 +7,8 @@ huella del navegador u otros identificadores de aplicación.
 
 from __future__ import annotations
 
+from .i18n import N_, _
+
 import math
 import statistics
 import time
@@ -15,7 +17,7 @@ from collections import defaultdict
 from .util import now
 
 PERIODS = {"day": 86400, "week": 7 * 86400, "month": 30 * 86400}
-TECH_LAYERS = {"vpn": "VPN", "proxy": "Proxy", "tor_exit": "Tor", "public_ip": "IP pública"}
+TECH_LAYERS = {"vpn": N_("VPN"), "proxy": N_("Proxy"), "tor_exit": N_("Tor"), "public_ip": N_("IP pública")}
 
 
 def _overlap(i: dict, start: float, end: float) -> float:
@@ -58,7 +60,7 @@ def stats(store, period: str = "week", profile: str | None = None) -> dict:
         "period": period, "since": t0, "until": t1,
         "time_by_country": _top(by_layer.get("country", {}), labels, "country"),
         "time_by_tor_country": _top(by_layer.get("tor_exit_country", {}), labels, "tor_exit_country"),
-        "time_by_technology": {name: sum(by_layer.get(layer, {}).values()) for layer, name in TECH_LAYERS.items()},
+        "time_by_technology": {_(name): sum(by_layer.get(layer, {}).values()) for layer, name in TECH_LAYERS.items()},
         "time_by_layer": {layer: _top(v, labels, layer, 10) for layer, v in by_layer.items()},
         "country_timeline": [{"t": b, **v} for b, v in sorted(timeline.items())],
         "rotations": {"total": len(real), "ok": sum(r["result"] == "ok" for r in real),
@@ -97,24 +99,24 @@ def _top(d: dict, labels: dict, layer: str, n: int = 20) -> list[dict]:
 
 INDICATORS = [
     # id, peso, etiqueta, función(ctx) -> (presente: bool|None, explicación)
-    ("direct_route", 25, "Tráfico directo sin túnel ni proxy",
+    ("direct_route", 25, N_("Tráfico directo sin túnel ni proxy"),
      lambda c: (not c["net"]["via_tunnel"].get("ipv4") and not c.get("proxy_active"),
-                "Los destinos ven la IP pública de tu router.")),
-    ("ipv6_leak", 20, "Fuga IPv6", lambda c: (_has(c, "ipv6_leak", "fail"), "IPv6 evita el túnel.")),
-    ("dns_leak", 15, "DNS fuera del túnel o fuga confirmada",
-     lambda c: (_has(c, "dns_leak_config", "fail") or _has(c, "dns_leak_active", "fail"), "Resolvers fuera del túnel.")),
-    ("dns_plain", 5, "DNS sin cifrar", lambda c: (_has(c, "dns_plaintext", "warn"), "El ISP/LAN ve los nombres.")),
-    ("exposed_proxy", 8, "Proxy accesible desde la LAN", lambda c: (_has(c, "proxy_exposed", "fail"), "Otros equipos pueden usarlo.")),
-    ("mac", 4, "MAC de fábrica", lambda c: (_has(c, "mac_permanent", "warn"), "Identificable en la red local.")),
-    ("tz", 4, "Zona horaria incoherente con la salida", lambda c: (_has(c, "tz_mismatch", "warn"), "El navegador la revela.")),
-    ("no_killswitch", 8, "Túnel sin kill-switch", lambda c: (_has(c, "killswitch", "warn"), "Una caída expondría la IP.")),
-    ("profile_violation", 15, "Violación de la política del perfil",
+                _("Los destinos ven la IP pública de tu router."))),
+    ("ipv6_leak", 20, N_("Fuga IPv6"), lambda c: (_has(c, "ipv6_leak", "fail"), _("IPv6 evita el túnel."))),
+    ("dns_leak", 15, N_("DNS fuera del túnel o fuga confirmada"),
+     lambda c: (_has(c, "dns_leak_config", "fail") or _has(c, "dns_leak_active", "fail"), _("Resolvers fuera del túnel."))),
+    ("dns_plain", 5, N_("DNS sin cifrar"), lambda c: (_has(c, "dns_plaintext", "warn"), _("El ISP/LAN ve los nombres."))),
+    ("exposed_proxy", 8, N_("Proxy accesible desde la LAN"), lambda c: (_has(c, "proxy_exposed", "fail"), _("Otros equipos pueden usarlo."))),
+    ("mac", 4, N_("MAC de fábrica"), lambda c: (_has(c, "mac_permanent", "warn"), _("Identificable en la red local."))),
+    ("tz", 4, N_("Zona horaria incoherente con la salida"), lambda c: (_has(c, "tz_mismatch", "warn"), _("El navegador la revela."))),
+    ("no_killswitch", 8, N_("Túnel sin kill-switch"), lambda c: (_has(c, "killswitch", "warn"), _("Una caída expondría la IP."))),
+    ("profile_violation", 15, N_("Violación de la política del perfil"),
      lambda c: (_has(c, "profile_geo", "fail") or _has(c, "tunnel_bypass", "fail") or _has(c, "tor_required", "fail"),
-                "La salida no cumple el perfil activo.")),
-    ("long_session", 5, "Misma salida durante mucho tiempo",
-     lambda c: ((c.get("session_age") or 0) > 6 * 3600, "Más de 6 h con la misma identidad de red.")),
-    ("correlation", 10, "Riesgo de correlación entre perfiles",
-     lambda c: (bool(c.get("correlation_high")), "Perfiles comparten elementos de identidad de red.")),
+                _("La salida no cumple el perfil activo."))),
+    ("long_session", 5, N_("Misma salida durante mucho tiempo"),
+     lambda c: ((c.get("session_age") or 0) > 6 * 3600, _("Más de 6 h con la misma identidad de red."))),
+    ("correlation", 10, N_("Riesgo de correlación entre perfiles"),
+     lambda c: (bool(c.get("correlation_high")), _("Perfiles comparten elementos de identidad de red."))),
 ]
 
 
@@ -128,16 +130,16 @@ def exposure_score(ctx: dict) -> dict:
         try:
             present, why = fn(ctx)
         except Exception:  # noqa: BLE001
-            present, why = None, "no evaluable con los datos disponibles"
+            present, why = None, _("no evaluable con los datos disponibles")
         total += weight
         if present:
             score += weight
-        items.append({"id": iid, "label": label, "weight": weight, "present": present, "explanation": why})
+        items.append({"id": iid, "label": _(label), "weight": weight, "present": present, "explanation": why})
     value = round(100 * score / total) if total else 0
     level = "baja" if value < 20 else "media" if value < 45 else "alta"
     return {"score": value, "level": level, "indicators": items,
-            "disclaimer": "Indicador orientativo de exposición observable a nivel de red. No mide ni garantiza "
-                          "anonimato: no ve cookies, cuentas, huella del navegador ni comportamiento."}
+            "disclaimer": _("Indicador orientativo de exposición observable a nivel de red. No mide ni garantiza "
+                          "anonimato: no ve cookies, cuentas, huella del navegador ni comportamiento.")}
 
 
 # ── Correlation Risk Engine ─────────────────────────────────────────────────
@@ -177,28 +179,28 @@ def correlation(store, cfg: dict, since: float | None = None) -> dict:
         for y in range(x + 1, len(profiles)):
             a, b = profiles[x], profiles[y]
             risks = []
-            for layer, label, sev in (("public_ip", "IP pública de salida", "high"), ("wan_ip", "IP WAN del router", "medium"),
-                                      ("vpn_server", "servidor VPN", "high"), ("tor_exit", "exit de Tor", "medium"),
-                                      ("proxy", "proxy", "medium"), ("dns_resolver", "resolvers DNS", "low"),
-                                      ("combination", "configuración de salida completa", "high")):
+            for layer, label, sev in (("public_ip", _("IP pública de salida"), "high"), ("wan_ip", _("IP WAN del router"), "medium"),
+                                      ("vpn_server", _("servidor VPN"), "high"), ("tor_exit", _("exit de Tor"), "medium"),
+                                      ("proxy", "proxy", "medium"), ("dns_resolver", _("resolvers DNS"), "low"),
+                                      ("combination", _("configuración de salida completa"), "high")):
                 shared = by_prof[a][layer] & by_prof[b][layer]
                 if shared:
                     risks.append({"type": f"shared_{layer}", "severity": sev,
-                                  "detail": f"comparten {label}: {len(shared)}", "items": sorted(shared)[:10]})
+                                  "detail": _("comparten {label}: {n}", label=label, n=len(shared)), "items": sorted(shared)[:10]})
             sim = _cos(_hour_hist(prof_ivs[a]), _hour_hist(prof_ivs[b]))
             if sim >= thr:
                 risks.append({"type": "schedule", "severity": "low",
-                              "detail": f"horarios de uso similares (similitud {sim:.2f})"})
+                              "detail": _("horarios de uso similares (similitud {sim:.2f})", sim=sim)})
             overlap = sum(_overlap(i, j["started"], j["ended"] or now()) for i in prof_ivs[a] for j in prof_ivs[b])
             if overlap > 0:
                 risks.append({"type": "simultaneous", "severity": "medium",
-                              "detail": f"uso simultáneo durante {int(overlap)}s"})
+                              "detail": _("uso simultáneo durante {v1}s", v1=int(overlap))})
             pairs.append({"profiles": [a, b], "risks": risks,
                           "level": max((r["severity"] for r in risks), key=_sev, default="none")})
     return {"profiles": profiles, "pairs": pairs,
             "high": any(p["level"] == "high" for p in pairs),
-            "note": "La separación de red no impide la correlación por cookies, cuentas, huella del navegador "
-                    "o patrones de escritura."}
+            "note": _("La separación de red no impide la correlación por cookies, cuentas, huella del navegador "
+                    "o patrones de escritura.")}
 
 
 def _sev(s):
@@ -213,7 +215,7 @@ def anomalies(store, window: float = 86400) -> list[dict]:
     route_changes = store.events(limit=1000, since=t - 3600, kinds=["route_change"])
     if len(route_changes) >= 5:
         out.append({"type": "route_flapping", "severity": "medium",
-                    "detail": f"{len(route_changes)} cambios de ruta en la última hora"})
+                    "detail": _("{n} cambios de ruta en la última hora", n=len(route_changes))})
     sessions = store.sessions(limit=200, since=t - 7 * 86400)
     closed = [s["duration"] for s in sessions if s["ended"]]
     if len(closed) >= 5 and sessions and sessions[0]["ended"] is None:
@@ -221,18 +223,18 @@ def anomalies(store, window: float = 86400) -> list[dict]:
         z = (sessions[0]["duration"] - mean) / sd
         if z > 3:
             out.append({"type": "long_session", "severity": "low",
-                        "detail": f"sesión actual {z:.1f}σ más larga que la media"})
+                        "detail": _("sesión actual {z:.1f}σ más larga que la media", z=z)})
     rot_ts = [r["ts"] for r in store.rotations(limit=500, since=t - window) if r["result"] == "ok"]
     for e in store.events(limit=500, since=t - window, kinds=["session_opened"]):
         reason = e["data"].get("reason") or ""
         if reason.startswith("cambio de public_ip") or reason.startswith("cambio de wan_ip"):
             if not any(abs(e["ts"] - r) < 180 for r in rot_ts):
                 out.append({"type": "unexpected_ip_change", "severity": "medium", "ts": e["ts"],
-                            "detail": f"{reason} sin rotación asociada"})
+                            "detail": _("{reason} sin rotación asociada", reason=reason)})
     countries = [i for i in store.intervals("country", since=t - window)]
     if len({i["key"] for i in countries}) >= 4:
         out.append({"type": "country_hopping", "severity": "low",
-                    "detail": f"{len({i['key'] for i in countries})} países de salida en 24h"})
+                    "detail": _("{n} países de salida en 24h", n=len({i['key'] for i in countries}))})
     return out
 
 

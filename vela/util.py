@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .i18n import _
+
 import hashlib
 import json
 import os
@@ -59,11 +61,11 @@ def parse_duration(value) -> float:
     total, pos = 0.0, 0
     for m in _DUR.finditer(text):
         if m.start() != pos:
-            raise ValueError(f"duración no válida: {value!r}")
+            raise ValueError(_("duración no válida: {value!r}", value=value))
         total += float(m.group(1)) * _UNITS[m.group(2)]
         pos = m.end()
     if pos != len(text):
-        raise ValueError(f"duración no válida: {value!r}")
+        raise ValueError(_("duración no válida: {value!r}", value=value))
     return total
 
 
@@ -100,7 +102,7 @@ def run(cmd: list[str], timeout: float = 4, input_text: str | None = None) -> tu
     """Ejecuta un comando sin shell. Devuelve (código, stdout, stderr); código 127 si no existe."""
     exe = which(cmd[0])
     if not exe:
-        return 127, "", f"{cmd[0]}: no encontrado"
+        return 127, "", _("{v0}: no encontrado", v0=cmd[0])
     cmd = [exe, *cmd[1:]]
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, input=input_text,
@@ -114,7 +116,7 @@ def run(cmd: list[str], timeout: float = 4, input_text: str | None = None) -> tu
 
 
 def run_json(cmd: list[str], timeout: float = 4):
-    code, out, _ = run(cmd, timeout)
+    code, out, _ign = run(cmd, timeout)
     if code != 0 or not out.strip():
         return None
     try:

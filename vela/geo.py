@@ -84,6 +84,33 @@ def load_country_names(iso_tab: Path = ISO_TAB) -> dict[str, str]:
     return names
 
 
+_LOCAL_NAMES: dict = {}
+
+
+def country_label(cc: str | None, fallback: str | None = None) -> str | None:
+    """Nombre del país en el idioma de la interfaz (nombres de OpenStreetMap del mapa incorporado).
+    Los países sin código ISO en OSM se emparejan por su nombre inglés con la tabla ISO del sistema."""
+    if not cc:
+        return fallback
+    from . import i18n, osmmap
+    lang = i18n.language()
+    table = _LOCAL_NAMES.get(lang)
+    if table is None:
+        table = {}
+        bm = osmmap.load()
+        if bm is not None:
+            en2cc = {v.lower(): k for k, v in load_country_names().items()}
+            for p in bm.places:
+                if p.get("kind") != "country":
+                    continue
+                names = p.get("names") or {}
+                code = p.get("cc") or en2cc.get((names.get("en") or "").lower())
+                if code and names.get(lang) and code not in table:
+                    table[code] = names[lang]
+        _LOCAL_NAMES[lang] = table
+    return table.get(cc.upper()) or fallback or cc
+
+
 class _RangeDB:
     def __init__(self):
         self.starts: list[int] = []
@@ -174,7 +201,7 @@ class Geo:
         if not cc:
             return {"country": None, "country_name": None, "lat": None, "lon": None}
         lat, lon = self.coords.get(cc, (None, None))
-        return {"country": cc, "country_name": self.names.get(cc, cc), "lat": lat, "lon": lon}
+        return {"country": cc, "country_name": country_label(cc, self.names.get(cc, cc)), "lat": lat, "lon": lon}
 
     def lookup(self, ip: str | None) -> dict:
         if not ip:

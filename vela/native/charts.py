@@ -7,6 +7,8 @@ tooltips por marca con zonas de acierto mayores que la marca, separaciones de 2p
 
 from __future__ import annotations
 
+from ..i18n import _
+
 import math
 
 import gi
@@ -108,7 +110,7 @@ class Chart(Gtk.DrawingArea):
         if self.wants_crosshair:
             self.queue_draw()
 
-    def _leave(self, *_):
+    def _leave(self, *_ign):
         self.mouse = None
         if self.wants_crosshair:
             self.queue_draw()
@@ -155,12 +157,11 @@ class Gauge(Chart):
             cr.arc(cx, cy, r, a0, a0 + (a1 - a0) * frac)
             cr.stroke()
         text(cr, cx, cy - 4, f"{self.value}", 26, P["ink"], bold=True, align="center", valign="middle")
-        icon, _ = STATUS[self.status]
-        text(cr, cx, cy + 20, f"{icon} exposición {self.level}", 9, P["ink2"], align="center", valign="middle")
+        icon, _ign = STATUS[self.status]
+        text(cr, cx, cy + 20, _("{icon} exposición {level}", icon=icon, level=_(self.level)), 9, P["ink2"], align="center", valign="middle")
         text(cr, cx - r * 0.86, cy + r * 0.62, "0", 8, P["muted"], align="center")
         text(cr, cx + r * 0.86, cy + r * 0.62, "100", 8, P["muted"], align="center")
-        self.hits.append((0, 0, w, h, f"Exposición observable {self.value}/100 ({self.level}). Indicador orientativo: "
-                                       "no mide anonimato."))
+        self.hits.append((0, 0, w, h, _("Exposición observable {value}/100 ({level}). Indicador orientativo: no mide anonimato.", value=self.value, level=self.level)))
 
 
 class Donut(Chart):
@@ -178,7 +179,7 @@ class Donut(Chart):
     def draw(self, cr, w, h):
         cx, cy, r = w / 2, h / 2, min(w, h) / 2 - 6
         thick = 14
-        total = sum(v for _, v, _ in self.segments)
+        total = sum(v for _ign, v, _ign in self.segments)
         cr.set_line_width(thick)
         if not total:
             set_rgb(cr, P["grid"])
@@ -194,7 +195,7 @@ class Donut(Chart):
                 cr.stroke()
                 self.hits.append((0, 0, w, h, ""))
                 a += span
-            self.hits = [(0, 0, w, h, "\n".join(f"{n}: {int(v)} ({100 * v / total:.0f}%)" for n, v, _ in self.segments))]
+            self.hits = [(0, 0, w, h, "\n".join(f"{n}: {int(v)} ({100 * v / total:.0f}%)" for n, v, _ign in self.segments))]
         text(cr, cx, cy - 6, f"{int(total)}", 20, P["ink"], bold=True, align="center", valign="middle")
         text(cr, cx, cy + 14, self.caption, 8, P["muted"], align="center", valign="middle")
 
@@ -217,8 +218,8 @@ class LineChart(Chart):
     def draw(self, cr, w, h):
         left, right, top, bottom = 66, 10, 8, 18
         pw, ph = w - left - right, h - top - bottom
-        n = max((len(v) for _, _, v in self.series), default=0)
-        vmax = max((max(v) for _, _, v in self.series if v), default=0)
+        n = max((len(v) for _ign, _ign, v in self.series), default=0)
+        vmax = max((max(v) for _ign, _ign, v in self.series if v), default=0)
         nice = _nice(vmax)
         cr.set_line_width(1)
         for i in range(4):
@@ -231,7 +232,7 @@ class LineChart(Chart):
         text(cr, left, h - 2, self.xlabels[0], 8, P["muted"], valign="bottom")
         text(cr, w - right, h - 2, self.xlabels[1], 8, P["muted"], align="right", valign="bottom")
         if n < 2 or nice <= 0:
-            text(cr, left + pw / 2, top + ph / 2, "recogiendo datos…", 9, P["muted"], align="center", valign="middle")
+            text(cr, left + pw / 2, top + ph / 2, _("recogiendo datos…"), 9, P["muted"], align="center", valign="middle")
             return
         X = lambda i: left + pw * i / (n - 1)  # noqa: E731
         Y = lambda v: top + ph * (1 - v / nice)  # noqa: E731
@@ -280,9 +281,9 @@ class HBars(Chart):
 
     def draw(self, cr, w, h):
         if not self.items:
-            text(cr, 4, 8, "sin datos", 9, P["muted"])
+            text(cr, 4, 8, _("sin datos"), 9, P["muted"])
             return
-        vmax = max(v for _, v, _ in self.items) or 1
+        vmax = max(v for _ign, v, _ign in self.items) or 1
         bar_w = w - self.label_w - 96
         for i, (lab, v, vtxt) in enumerate(self.items):
             y = i * self.row_h + 2
@@ -311,7 +312,7 @@ class Columns(Chart):
         left, right, top, bottom = 30, 6, 6, 16
         pw, ph = w - left - right, h - top - bottom
         n = len(self.buckets)
-        totals = [sum(b.get(k, 0) for k, _, _ in self.keys) for b in self.buckets]
+        totals = [sum(b.get(k, 0) for k, _ign, _ign in self.keys) for b in self.buckets]
         nice = _nice(max(totals, default=0)) or 1
         cr.set_line_width(1)
         for i in range(3):
@@ -337,7 +338,7 @@ class Columns(Chart):
                     continue
                 hh = ph * v / nice
                 set_rgb(cr, color)
-                is_top = all(not b.get(k2, 0) for k2, _, _ in self.keys[self.keys.index((k, lab, color)) + 1:])
+                is_top = all(not b.get(k2, 0) for k2, _ign, _ign in self.keys[self.keys.index((k, lab, color)) + 1:])
                 if is_top:
                     rounded_bar(cr, x, y - hh, bw, hh - (2 if parts else 0), r=3, horizontal=False)
                 else:
@@ -345,7 +346,7 @@ class Columns(Chart):
                     cr.fill()
                 y -= hh
                 parts.append(f"{lab}: {v}")
-            self.hits.append((x - 1, top, x + slot, top + ph, f"{b.get('label', '')}\n" + ("\n".join(parts) or "sin eventos")))
+            self.hits.append((x - 1, top, x + slot, top + ph, f"{b.get('label', '')}\n" + ("\n".join(parts) or _("sin eventos"))))
 
 
 def _nice(v: float) -> float:
@@ -368,7 +369,7 @@ class Sankey(Chart):
     Colores por tipo de ruta: túnel VPN (verde), directo/IP real (naranja), proxy (azul), Tor (violeta)."""
 
     KIND_COLOR = {"vpn": P["good"], "direct": P["serious"], "proxy": P["s1"], "tor": "#9085e9", "app": P["muted"]}
-    COL_TITLES = ("Programa", "Capa local", "Salida de red", "Lo que ve el destino")
+    COL_TITLES = (_("Programa"), _("Capa local"), _("Salida de red"), _("Lo que ve el destino"))
 
     def __init__(self, height=360):
         super().__init__(height=height)
@@ -380,7 +381,7 @@ class Sankey(Chart):
         other = sum(n["value"] for n in apps[max_apps:])
         nodes = [n for n in nodes if n["col"] != 0 or n["id"] in keep]
         if other:
-            nodes.append({"id": "app:otros", "col": 0, "label": f"otros ({len(apps) - max_apps})", "kind": "app",
+            nodes.append({"id": "app:otros", "col": 0, "label": _("otros ({v1})", v1=len(apps) - max_apps), "kind": "app",
                           "value": other})
             merged = {}
             for l in links:
@@ -395,7 +396,7 @@ class Sankey(Chart):
 
     def draw(self, cr, w, h):
         if not self.nodes:
-            text(cr, w / 2, h / 2, "sin conexiones que mostrar", 9, P["muted"], align="center", valign="middle")
+            text(cr, w / 2, h / 2, _("sin conexiones que mostrar"), 9, P["muted"], align="center", valign="middle")
             return
         top, bottom, nw = 22, 6, 10
         colx = [8, w * 0.30, w * 0.56, w - 8 - nw]

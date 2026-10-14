@@ -8,6 +8,8 @@ el usuario del daemon de Tor y (opcional) la LAN. Liberarlo = borrar la tabla.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 import os
 import pwd
@@ -21,7 +23,7 @@ LEGACY_TABLES = ("opsec_ks",)   # nombre anterior del proyecto: se retira si que
 def _endpoint_rules(endpoints: list[str]) -> list[str]:
     rules = []
     for ep in endpoints:
-        host, _, port = ep.strip().rpartition(":")
+        host, _ign, port = ep.strip().rpartition(":")
         host = host.strip("[]") or ep
         try:
             ip = ipaddress.ip_address(host)
@@ -68,7 +70,7 @@ class KillSwitch:
     def _priv_cmd(self) -> list[str] | None:
         if os.geteuid() == 0:
             return []
-        code, _, _ = run(["sudo", "-n", "true"])
+        code, _ign, _ign = run(["sudo", "-n", "true"])
         if code == 0:
             return ["sudo", "-n"]
         if which("pkexec") and (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
@@ -77,11 +79,11 @@ class KillSwitch:
 
     def can_apply(self) -> tuple[bool, str]:
         if not self.cfg["consent"].get("allow_killswitch"):
-            return False, "consent.allow_killswitch está desactivado"
+            return False, _("consent.allow_killswitch está desactivado")
         if not which("nft"):
-            return False, "nft no instalado"
+            return False, _("nft no instalado")
         if self._priv_cmd() is None:
-            return False, "sin privilegios (root, sudo -n o pkexec con entorno gráfico)"
+            return False, _("sin privilegios (root, sudo -n o pkexec con entorno gráfico)")
         return True, ""
 
     def ruleset(self, endpoints: list[str] = ()) -> str:
@@ -96,7 +98,7 @@ class KillSwitch:
         # add+delete hace la operación idempotente; todo el fichero se aplica de forma atómica
         script = "".join(f"add table inet {t}\ndelete table inet {t}\n" for t in (TABLE, *LEGACY_TABLES)) \
             + self.ruleset(endpoints)
-        code, _, err = run([*priv, "nft", "-f", "-"], timeout=60, input_text=script)
+        code, _ign, err = run([*priv, "nft", "-f", "-"], timeout=60, input_text=script)
         if code:
             return {"ok": False, "error": f"nft: {err.strip()}"}
         self.state.update(active=True, since=now(), reason=reason)
@@ -104,13 +106,13 @@ class KillSwitch:
 
     def release(self) -> dict:
         if not self.state["active"]:
-            return {"ok": True, "detail": "no estaba activo"}
+            return {"ok": True, "detail": _("no estaba activo")}
         priv = self._priv_cmd()
         if priv is None:
-            return {"ok": False, "error": "sin privilegios para retirar la tabla"}
+            return {"ok": False, "error": _("sin privilegios para retirar la tabla")}
         for legacy in LEGACY_TABLES:
             run([*priv, "nft", "delete", "table", "inet", legacy], timeout=60)
-        code, _, err = run([*priv, "nft", "delete", "table", "inet", TABLE], timeout=60)
+        code, _ign, err = run([*priv, "nft", "delete", "table", "inet", TABLE], timeout=60)
         if code and "No such file" not in err:
             return {"ok": False, "error": f"nft: {err.strip()}"}
         self.state.update(active=False, since=None, reason=None)

@@ -12,6 +12,8 @@ No se lee el firewall (requiere root): un kill-switch hecho solo con nftables qu
 
 from __future__ import annotations
 
+from .i18n import N_, _
+
 import glob
 import ipaddress
 import json
@@ -30,8 +32,8 @@ PROTON_SETTINGS = [
     "~/snap/proton-vpn/current/.config/Proton/VPN/settings.json",
     "~/.var/app/com.protonvpn.www/config/Proton/VPN/settings.json",
 ]
-PROTON_KS_MODES = {0: "desactivado", 1: "estándar (solo con la VPN conectada o conectando)",
-                   2: "permanente (bloquea siempre sin VPN)"}
+PROTON_KS_MODES = {0: N_("desactivado"), 1: N_("estándar (solo con la VPN conectada o conectando)"),
+                   2: N_("permanente (bloquea siempre sin VPN)")}
 SECURE_CORE_ENTRIES = {"CH", "IS", "SE"}
 WARP_DNS_ADDRS = {"127.0.2.2", "127.0.2.3", "::ffff:127.0.2.2", "::ffff:127.0.2.3"}
 
@@ -77,13 +79,13 @@ def route_protection(routes: dict[str, list[dict]], kinds: dict[str, str]) -> di
     for fam in ("ipv4", "ipv6"):
         fb = fallback_route(routes[fam], kinds)
         if fb is None:
-            state, why = "bloqueado", "sin ruta por defecto fuera del túnel"
+            state, why = "bloqueado", _("sin ruta por defecto fuera del túnel")
         elif fb["type"] in BLOCK_ROUTE_TYPES:
             state, why = "bloqueado", f"ruta {fb['type']}"
         elif kinds.get(fb.get("dev")) == "dummy":
-            state, why = "bloqueado", f"ruta a la interfaz de bloqueo {fb['dev']} (métrica {fb['metric']})"
+            state, why = "bloqueado", _("ruta a la interfaz de bloqueo {dev} (métrica {metric})", dev=fb['dev'], metric=fb['metric'])
         else:
-            state, why = "expuesto", f"saldría por {fb.get('dev')} vía {fb.get('gateway') or '-'} (métrica {fb['metric']})"
+            state, why = "expuesto", _("saldría por {v1} vía {v3} (métrica {metric})", v1=fb.get('dev'), v3=fb.get('gateway') or '-', metric=fb['metric'])
         res[fam] = {"state": state, "detail": why, "fallback": fb}
     return res
 
@@ -91,7 +93,7 @@ def route_protection(routes: dict[str, list[dict]], kinds: dict[str, str]) -> di
 # ── kill-switches de clientes ───────────────────────────────────────────────
 
 def _nm_connections() -> list[dict]:
-    code, out, _ = run(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,ACTIVE", "connection", "show"])
+    code, out, _ign = run(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,ACTIVE", "connection", "show"])
     rows = []
     for line in out.splitlines() if code == 0 else []:
         f = [x.replace("\\:", ":") for x in re.split(r"(?<!\\):", line)]
@@ -126,7 +128,7 @@ def proton_state(nm: list[dict], kinds: dict[str, str]) -> dict | None:
     return {
         "client": "ProtonVPN",
         "settings_file": path,
-        "declared": {"killswitch": mode, "killswitch_mode": PROTON_KS_MODES.get(mode, "desconocido"),
+        "declared": {"killswitch": mode, "killswitch_mode": _(PROTON_KS_MODES.get(mode, N_("desconocido"))),
                      "ipv6": (settings or {}).get("ipv6"),
                      "netshield": ((settings or {}).get("features") or {}).get("netshield"),
                      "custom_dns": ((settings or {}).get("custom_dns") or {}).get("enabled"),
@@ -143,21 +145,21 @@ def proton_state(nm: list[dict], kinds: dict[str, str]) -> dict | None:
 def mullvad_state() -> dict | None:
     if not which("mullvad"):
         return None
-    code, out, _ = run(["mullvad", "lockdown-mode", "get"])
+    code, out, _ign = run(["mullvad", "lockdown-mode", "get"])
     lockdown = None
     if code == 0:
         lockdown = bool(re.search(r"\bon\b|enabled|true", out, re.I))
-    code, st, _ = run(["mullvad", "status"])
+    code, st, _ign = run(["mullvad", "status"])
     return {"client": "Mullvad", "declared": {"lockdown_mode": lockdown},
             "killswitch_active": True if st and "Connected" in st else None,
-            "note": "Mullvad bloquea el tráfico con su propio firewall durante reconexiones; con lockdown "
-                    "también estando desconectado", "connected": bool(st and "Connected" in st)}
+            "note": _("Mullvad bloquea el tráfico con su propio firewall durante reconexiones; con lockdown "
+                    "también estando desconectado"), "connected": bool(st and "Connected" in st)}
 
 
 def nordvpn_state() -> dict | None:
     if not which("nordvpn"):
         return None
-    code, out, _ = run(["nordvpn", "settings"])
+    code, out, _ign = run(["nordvpn", "settings"])
     ks = None
     m = re.search(r"Kill Switch:\s*(\w+)", out or "", re.I)
     if m:
@@ -183,8 +185,8 @@ def detect_killswitches(kinds: dict[str, str], routes: dict | None = None) -> di
         "verified_ipv6": verified["ipv6"],
         "clients": clients,
         "declared_by": [c["client"] for c in declared_on],
-        "limitations": "Verificación basada en rutas e interfaces; las reglas de firewall de los clientes "
-                       "(nftables) no se pueden leer sin root.",
+        "limitations": _("Verificación basada en rutas e interfaces; las reglas de firewall de los clientes "
+                       "(nftables) no se pueden leer sin root."),
     }
 
 
@@ -193,8 +195,8 @@ def detect_killswitches(kinds: dict[str, str], routes: dict | None = None) -> di
 def warp_state() -> dict | None:
     if not which("warp-cli"):
         return None
-    _, st, _ = run(["warp-cli", "--accept-tos", "status"])
-    _, settings, _ = run(["warp-cli", "--accept-tos", "settings"])
+    _ign, st, _ign = run(["warp-cli", "--accept-tos", "status"])
+    _ign, settings, _ign = run(["warp-cli", "--accept-tos", "settings"])
     mode = re.search(r"Mode:\s*(\S+)", settings or "")
     via = re.search(r"Resolve via:\s*(\S+)\s*@\s*\[([^\]]*)\]", settings or "")
     return {
@@ -252,15 +254,15 @@ def browser_doh() -> list[dict]:
         uri = re.search(r'user_pref\("network\.trr\.(?:custom_)?uri",\s*"([^"]*)"\)', text)
         m = int(mode.group(1)) if mode else 0
         if m in (2, 3):
-            found.append({"browser": "Firefox", "profile": p, "mode": {2: "DoH con respaldo", 3: "solo DoH"}[m],
-                          "uri": uri.group(1) if uri else "por defecto (Cloudflare)"})
+            found.append({"browser": "Firefox", "profile": p, "mode": {2: _("DoH con respaldo"), 3: _("solo DoH")}[m],
+                          "uri": uri.group(1) if uri else _("por defecto (Cloudflare)")})
     for name, ls in (("Chrome", "~/.config/google-chrome/Local State"), ("Chromium", "~/.config/chromium/Local State"),
-                     ("Chromium (snap)", "~/snap/chromium/common/chromium/Local State"),
+                     (_("Chromium (snap)"), "~/snap/chromium/common/chromium/Local State"),
                      ("Brave", "~/.config/BraveSoftware/Brave-Browser/Local State")):
         data = _read_json(ls)
         doh = (data or {}).get("dns_over_https") or {}
         if doh.get("mode") in ("secure", "automatic"):
-            found.append({"browser": name, "mode": doh["mode"], "uri": doh.get("templates") or "automático"})
+            found.append({"browser": name, "mode": doh["mode"], "uri": doh.get("templates") or _("automático")})
     return found
 
 
@@ -270,12 +272,12 @@ def attribute_resolvers(servers: list[str], warp: dict | None, cloudflared: list
     out = []
     for s in servers:
         ip = s.split("#")[0].split("%")[0]
-        entry = {"addr": s, "provider": None, "transport": "DNS en claro (UDP/TCP 53)", "encrypted": False,
+        entry = {"addr": s, "provider": None, "transport": _("DNS en claro (UDP/TCP 53)"), "encrypted": False,
                  "upstream": None, "evidence": None}
         try:
             addr = ipaddress.ip_address(ip)
         except ValueError:
-            out.append({**entry, "encrypted": None, "evidence": "dirección no reconocida"})
+            out.append({**entry, "encrypted": None, "evidence": _("dirección no reconocida")})
             continue
         if warp and ip in WARP_DNS_ADDRS:
             doh = warp.get("mode") in ("DnsOverHttps", "WarpWithDnsOverHttps", "doh", "warp+doh")
@@ -283,24 +285,24 @@ def attribute_resolvers(servers: list[str], warp: dict | None, cloudflared: list
                          transport="DoH" if doh else f"túnel WARP ({warp.get('mode')})",
                          encrypted=True if warp.get("connected") else None,
                          upstream=warp.get("doh_host"),
-                         evidence=f"warp-cli: modo {warp.get('mode')}, {warp.get('status')}")
+                         evidence=_("warp-cli: modo {v1}, {v3}", v1=warp.get('mode'), v3=warp.get('status')))
         elif addr.is_loopback and any(c["address"] == str(addr) or (c["address"] == "localhost" and str(addr) == "127.0.0.1")
                                       for c in cloudflared):
             c = cloudflared[0]
             entry.update(provider="cloudflared proxy-dns", transport="DoH", encrypted=True,
-                         upstream=", ".join(c["upstreams"]), evidence="proceso cloudflared proxy-dns")
+                         upstream=", ".join(c["upstreams"]), evidence=_("proceso cloudflared proxy-dns"))
         elif addr.is_loopback and str(addr).startswith("127.0.0.5"):
             entry.update(provider="systemd-resolved (stub)", transport="DoT" if resolved_dot else "stub local",
                          encrypted=True if resolved_dot else None,
-                         evidence="el cifrado depende de los servidores configurados en resolved")
+                         evidence=_("el cifrado depende de los servidores configurados en resolved"))
         elif addr.is_loopback and (has_dnscrypt or has_stubby):
             entry.update(provider="dnscrypt-proxy" if has_dnscrypt else "stubby",
                          transport="DNSCrypt/DoH" if has_dnscrypt else "DoT", encrypted=True,
-                         evidence="proceso en ejecución escuchando en loopback (atribución probable)")
+                         evidence=_("proceso en ejecución escuchando en loopback (atribución probable)"))
         elif addr.is_loopback:
-            entry.update(provider="resolver local", encrypted=None, evidence="resolver local de origen desconocido")
+            entry.update(provider="resolver local", encrypted=None, evidence=_("resolver local de origen desconocido"))
         elif resolved_dot:
-            entry.update(transport="DoT (systemd-resolved)", encrypted=True, evidence="+DNSOverTLS en resolved")
+            entry.update(transport="DoT (systemd-resolved)", encrypted=True, evidence=_("+DNSOverTLS en resolved"))
         out.append(entry)
     return out
 

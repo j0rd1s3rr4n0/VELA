@@ -16,6 +16,8 @@ Alertas que genera el motor a partir de aquí:
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 import json
 import re
@@ -35,7 +37,7 @@ def vendor(mac: str | None) -> str | None:
         return None
     first = int(mac.split(":")[0], 16)
     if first & 0x02:
-        return "MAC aleatoria/local"
+        return _("MAC aleatoria/local")
     if _OUI is None:
         _OUI = {}
         for f in OUI_FILES:
@@ -80,7 +82,7 @@ def _stats(name: str) -> dict:
 
 
 def _nm_active() -> dict[str, dict]:
-    code, out, _ = run(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,UUID", "connection", "show", "--active"])
+    code, out, _ign = run(["nmcli", "-t", "-f", "NAME,TYPE,DEVICE,UUID", "connection", "show", "--active"])
     res = {}
     for line in out.splitlines() if code == 0 else []:
         f = [x.replace("\\:", ":") for x in re.split(r"(?<!\\):", line)]
@@ -91,7 +93,7 @@ def _nm_active() -> dict[str, dict]:
 
 def _wifi_current() -> dict[str, dict]:
     """Red WiFi conectada por interfaz, desde la caché de NM (--rescan no: no provoca un escaneo)."""
-    code, out, _ = run(["nmcli", "-t", "-f", "IN-USE,DEVICE,SSID,BSSID,CHAN,SIGNAL,SECURITY", "device", "wifi",
+    code, out, _ign = run(["nmcli", "-t", "-f", "IN-USE,DEVICE,SSID,BSSID,CHAN,SIGNAL,SECURITY", "device", "wifi",
                         "list", "--rescan", "no"])
     res = {}
     for line in out.splitlines() if code == 0 else []:
@@ -103,7 +105,7 @@ def _wifi_current() -> dict[str, dict]:
 
 
 def saved_networks() -> list[dict]:
-    code, out, _ = run(["nmcli", "-t", "-f", "NAME,TYPE,TIMESTAMP,AUTOCONNECT", "connection", "show"])
+    code, out, _ign = run(["nmcli", "-t", "-f", "NAME,TYPE,TIMESTAMP,AUTOCONNECT", "connection", "show"])
     res = []
     for line in out.splitlines() if code == 0 else []:
         f = [x.replace("\\:", ":") for x in re.split(r"(?<!\\):", line)]
@@ -116,7 +118,7 @@ def saved_networks() -> list[dict]:
 def docker_networks() -> list[dict] | None:
     if not which("docker"):
         return None
-    code, out, _ = run(["docker", "network", "ls", "--format", "{{json .}}"], timeout=6)
+    code, out, _ign = run(["docker", "network", "ls", "--format", "{{json .}}"], timeout=6)
     if code != 0:
         return None
     nets = []
@@ -135,17 +137,17 @@ def docker_networks() -> list[dict] | None:
 def libvirt_networks() -> list[dict] | None:
     if not which("virsh"):
         return None
-    code, out, _ = run(["virsh", "-c", "qemu:///system", "net-list", "--all", "--name"], timeout=6)
+    code, out, _ign = run(["virsh", "-c", "qemu:///system", "net-list", "--all", "--name"], timeout=6)
     if code != 0:
         return None
     nets = []
     for name in [l.strip() for l in out.splitlines() if l.strip()]:
-        c2, xml, _ = run(["virsh", "-c", "qemu:///system", "net-dumpxml", name], timeout=6)
+        c2, xml, _ign = run(["virsh", "-c", "qemu:///system", "net-dumpxml", name], timeout=6)
         fwd = re.search(r"<forward(?:\s+mode=['\"](\w+)['\"])?", xml or "")
         mode = (fwd.group(1) or "nat") if fwd else "isolated"
         bridge = re.search(r"<bridge name=['\"]([^'\"]+)", xml or "")
         ip = re.search(r"<ip address=['\"]([^'\"]+)['\"](?:\s+netmask=['\"]([^'\"]+))?", xml or "")
-        c3, info, _ = run(["virsh", "-c", "qemu:///system", "net-info", name], timeout=6)
+        c3, info, _ign = run(["virsh", "-c", "qemu:///system", "net-info", name], timeout=6)
         active = bool(re.search(r"(?im)^(Active|Activo):\s*(yes|s[ií])", info or ""))
         looks_isolated = any(h in name.lower() for h in ISOLATION_HINTS)
         nets.append({"name": name, "forward": mode, "bridge": bridge.group(1) if bridge else None,
@@ -240,8 +242,8 @@ def diff(prev: dict | None, cur: dict, known: dict) -> list[dict]:
                     "network": label, "gateway": i["gateway"], "before": known[same[0]]["gw_mac"],
                     "after": i["gateway_mac"], "vendor_before": vendor(known[same[0]]["gw_mac"]),
                     "vendor_after": i["gateway_vendor"],
-                    "note": "El gateway de una red conocida responde con otra MAC: posible ARP spoofing/MITM "
-                            "(o cambio legítimo de router)"}})
+                    "note": _("El gateway de una red conocida responde con otra MAC: posible ARP spoofing/MITM "
+                            "(o cambio legítimo de router)")}})
             else:
                 events.append({"kind": "network_new", "severity": "info", "data": {
                     "network": label, "iface": i["name"], "gateway": i["gateway"], "gateway_vendor": i["gateway_vendor"],
@@ -263,5 +265,5 @@ def diff(prev: dict | None, cur: dict, known: dict) -> list[dict]:
         if v["isolation_broken"] and v["active"]:
             events.append({"kind": "vm_isolation_broken", "severity": "high", "data": {
                 "network": v["name"], "forward": v["forward"],
-                "note": "Red con nombre de aislamiento pero con salida al exterior"}})
+                "note": _("Red con nombre de aislamiento pero con salida al exterior")}})
     return events

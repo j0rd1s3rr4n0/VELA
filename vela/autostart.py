@@ -40,8 +40,8 @@ def status() -> dict:
     if not which("systemctl"):
         return {"available": False, "enabled": False, "active": False,
                 "tray_autostart": tray_autostart_enabled(), "tray_running": tray_running()}
-    _, en, _ = run(["systemctl", "--user", "is-enabled", UNIT])
-    _, ac, _ = run(["systemctl", "--user", "is-active", UNIT])
+    _ign, en, _ign = run(["systemctl", "--user", "is-enabled", UNIT])
+    _ign, ac, _ign = run(["systemctl", "--user", "is-active", UNIT])
     return {"available": True, "enabled": en.strip() == "enabled", "active": ac.strip() == "active",
             "unit": str(unit_path()), "tray_autostart": tray_autostart_enabled(), "tray_running": tray_running()}
 
@@ -53,12 +53,12 @@ def enable() -> dict:
     p.write_text(unit_text())
     daemon.stop_daemon()             # el daemon lanzado a mano se sustituye por el de systemd
     run(["systemctl", "--user", "daemon-reload"])
-    code, _, err = run(["systemctl", "--user", "enable", "--now", UNIT], timeout=20)
+    code, _ign, err = run(["systemctl", "--user", "enable", "--now", UNIT], timeout=20)
     return {"ok": code == 0, "error": err.strip() or None, **status()}
 
 
 def disable() -> dict:
-    code, _, err = run(["systemctl", "--user", "disable", "--now", UNIT], timeout=20)
+    code, _ign, err = run(["systemctl", "--user", "disable", "--now", UNIT], timeout=20)
     return {"ok": code == 0, "error": err.strip() or None, **status()}
 
 

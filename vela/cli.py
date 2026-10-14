@@ -6,6 +6,8 @@ Habla con el daemon por IPC si está en marcha; si no, usa el mismo motor en pro
 
 from __future__ import annotations
 
+from .i18n import _
+
 import argparse
 import json
 import os
@@ -52,49 +54,46 @@ def cmd_status(b, a):
     obs = s["obs"] or {}
     net = s["net"]
     e4 = net["egress"].get("ipv4") or {}
-    print(bold(f"VELA — perfil «{s['profile']}»") +
+    print(bold(_("VELA — perfil «{profile}»", profile=s['profile'])) +
           (c("  [MODO EMERGENCIA]", "1;31") if s["emergency"] else "") +
-          ("" if b.remote else c("  (motor local: arranca `vela daemon start` para monitorizar)", "90")))
+          ("" if b.remote else c(_("  (motor local: arranca `vela daemon start` para monitorizar)"), "90")))
     ex = s["exposure"]
-    print(f"Exposición observable: {c(str(ex['score']) + '/100 ' + ex['level'], {'baja': '32', 'media': '33', 'alta': '31'}[ex['level']])}"
-          f"  (indicador orientativo, no mide anonimato)")
-    print(f"\n{bold('Cadena')}: " + " → ".join(f"{h['type']}[{h.get('ip') or h.get('label')}]" for h in obs.get("chain", [])))
-    print(f"  salida IPv4 por {e4.get('dev')} (gw {e4.get('gateway') or '-'}), túnel: "
-          f"{'sí' if net['via_tunnel'].get('ipv4') else 'no'}, IP local {net['local_ip']}")
+    print(_("Exposición observable: {v1}  (indicador orientativo, no mide anonimato)", v1=c(str(ex['score']) + '/100 ' + ex['level'], {'baja': '32', 'media': '33', 'alta': '31'}[ex['level']])))
+    print(f"\n{bold(_('Cadena'))}: " + " → ".join(f"{h['type']}[{h.get('ip') or h.get('label')}]" for h in obs.get("chain", [])))
+    print(_("  salida IPv4 por {v1} (gw {v3}), túnel: {v5}, IP local {local_ip}", v1=e4.get('dev'), v3=e4.get('gateway') or '-', v5='sí' if net['via_tunnel'].get('ipv4') else 'no', local_ip=net['local_ip']))
     wan = s["wan"] or {}
-    print(f"  IP WAN router: {wan.get('ip') if wan.get('ok') else c(wan.get('error', 'no comprobada'), '90')}")
+    print(_("  IP WAN router: {v1}", v1=wan.get('ip') if wan.get('ok') else c(wan.get('error', _('no comprobada')), '90')))
     for route, r in (s["public"] or {}).items():
-        val = (f"{r['ip']} ({(r.get('geo') or {}).get('country') or '?'}) vía {r.get('endpoint')} {iso(r.get('ts'))}"
+        val = (_("{ip} ({v2}) vía {v4} {when}", ip=r['ip'], v2=(r.get('geo') or {}).get('country') or '?', v4=r.get('endpoint'), when=iso(r.get('ts')))
                if r.get("ok") else c(r.get("error"), "90"))
-        print(f"  IP pública [{route}]: {val}")
+        print(_("  IP pública [{route}]: {val}", route=route, val=val))
     t = s["tor"] or {}
     if t.get("available"):
         ex_, gd = t.get("exit") or {}, t.get("guard") or {}
-        print(f"\n{bold('Tor')} {t.get('version')} ({t.get('target')}): bootstrap {t.get('bootstrap')}%, "
+        print(f"\n{bold(_('Tor'))} {t.get('version')} ({t.get('target')}): bootstrap {t.get('bootstrap')}%, "
               f"{t.get('circuit_count')} circuitos, {t.get('stream_count')} streams"
-              + (c("  [Tor Browser: solo observación]", "33") if t.get("observe_only") else ""))
+              + (c(_("  [Tor Browser: solo observación]"), "33") if t.get("observe_only") else ""))
         print(f"  guard {gd.get('nick')} {gd.get('ip')} ({gd.get('country')}) · exit {ex_.get('nick')} "
               f"{ex_.get('ip')} ({ex_.get('country')}) · circuito {t.get('active_circuit')}")
     else:
-        print(f"\n{bold('Tor')}: {c(t.get('error') or 'no disponible', '90')}")
+        print(f"\n{bold(_('Tor'))}: {c(t.get('error') or _('no disponible'), '90')}")
     d = s["dns"] or {}
     enc = d.get("encryption") or {}
-    print(f"\n{bold('DNS')} efectivo ({d.get('effective_source')}): " +
+    print(_("\n{v1} efectivo ({v3}): ", v1=bold('DNS'), v3=d.get('effective_source')) +
           (", ".join(f"{r['addr']} {r['provider'] or '?'} [{r['transport']}]" for r in enc.get("resolvers", []))
            or ", ".join(d.get("effective_servers") or []) or "-") +
           f" · cifrado: {c({True: 'sí', False: 'NO', None: '?'}[d.get('encrypted')], {True: '32', False: '31', None: '90'}[d.get('encrypted')])}"
-          + (f" · DoH sale por {enc['upstream_route']['dev']}" if enc.get("upstream_route") else ""))
+          + (_(" · DoH sale por {dev}", dev=enc['upstream_route']['dev']) if enc.get("upstream_route") else ""))
     kx = (s.get("killswitch") or {}).get("external") or {}
     rp = kx.get("route_protection") or {}
     if rp:
         state = lambda f: c(rp[f]["state"], "32" if rp[f]["state"] == "bloqueado" else "31")  # noqa: E731
-        print(f"{bold('Kill-switch')}: {', '.join(kx.get('declared_by') or []) or 'ningún cliente'} · si cae el túnel: "
-              f"IPv4 {state('ipv4')} ({rp['ipv4']['detail']}), IPv6 {state('ipv6')}")
+        print(_("{v0}: {v2} · si cae el túnel: IPv4 {v4} ({detail}), IPv6 {v8}", v0=bold('Kill-switch'), v2=', '.join(kx.get('declared_by') or []) or 'ningún cliente', v4=state('ipv4'), detail=rp['ipv4']['detail'], v8=state('ipv6')))
     if s["session"]:
-        print(f"\n{bold('Sesión')} {s['session']['id']}: {fmt_duration(s['session']['duration'])} "
+        print(f"\n{bold(_('Sesión'))} {s['session']['id']}: {fmt_duration(s['session']['duration'])} "
               f"(desde {iso(s['session']['started'])})")
     if s["live_counters"]:
-        print(bold("Contadores en curso:"))
+        print(bold(_("Contadores en curso:")))
         for layer, cn in s["live_counters"].items():
             print(f"  {layer:18} {cn['label'][:40]:40} actual {fmt_duration(cn['current'])}  total {fmt_duration(cn['total'])}")
     rows = []
@@ -104,10 +103,10 @@ def cmd_status(b, a):
                      fmt_duration(r["remaining"]) if r["remaining"] is not None else "—",
                      f"{r['rotations_last_hour']}/{r['max_per_hour']}"])
     if rows:
-        print(f"\n{bold('Rotación')}")
-        table(rows, ["capa", "adaptador", "activa", "disponible", "próxima en", "última hora"])
+        print(f"\n{bold(_('Rotación'))}")
+        table(rows, ["capa", "adaptador", "activa", "disponible", _("próxima en"), _("última hora")])
     if s["findings"]:
-        print(f"\n{bold('Alertas')}")
+        print(f"\n{bold(_('Alertas'))}")
         for f in s["findings"]:
             print(f"  {c(f['severity'].upper(), SEV_COLOR[f['severity']])} {f['title']} — {f['observed']}")
     return None
@@ -116,18 +115,17 @@ def cmd_status(b, a):
 def cmd_discover(b, a):
     if a.write_config:
         from .discovery import discover, recommend, write_config
-        _, cfg = recommend(discover())
+        _ign, cfg = recommend(discover())
         write_config(cfg, Path(a.write_config).expanduser(), a.force)
-        print(f"configuración sugerida escrita en {a.write_config}")
+        print(_("configuración sugerida escrita en {write_config}", write_config=a.write_config))
     r = b.call("discover")
     if a.json:
         return r
     sysi = r["environment"]["system"]
     print(bold(f"{sysi['distro']} · kernel {sysi['kernel']} · {sysi['arch']}") +
-          f" · virtualización: {sysi['virtualization'] or 'no'} · contenedor: {sysi['container'] or 'no'}"
-          f"{' · WSL' if sysi['wsl'] else ''}")
+          _(" · virtualización: {v1} · contenedor: {v3}{v4}", v1=sysi['virtualization'] or 'no', v3=sysi['container'] or 'no', v4=' · WSL' if sysi['wsl'] else ''))
     table([[cp["area"], cp["id"], c(cp["status"], STATUS_COLOR[cp["status"]]), cp["detail"]] for cp in r["capabilities"]],
-          ["área", "capacidad", "estado", "detalle"])
+          [_("área"), _("capacidad"), _("estado"), _("detalle")])
     print()
     for n in r["notes"]:
         if n["level"] in ("warn",):
@@ -143,16 +141,16 @@ def cmd_network(b, a):
         addrs = ", ".join(f"{x['addr']}/{x['prefix']} ({x['class']})" for x in i["addrs"])
         rows.append([i["name"], i["kind"], c("up", "32") if i["up"] else c("down", "90"), i["mac_origin"], addrs])
     table(rows, ["interfaz", "tipo", "estado", "MAC", "direcciones"])
-    print(f"\n{bold('Rutas por defecto')}")
+    print(f"\n{bold(_('Rutas por defecto'))}")
     for fam in ("ipv4_default", "ipv6_default"):
         for r in n["routes"][fam]:
             print(f"  {fam[:4]} via {r['gateway']} dev {r['dev']} metric {r['metric']} table {r['table']}")
     for fam in ("ipv4", "ipv6"):
         e = n["egress"].get(fam)
-        print(f"  salida efectiva {fam}: " + (f"{e['dev']} (src {e['src']}, gw {e['gateway']})" if e else "sin ruta"))
+        print(_("  salida efectiva {fam}: ", fam=fam) + (f"{e['dev']} (src {e['src']}, gw {e['gateway']})" if e else _("sin ruta")))
     if n["policy_rules"]:
-        print(f"{bold('Policy routing')}: " + "; ".join(json.dumps(r) for r in n["policy_rules"]))
-    print(f"túneles activos: {', '.join(n['tunnels']) or 'ninguno'}")
+        print(f"{bold(_('Policy routing'))}: " + "; ".join(json.dumps(r) for r in n["policy_rules"]))
+    print(_("túneles activos: {v1}", v1=', '.join(n['tunnels']) or 'ninguno'))
 
 
 def _bps(v):
@@ -189,9 +187,9 @@ def cmd_networks(b, a):
         w = i.get("wifi") or {}
         detail = []
         if w:
-            detail.append(f"SSID {w['ssid']} ({w['security']}, señal {w['signal']}%, canal {w['channel']})")
+            detail.append(_("SSID {ssid} ({security}, señal {signal}%, canal {channel})", ssid=w['ssid'], security=w['security'], signal=w['signal'], channel=w['channel']))
         if i.get("connection"):
-            detail.append(f"conexión «{i['connection']}»")
+            detail.append(_("conexión «{connection}»", connection=i['connection']))
         if i["gateway"]:
             detail.append(f"gw {i['gateway']}" + (f" [{i['gateway_mac']} {i['gateway_vendor'] or ''}]".rstrip(" ]") + "]"
                                                     if i["gateway_mac"] else ""))
@@ -199,29 +197,29 @@ def cmd_networks(b, a):
                      ", ".join(i["subnets"]) or "—", f"↓{_bps(r.get('rx_bps'))} ↑{_bps(r.get('tx_bps'))}",
                      f"↓{_bytes(i['stats']['rx_bytes'])} ↑{_bytes(i['stats']['tx_bytes'])}", len(i["neighbors"]),
                      " · ".join(detail)])
-    table(rows, ["interfaz", "red", "estado", "subred", "tráfico ahora", "total", "vecinos", "detalle"])
+    table(rows, ["interfaz", "red", "estado", "subred", _("tráfico ahora"), "total", "vecinos", "detalle"])
     if a.neighbors:
         for i in n["interfaces"]:
             if i["neighbors"] and (a.all or not i["name"].startswith("veth")):
-                print(f"\n{bold('Vecinos en ' + i['name'])} (tabla ARP/NDP del kernel; no se escanea la red)")
+                print(_("\n{v1} (tabla ARP/NDP del kernel; no se escanea la red)", v1=bold(_('Vecinos en ') + i['name'])))
                 table([[x["ip"], x["mac"], x["vendor"] or "?", x["state"], "gateway" if x["ip"] == i["gateway"] else ""]
                        for x in sorted(i["neighbors"], key=lambda x: x["ip"])], ["IP", "MAC", "fabricante", "estado", ""])
     if n.get("libvirt") is not None:
-        print(f"\n{bold('Redes de máquinas virtuales (libvirt)')}")
+        print(f"\n{bold(_('Redes de máquinas virtuales (libvirt)'))}")
         table([[v["name"], c("activa", "32") if v["active"] else c("inactiva", "90"), v["forward"], v["bridge"], v["ip"],
-                c("¡NO AISLADA!", "31") if v["isolation_broken"] else ("aislada" if v["forward"] == "isolated" else "")]
+                c(_("¡NO AISLADA!"), "31") if v["isolation_broken"] else (_("aislada") if v["forward"] == "isolated" else "")]
                for v in n["libvirt"]], ["red", "estado", "forward", "bridge", "IP", "aislamiento"])
     if n.get("docker") is not None:
-        print(f"\n{bold('Redes Docker')}")
-        table([[d["name"], d["driver"], d["bridge"] or "—", "interna" if d["internal"] else "con salida"] for d in n["docker"]],
+        print(f"\n{bold(_('Redes Docker'))}")
+        table([[d["name"], d["driver"], d["bridge"] or "—", "interna" if d["internal"] else _("con salida")] for d in n["docker"]],
               ["red", "driver", "bridge", "salida"])
-    print(f"\n{bold('Redes guardadas (NetworkManager)')}")
+    print(f"\n{bold(_('Redes guardadas (NetworkManager)'))}")
     table([[s["name"], s["type"], iso(s["last_used"]) if s["last_used"] else "nunca", "sí" if s["autoconnect"] else "no"]
-           for s in n["saved"]], ["nombre", "tipo", "último uso", "autoconexión"])
+           for s in n["saved"]], [_("nombre"), _("tipo"), _("último uso"), _("autoconexión")])
     if n.get("known"):
-        print(f"\n{bold('Redes vistas por VELA')} (huella: SSID + MAC del gateway)")
+        print(_("\n{v1} (huella: SSID + MAC del gateway)", v1=bold(_('Redes vistas por VELA'))))
         table([[k["label"], k["subnet"], k["gateway"], k["gateway_mac"], k["devices"], iso(k["first"]), iso(k["last"])]
-               for k in n["known"]], ["red", "subred", "gateway", "MAC gateway", "dispositivos", "primera vez", "última vez"])
+               for k in n["known"]], ["red", "subred", "gateway", _("MAC gateway"), "dispositivos", _("primera vez"), _("última vez")])
     return None
 
 
@@ -232,24 +230,21 @@ def _leak_screen(r, show_all):
     pub = (r.get("public") or {}).get("default") or {}
     e4 = (r.get("egress") or {}).get("ipv4") or {}
     s = r["summary"]
-    lines = [bold("VELA · IP y fugas en tiempo real") + c(f"   {iso(r['ts'])}   (Ctrl-C para salir)", "90")]
-    tun = c(f"túnel {', '.join(r['tunnels'])}", "32") if r["tunnel_up"] else c("SIN TÚNEL (VPN desconectada)", "1;31")
+    lines = [bold(_("VELA · IP y fugas en tiempo real")) + c(_("   {when}   (Ctrl-C para salir)", when=iso(r['ts'])), "90")]
+    tun = c(_("túnel {v1}", v1=', '.join(r['tunnels'])), "32") if r["tunnel_up"] else c(_("SIN TÚNEL (VPN desconectada)"), "1;31")
     lines.append(f"Salida: {e4.get('dev')} · {tun}")
     if pub.get("ok"):
-        tag = (c("  ← ¡TU IP REAL!", "1;31") if pub.get("is_real_ip") and pub.get("via_tunnel") else
-               c("  (IP de la VPN)", "32") if pub.get("via_tunnel") else c("  (tu IP real)", "33"))
-        lines.append(f"IP pública: {bold(pub['ip'])} {(pub.get('geo') or {}).get('country') or ''} vía {pub.get('endpoint')} "
-                     f"hace {int(r['ts'] - pub['ts'])} s{tag}")
+        tag = (c(_("  ← ¡TU IP REAL!"), "1;31") if pub.get("is_real_ip") and pub.get("via_tunnel") else
+               c(_("  (IP de la VPN)"), "32") if pub.get("via_tunnel") else c(_("  (tu IP real)"), "33"))
+        lines.append(_("IP pública: {v1} {v3} vía {v5} hace {v7} s{tag}", v1=bold(pub['ip']), v3=(pub.get('geo') or {}).get('country') or '', v5=pub.get('endpoint'), v7=int(r['ts'] - pub['ts']), tag=tag))
     else:
-        lines.append(f"IP pública: {c(pub.get('error') or 'pendiente', '90')}")
+        lines.append(_("IP pública: {v1}", v1=c(pub.get('error') or 'pendiente', '90')))
     kx = r.get("killswitch") or {}
     rp = kx.get("route_protection") or {}
     if rp:
-        lines.append(f"Kill-switch si cae el túnel: IPv4 {rp['ipv4']['state']}, IPv6 {rp['ipv6']['state']}"
+        lines.append(_("Kill-switch si cae el túnel: IPv4 {state}, IPv6 {state2}", state=rp['ipv4']['state'], state2=rp['ipv6']['state'])
                      + (f" ({', '.join(kx.get('declared_by') or [])})" if kx.get("declared_by") else ""))
-    lines.append(f"Conexiones a Internet: {c(str(s.get('fugas', 0)) + ' fugas', VERDICT_COLOR['fuga'] if s.get('fugas') else '32')}"
-                 f" · {s.get('protegidas', 0)} protegidas · {c(str(s.get('directas', 0)) + ' directas', '33' if s.get('directas') else '90')}"
-                 f" · {s.get('permitidas', 0)} permitidas")
+    lines.append(_("Conexiones a Internet: {v1} · {v3} protegidas · {v5} · {v7} permitidas", v1=c(str(s.get('fugas', 0)) + ' fugas', VERDICT_COLOR['fuga'] if s.get('fugas') else '32'), v3=s.get('protegidas', 0), v5=c(str(s.get('directas', 0)) + ' directas', '33' if s.get('directas') else '90'), v7=s.get('permitidas', 0)))
     flows = sorted(r["flows"], key=lambda f: ["fuga", "directa", "otra", "permitida", "protegida"].index(f["verdict"]))
     if not show_all:
         flows = [f for f in flows if f["verdict"] in ("fuga", "directa")] or flows[:15]
@@ -263,10 +258,9 @@ def _leak_screen(r, show_all):
                      f"{(f['remote'] + ':' + str(f['rport']))[:28]:28} {(f.get('country') or '—'):4} "
                      f"{c(vt_txt.ljust(8), vt_col)} {f['iface'] or '?'}" + (c(" DNS", "31") if f["dns"] else ""))
     live = r.get("intel_live") or {}
-    lines.append(c(f"VirusTotal automático: {live.get('status', '—')} · cola {live.get('queued', 0)} · "
-                   f"hoy {live.get('today', 0)}/{live.get('limit', '—')}", "90"))
+    lines.append(c(_("VirusTotal automático: {v1} · cola {v3} · hoy {v5}/{v7}", v1=live.get('status', '—'), v3=live.get('queued', 0), v5=live.get('today', 0), v7=live.get('limit', '—')), "90"))
     if not r["tunnel_up"] and s.get("directas"):
-        lines.append(c("\nSin VPN, todas estas conexiones muestran tu IP real. Para evitarlo: `vela fix`.", "33"))
+        lines.append(c(_("\nSin VPN, todas estas conexiones muestran tu IP real. Para evitarlo: `vela fix`."), "33"))
     return "\n".join(lines)
 
 
@@ -293,7 +287,7 @@ def cmd_routes(b, a):
     r = b.call("routes")
     if a.json:
         return r
-    print(bold("Cómo viaja tu tráfico ahora"))
+    print(bold(_("Cómo viaja tu tráfico ahora")))
     for line in r["explain"]:
         print(f"  • {line}")
     print()
@@ -310,9 +304,8 @@ def cmd_vpn(b, a):
     if a.json:
         return v
     table([[cp["id"], c(cp["status"], STATUS_COLOR[cp["status"]]), cp["detail"]] for cp in v["capabilities"]],
-          ["tecnología", "estado", "detalle"])
-    print(f"túneles: {', '.join(v['tunnels']) or 'ninguno'} · tráfico IPv4 por túnel: "
-          f"{'sí' if v['via_tunnel'].get('ipv4') else 'no'} · adaptador de rotación: {v['adapter'] or 'ninguno'}")
+          [_("tecnología"), _("estado"), _("detalle")])
+    print(_("túneles: {v1} · tráfico IPv4 por túnel: {v3} · adaptador de rotación: {v5}", v1=', '.join(v['tunnels']) or 'ninguno', v3='sí' if v['via_tunnel'].get('ipv4') else 'no', v5=v['adapter'] or 'ninguno'))
 
 
 def cmd_proxy(b, a):
@@ -321,12 +314,9 @@ def cmd_proxy(b, a):
         return p
     table([[f"127.0.0.1:{x['port']}", x["kind"], x.get("bind"), x.get("owner"),
             c("alcanzable", "32") if x["reachable"] else c(x["error"], "31")] for x in p["local"]],
-          ["proxy", "protocolo", "escucha en", "proceso", "estado"])
-    print(f"túneles ssh -D: {p['ssh_tunnels'] or 'ninguno'} · proxychains: "
-          f"{(p['proxychains'] or {}).get('file', 'no')} · entorno: {p['env'] or 'ninguno'} · "
-          f"escritorio: {(p['desktop'] or {}).get('mode')}")
-    print(f"pool de rotación: {p['pool'] or 'vacío (rotation.proxy.pool)'} · forwarder: "
-          f"{(p['forwarder'] or {}).get('listen', 'no iniciado')}")
+          ["proxy", "protocolo", _("escucha en"), "proceso", "estado"])
+    print(_("túneles ssh -D: {v1} · proxychains: {v3} · entorno: {v5} · escritorio: {v7}", v1=p['ssh_tunnels'] or 'ninguno', v3=(p['proxychains'] or {}).get('file', 'no'), v5=p['env'] or 'ninguno', v7=(p['desktop'] or {}).get('mode')))
+    print(_("pool de rotación: {v1} · forwarder: {v3}", v1=p['pool'] or 'vacío (rotation.proxy.pool)', v3=(p['forwarder'] or {}).get('listen', _('no iniciado'))))
 
 
 def cmd_tor(b, a):
@@ -336,20 +326,19 @@ def cmd_tor(b, a):
     if a.json:
         return t
     if not t.get("available"):
-        print(c(f"Tor no disponible: {t.get('error')}", "31"))
+        print(c(_("Tor no disponible: {v1}", v1=t.get('error')), "31"))
         return None
-    print(bold(f"Tor {t['version']} vía {t['target']}") + f" · bootstrap {t['bootstrap']}% · "
-          f"circuitos {t['circuit_count']} · streams {t['stream_count']}")
+    print(bold(_("Tor {version} vía {target}", version=t['version'], target=t['target'])) + _(" · bootstrap {bootstrap}% · circuitos {circuit_count} · streams {stream_count}", bootstrap=t['bootstrap'], circuit_count=t['circuit_count'], stream_count=t['stream_count']))
     for circ in t["circuits"]:
         mark = c("●", "32") if t.get("active") and circ["id"] == t["active"]["id"] else " "
         hops = " → ".join(f"{h.get('nick')}({h.get('country') or '?'})" for h in circ["path"])
         print(f" {mark} {circ['id']:>8}  streams {circ.get('streams', 0):<3} {hops}")
     if t.get("guards"):
-        print(bold("Guards: ") + ", ".join(f"{g['fp'][:8]}… {g['status']}" for g in t["guards"]))
+        print(bold(_("Guards: ")) + ", ".join(f"{g['fp'][:8]}… {g['status']}" for g in t["guards"]))
     chk = t.get("tor_check") or {}
     if chk.get("ok"):
-        print(f"Comprobación externa: {chk['ip']} IsTor={chk.get('is_tor')} ({chk['endpoint']}, {iso(chk['ts'])})")
-    print(c("No se fuerzan cambios de guard. NEWNYM no garantiza un exit distinto.", "90"))
+        print(_("Comprobación externa: {ip} IsTor={v3} ({endpoint}, {when})", ip=chk['ip'], v3=chk.get('is_tor'), endpoint=chk['endpoint'], when=iso(chk['ts'])))
+    print(c(_("No se fuerzan cambios de guard. NEWNYM no garantiza un exit distinto."), "90"))
 
 
 def cmd_dns(b, a):
@@ -357,24 +346,24 @@ def cmd_dns(b, a):
     if a.json:
         return r
     s = r["snapshot"]
-    print(bold(f"DNS ({s['backend']})") + f" · resolv.conf → {s['resolv_conf_target']} {s['resolv_conf']}"
+    print(bold(_("DNS ({backend})", backend=s['backend'])) + f" · resolv.conf → {s['resolv_conf_target']} {s['resolv_conf']}"
           + (f" · modo {s['resolv_mode']}" if s.get("resolv_mode") else ""))
     enc = s.get("encryption") or {}
-    print(bold("Resolver efectivo") + f" ({s.get('effective_source')}):")
+    print(bold(_("Resolver efectivo")) + f" ({s.get('effective_source')}):")
     for res in enc.get("resolvers", []):
         col = {True: "32", False: "31", None: "90"}[res["encrypted"]]
         print(f"  {res['addr']:14} {res['provider'] or 'desconocido':24} {c(res['transport'], col)}"
               + (f" → {res['upstream']}" if res.get("upstream") else "") + c(f"  ({res['evidence']})", "90"))
     if enc.get("upstream_route"):
-        print(f"  conexión DoH hacia {enc['upstream_route']['ip']} sale por {enc['upstream_route']['dev']}")
+        print(_("  conexión DoH hacia {ip} sale por {dev}", ip=enc['upstream_route']['ip'], dev=enc['upstream_route']['dev']))
     for br in enc.get("browsers", []):
         print(f"  navegador {br['browser']}: DoH {br['mode']} → {br['uri']}")
-    print(bold("Configuración de systemd-resolved:"))
+    print(bold(_("Configuración de systemd-resolved:")))
     rows = [[n, ", ".join(l["servers"]) or "—", ", ".join(l["domains"]) or "—", "sí" if l["default_route"] else "no",
              "sí" if l["dot"] else "no", l["dnssec"]] for n, l in s["links"].items() if l["servers"] or l["domains"]]
     if s.get("global", {}).get("servers"):
         rows.insert(0, ["Global", ", ".join(s["global"]["servers"]), "", "", "", ""])
-    table(rows, ["enlace", "servidores", "dominios", "ruta por defecto", "DoT", "DNSSEC"])
+    table(rows, ["enlace", "servidores", "dominios", _("ruta por defecto"), "DoT", "DNSSEC"])
     _print_findings(r["findings"])
 
 
@@ -382,8 +371,7 @@ def _print_findings(found):
     for f in found:
         print(f"\n{c(f['severity'].upper(), SEV_COLOR[f['severity']])} {c(f['status'], STATUS_COLOR[f['status']])} "
               f"{bold(f['title'])} [{f['mode']}]")
-        print(f"  método: {f['method']}\n  observado: {f['observed']}\n  limitaciones: {f['limitations']}\n"
-              f"  confianza: {f['confidence']} · recomendación: {f['recommendation']}")
+        print(_("  método: {method}\n  observado: {observed}\n  limitaciones: {limitations}\n  confianza: {confidence} · recomendación: {recommendation}", method=f['method'], observed=f['observed'], limitations=f['limitations'], confidence=f['confidence'], recommendation=f['recommendation']))
 
 
 def cmd_leaks(b, a):
@@ -400,13 +388,12 @@ def cmd_ip(b, a):
     for x in r:
         if x.get("ok"):
             g = x.get("geo") or {}
-            print(f"[{x['route']}] {bold(x['ip'])} {g.get('country_name') or '?'} ({g.get('source')}) "
-                  f"vía {x['endpoint']} en {x['rtt_ms']} ms" + (f" IsTor={x['is_tor']}" if "is_tor" in x else ""))
+            print(_("[{route}] {v3} {v5} ({v7}) vía {endpoint} en {rtt_ms} ms", route=x['route'], v3=bold(x['ip']), v5=g.get('country_name') or '?', v7=g.get('source'), endpoint=x['endpoint'], rtt_ms=x['rtt_ms']) + (f" IsTor={x['is_tor']}" if "is_tor" in x else ""))
         else:
             print(f"[{x['route']}] {c(x['error'], '33')}")
     w = b.call("router")
     print(f"[router WAN] " + (f"{w['ip']} ({w.get('device')})" + (" CGNAT" if w.get("cgnat") else "") +
-                              (" doble NAT" if w.get("double_nat") else "") if w.get("ok") else c(w.get("error"), "90")))
+                              (_(" doble NAT") if w.get("double_nat") else "") if w.get("ok") else c(w.get("error"), "90")))
 
 
 def cmd_sessions(b, a):
@@ -416,8 +403,8 @@ def cmd_sessions(b, a):
     table([[s["id"], iso(s["started"]), iso(s["ended"]) if s["ended"] else c("activa", "32"),
             fmt_duration(s["duration"]), s["profile"], s["egress_iface"], s["vpn"], s["proxy"],
             s["public_ip"], s["wan_ip"], (s["tor_exit"] or "")[:8] or None, s["end_reason"]] for s in rows],
-          ["id", "inicio", "fin", "duración", "perfil", "interfaz", "vpn", "proxy", "ip pública", "ip wan",
-           "tor exit", "cierre"])
+          [_("id"), _("inicio"), _("fin"), _("duración"), _("perfil"), _("interfaz"), _("vpn"), _("proxy"), _("ip pública"), _("ip wan"),
+           _("tor exit"), "cierre"])
 
 
 def cmd_counters(b, a):
@@ -426,7 +413,7 @@ def cmd_counters(b, a):
         return rows
     table([[r["layer"], r["label"][:46], r["country"], r["uses"], r["total_fmt"],
             c(r["current_fmt"], "32") if r["current_fmt"] else None, iso(r["last_seen"])] for r in rows],
-          ["capa", "elemento", "país", "usos", "tiempo total", "en curso", "último uso"])
+          [_("capa"), _("elemento"), _("país"), _("usos"), _("tiempo total"), _("en curso"), _("último uso")])
 
 
 def cmd_history(b, a):
@@ -441,7 +428,7 @@ def cmd_history(b, a):
 
 
 def cmd_watch(b, a):
-    print(c("Escuchando eventos (Ctrl-C para salir)…", "90"))
+    print(c(_("Escuchando eventos (Ctrl-C para salir)…"), "90"))
     try:
         for ev in b.subscribe():
             print(f"{iso(ev['ts'])} {c(ev['severity'][:4].upper(), SEV_COLOR.get(ev['severity'], ''))} "
@@ -456,9 +443,8 @@ def cmd_rotate(b, a):
         if a.json:
             return r
         for layer, st in r["status"].items():
-            print(f"{bold(layer)} {st['adapter']}: activa={st['enabled']} disponible={st['available']} "
-                  f"{st['reason'] or ''} próxima en {fmt_duration(st['remaining']) if st['remaining'] is not None else '—'}")
-        print(bold("\nÚltimas rotaciones"))
+            print(_("{v0} {adapter}: activa={enabled} disponible={available} {v8} próxima en {v10}", v0=bold(layer), adapter=st['adapter'], enabled=st['enabled'], available=st['available'], v8=st['reason'] or '', v10=fmt_duration(st['remaining']) if st['remaining'] is not None else '—'))
+        print(bold(_("\nÚltimas rotaciones")))
         table([[iso(x["ts"]), x["layer"], x["adapter"], "sí" if x["dry_run"] else "no", x["from_target"],
                 x["to_target"], x["result"]] for x in r["history"][:15]],
               ["fecha", "capa", "adaptador", "dry-run", "desde", "hacia", "resultado"])
@@ -466,7 +452,7 @@ def cmd_rotate(b, a):
     r = b.call("rotate", layer=a.layer, dry_run=a.dry_run, force=a.force)
     if a.json:
         return r
-    print(bold(f"Rotación {a.layer} ({r.get('adapter', '-')}){' [dry-run]' if a.dry_run else ''}: ") +
+    print(bold(_("Rotación {layer} ({v3}){v5}: ", layer=a.layer, v3=r.get('adapter', '-'), v5=' [dry-run]' if a.dry_run else '')) +
           c(r["result"], "32" if r["result"] in ("ok", "dry_run_ok") else "31"))
     for s in r["steps"]:
         print(f"  {c('✔', '32') if s['ok'] else c('✘', '31')} {s['step']}. {s['name']} {c(s['detail'], '90')}")
@@ -481,24 +467,22 @@ def cmd_profiles(b, a):
         if a.json:
             return r
         for name, p in r["profiles"].items():
-            tag = c(" (ya existe, no se toca)", "90") if name in r["existing"] else ""
+            tag = c(_(" (ya existe, no se toca)"), "90") if name in r["existing"] else ""
             print(bold(f"● {name}") + tag + f": {p['description']}")
-            print(f"    Tor={'sí' if p['use_tor'] else 'no'} · VPN obligatoria={'sí' if p['require_vpn'] else 'no'} · "
-                  f"kill-switch={'sí' if p['require_killswitch'] else 'no'} · DNS={p['dns_policy']} · "
-                  f"países prohibidos={p['forbidden_countries'] or 'ninguno'} · retención {p['retention_days']} d")
+            print(_("    Tor={v1} · VPN obligatoria={v3} · kill-switch={v5} · DNS={dns_policy} · países prohibidos={v9} · retención {retention_days} d", v1='sí' if p['use_tor'] else 'no', v3='sí' if p['require_vpn'] else 'no', v5='sí' if p['require_killswitch'] else 'no', dns_policy=p['dns_policy'], v9=p['forbidden_countries'] or 'ninguno', retention_days=p['retention_days']))
             for why in p["_why"]:
                 print(c(f"      · {why}", "90"))
         if r.get("written"):
             w = r["written"]
-            print(f"\nAñadidos a {w['path']}: {', '.join(w['written']) or 'ninguno'}"
-                  + (f" · ya existían: {', '.join(w['skipped'])}" if w["skipped"] else ""))
-            print("Actívalo con: vela profiles activate <nombre>")
+            print(_("\nAñadidos a {path}: {v3}", path=w['path'], v3=', '.join(w['written']) or 'ninguno')
+                  + (_(" · ya existían: {v1}", v1=', '.join(w['skipped'])) if w["skipped"] else ""))
+            print(_("Actívalo con: vela profiles activate <nombre>"))
         else:
-            print(c("\nVista previa. Repite con --write para añadirlos a tu config.toml (no sobrescribe nada).", "90"))
+            print(c(_("\nVista previa. Repite con --write para añadirlos a tu config.toml (no sobrescribe nada)."), "90"))
         return None
     if a.action == "activate":
         r = b.call("profile_activate", name=a.name)
-        print(f"perfil activo: {r['active']}")
+        print(_("perfil activo: {active}", active=r['active']))
         return None
     if a.action == "correlation":
         r = b.call("correlation")
@@ -509,7 +493,7 @@ def cmd_profiles(b, a):
             for risk in p["risks"]:
                 print(f"  {c(risk['severity'], SEV_COLOR.get(risk['severity'], ''))} {risk['detail']}")
         if not r["pairs"]:
-            print("no hay pares de perfiles con historial")
+            print(_("no hay pares de perfiles con historial"))
         print(c(r["note"], "90"))
         return None
     r = b.call("profiles")
@@ -517,8 +501,7 @@ def cmd_profiles(b, a):
         return r
     for name, p in r["profiles"].items():
         mark = c("●", "32") if name == r["active"] else " "
-        print(f"{mark} {bold(name)}: {p.get('description', '')} · Tor={'sí' if p.get('use_tor') else 'no'} · "
-              f"países permitidos {p.get('allowed_countries') or 'todos'} · prohibidos {p.get('forbidden_countries') or 'ninguno'}")
+        print(_("{mark} {v2}: {v4} · Tor={v6} · países permitidos {v8} · prohibidos {v10}", mark=mark, v2=bold(name), v4=p.get('description', ''), v6='sí' if p.get('use_tor') else 'no', v8=p.get('allowed_countries') or 'todos', v10=p.get('forbidden_countries') or 'ninguno'))
     return None
 
 
@@ -527,21 +510,21 @@ def cmd_audit(b, a):
     if a.html:
         data = b.call("export")
         Path(a.html).write_text(_html_from(data, r))
-        print(f"informe HTML: {a.html}")
+        print(_("informe HTML: {html}", html=a.html))
         return None
     if a.json:
         return r
     ex = r["summary"]["exposure"]
-    print(bold(f"Auditoría de privacidad — perfil {r['profile']}") + f" · exposición {ex['score']}/100 ({ex['level']})")
+    print(bold(_("Auditoría de privacidad — perfil {profile}", profile=r['profile'])) + _(" · exposición {score}/100 ({level})", score=ex['score'], level=ex['level']))
     for i in ex["indicators"]:
         mark = c("●", "31") if i["present"] else (c("○", "90") if i["present"] is False else c("?", "36"))
         print(f"  {mark} {i['label']} (peso {i['weight']}) — {i['explanation']}")
     print(c(ex["disclaimer"], "90"))
     _print_findings(r["risks"])
-    print(bold("\nPruebas realizadas"))
+    print(bold(_("\nPruebas realizadas")))
     for t in r["tests_performed"]:
         print(f"  [{t['mode']}] {t['check']}: {t['method']}")
-    print(bold("\nLimitaciones de observabilidad"))
+    print(bold(_("\nLimitaciones de observabilidad")))
     for l in r["limitations"]:
         print(f"  · {l}")
     print(c(r["storage"]["note"], "90"))
@@ -569,23 +552,22 @@ def cmd_stats(b, a):
     r = b.call("stats", period=a.period, profile=a.profile)
     if a.json:
         return r
-    print(bold(f"Estadísticas ({a.period})") + f" · sesiones {r['sessions']} · exposición directa "
-          f"{fmt_duration(r['direct_exposure_seconds'])}")
-    print(bold("Tiempo por tecnología: ") + ", ".join(f"{k} {fmt_duration(v)}" for k, v in r["time_by_technology"].items()))
-    for key, title in (("time_by_country", "País de salida"), ("time_by_tor_country", "País del exit de Tor")):
+    print(bold(_("Estadísticas ({period})", period=a.period)) + _(" · sesiones {sessions} · exposición directa {duration}", sessions=r['sessions'], duration=fmt_duration(r['direct_exposure_seconds'])))
+    print(bold(_("Tiempo por tecnología: ")) + ", ".join(f"{k} {fmt_duration(v)}" for k, v in r["time_by_technology"].items()))
+    for key, title in (("time_by_country", _("País de salida")), ("time_by_tor_country", _("País del exit de Tor"))):
         if r[key]:
             print(bold(title))
             for x in r[key][:10]:
                 print(f"  {x['label']:30} {fmt_duration(x['seconds'])}")
     rot = r["rotations"]
-    print(bold("Rotaciones: ") + f"{rot['total']} ({rot['ok']} ok, {rot['failed']} fallidas), {rot['per_hour']}/h")
-    print(bold("Fallos de conexión: ") + str(r["connection_failures"]))
+    print(bold(_("Rotaciones: ")) + f"{rot['total']} ({rot['ok']} ok, {rot['failed']} fallidas), {rot['per_hour']}/h")
+    print(bold(_("Fallos de conexión: ")) + str(r["connection_failures"]))
     for layer, items in r["reuse"].items():
         if items:
-            print(bold(f"Reutilización {layer}: ") + ", ".join(f"{i['label']}×{i['uses']}" for i in items[:8]))
+            print(bold(_("Reutilización {layer}: ", layer=layer)) + ", ".join(f"{i['label']}×{i['uses']}" for i in items[:8]))
     an = b.call("anomalies")
     if an:
-        print(bold("Anomalías"))
+        print(bold(_("Anomalías")))
         for x in an:
             print(f"  {c(x['severity'], SEV_COLOR.get(x['severity'], ''))} {x['detail']}")
     return None
@@ -615,7 +597,7 @@ def cmd_export(b, a):
 
 def cmd_killswitch(b, a):
     if a.action == "apply" and not a.yes:
-        print("Esto bloqueará toda la salida salvo túneles, Tor, LAN y loopback. Repite con --yes para confirmar.")
+        print(_("Esto bloqueará toda la salida salvo túneles, Tor, LAN y loopback. Repite con --yes para confirmar."))
         return None
     r = b.call("killswitch", action=a.action)
     if a.json or a.action != "preview":
@@ -630,9 +612,9 @@ def cmd_fix(b, a):
     if a.json:
         return plan
     if not plan:
-        print(c("Nada que corregir.", "32"))
+        print(c(_("Nada que corregir."), "32"))
         return None
-    print(c("Comandos para revisar y ejecutar TÚ. VELA no ejecuta ninguno.", "90"))
+    print(c(_("Comandos para revisar y ejecutar TÚ. VELA no ejecuta ninguno."), "90"))
     for i, fx in enumerate(plan, 1):
         sev = fx.get("severity", "info")
         print(f"\n{bold(str(i) + '. ' + fx['title'])}  {c(sev.upper(), SEV_COLOR.get(sev, ''))}"
@@ -640,7 +622,7 @@ def cmd_fix(b, a):
         if fx.get("why"):
             print(c(f"   {fx['why']}", "90"))
         for s in fx["steps"]:
-            flags = (" [root]" if s["root"] else "") + (c(" [corta la conexión]", "33") if s["disruptive"] else "")
+            flags = (_(" [root]") if s["root"] else "") + (c(_(" [corta la conexión]"), "33") if s["disruptive"] else "")
             print(f"   • {s['desc']}{flags}")
             if s.get("cmd"):
                 print(f"       {c('$', '90')} {c(s['cmd'], '36')}")
@@ -657,29 +639,27 @@ def cmd_intel(b, a):
             return r
         for p, st in r["providers"].items():
             print(f"  {p:11} {c(st, '32' if not st.startswith('falta') else '33')}")
-        print(c(f"\nClaves: variables de entorno (VT_API_KEY, SHODAN_API_KEY, GREYNOISE_API_KEY, CENSYS_API_TOKEN o "
-                f"CENSYS_API_ID/CENSYS_API_SECRET) o {r['secrets_file']} (0600).\n"
-                f"Guardar una: vela intel set-key virustotal", "90"))
-        print("consentimiento threat_intel_lookups: " + (c("activado", "32") if r["consent"] else c("desactivado", "33")))
+        print(c(_("\nClaves: variables de entorno (VT_API_KEY, SHODAN_API_KEY, GREYNOISE_API_KEY, CENSYS_API_TOKEN o CENSYS_API_ID/CENSYS_API_SECRET) o {secrets_file} (0600).\nGuardar una: vela intel set-key virustotal", secrets_file=r['secrets_file']), "90"))
+        print(_("consentimiento threat_intel_lookups: ") + (c("activado", "32") if r["consent"] else c("desactivado", "33")))
         return None
     if a.action == "set-key":
         import getpass
         if not a.targets:
-            print("uso: vela intel set-key <virustotal|shodan|greynoise|censys_token|censys_id|censys_secret|censys_org>")
+            print(_("uso: vela intel set-key <virustotal|shodan|greynoise|censys_token|censys_id|censys_secret|censys_org>"))
             return None
-        value = getpass.getpass(f"Valor para {a.targets[0]} (no se muestra): ").strip()
+        value = getpass.getpass(_("Valor para {v1} (no se muestra): ", v1=a.targets[0])).strip()
         if not value:
-            print("vacío: no se guarda nada")
+            print(_("vacío: no se guarda nada"))
             return None
-        print(f"guardada en {intel.save_key(a.targets[0], value)} (permisos 0600)")
+        print(_("guardada en {v1} (permisos 0600)", v1=intel.save_key(a.targets[0], value)))
         return None
     if a.action == "targets":
         r = b.call("intel_targets", since=since_arg(a.since), include_own=a.include_own)
         if a.json:
             return r
         table([[ip, ", ".join(v["roles"]), iso(v["first"]), iso(v["last"])] for ip, v in sorted(r["targets"].items())],
-              ["IP", "papel", "primera vez", "última vez"])
-        print(c(f"\n{len(r['targets'])} IPs · excluidas por ser tuyas: {', '.join(r['excluded']) or 'ninguna'}", "90"))
+              ["IP", "papel", _("primera vez"), _("última vez")])
+        print(c(_("\n{n} IPs · excluidas por ser tuyas: {v3}", n=len(r['targets']), v3=', '.join(r['excluded']) or 'ninguna'), "90"))
         return None
     if a.action == "show":
         rows = b.call("intel_results", ip=a.targets[0] if a.targets else None)
@@ -690,14 +670,14 @@ def cmd_intel(b, a):
     # scan: se ejecuta en este proceso para mostrar el progreso (comparte la base de datos con el daemon)
     cfg = cm.load()
     if not cfg["consent"].get("threat_intel_lookups"):
-        print(c("Desactivado: añade a [consent] threat_intel_lookups = true (vela config edit).\n"
-                "Ten en cuenta que cada servicio sabrá qué IPs consultas y desde qué IP.", "33"))
+        print(c(_("Desactivado: añade a [consent] threat_intel_lookups = true (vela config edit).\n"
+                "Ten en cuenta que cada servicio sabrá qué IPs consultas y desde qué IP."), "33"))
         return None
     st_net = b.call("status")["net"]
     if not cfg["intel"].get("via_tor") and not st_net["via_tunnel"].get("ipv4") and not cfg["intel"].get("allow_direct") \
             and not a.allow_direct:
-        print(c("Sin VPN: las consultas saldrían desde tu IP real y la vincularían a estas IPs.\n"
-                "Conecta la VPN, usa [intel] via_tor = true, o fuerza con --allow-direct.", "33"))
+        print(c(_("Sin VPN: las consultas saldrían desde tu IP real y la vincularían a estas IPs.\n"
+                "Conecta la VPN, usa [intel] via_tor = true, o fuerza con --allow-direct."), "33"))
         return None
     ips = list(a.targets)
     if a.file:
@@ -711,11 +691,11 @@ def cmd_intel(b, a):
     providers = a.providers.split(",") if a.providers else cfg["intel"]["providers"]
     st = intel.configured()
     print(bold(f"Escaneando {len(lst)} IPs") + " con " + ", ".join(f"{p} ({st[p]})" for p in providers)
-          + (c(" · vía Tor", "35") if cfg["intel"].get("via_tor") else ""))
+          + (c(_(" · vía Tor"), "35") if cfg["intel"].get("via_tor") else ""))
     if skipped:
-        print(c(f"Excluidas (tuyas o en intel.exclude): {', '.join(skipped)} — usa --include-own para incluirlas", "90"))
+        print(c(_("Excluidas (tuyas o en intel.exclude): {v1} — usa --include-own para incluirlas", v1=', '.join(skipped)), "90"))
     if "virustotal" in providers and not st["virustotal"].startswith("falta"):
-        print(c(f"VirusTotal gratuito: 4 consultas/min → ~{len(lst) * 15 // 60} min (las cacheadas no cuentan)", "90"))
+        print(c(_("VirusTotal gratuito: 4 consultas/min → ~{v1} min (las cacheadas no cuentan)", v1=len(lst) * 15 // 60), "90"))
     from .store import Store
     store = Store(cfg["storage"]["path"] or None, memory=cfg["storage"]["mode"] == "memory")
 
@@ -750,18 +730,17 @@ def _print_intel(rows):
                 print(c(f"    {p:10} {x['status']}", "90"))
                 continue
             if p == "greynoise":
-                d = f"clasificación {s.get('classification') or '-'}, ruido {s.get('noise')}, RIOT {s.get('riot')} {s.get('name') or ''}"
+                d = _("clasificación {v1}, ruido {v3}, RIOT {v5} {v7}", v1=s.get('classification') or '-', v3=s.get('noise'), v5=s.get('riot'), v7=s.get('name') or '')
             elif p == "virustotal":
-                d = (f"{s.get('malicious')} motores maliciosos, {s.get('suspicious')} sospechosos, reputación "
-                     f"{s.get('reputation')} · {s.get('as_owner') or ''} {s.get('country') or ''} {' '.join(s.get('tags') or [])}")
+                d = (_("{v0} motores maliciosos, {v2} sospechosos, reputación {v4} · {v6} {v8} {v10}", v0=s.get('malicious'), v2=s.get('suspicious'), v4=s.get('reputation'), v6=s.get('as_owner') or '', v8=s.get('country') or '', v10=' '.join(s.get('tags') or [])))
             elif p == "shodan":
                 d = (f"puertos {s.get('ports') or s.get('message') or '-'} · {s.get('org') or ''} "
                      + (c(f"CVEs: {', '.join(s['vulns'][:6])}", "31") if s.get("vulns") else "") + " " + " ".join(s.get("tags") or []))
             else:
                 d = f"servicios {s.get('services') or '-'} · {s.get('as_name') or ''} {' '.join(s.get('labels') or [])}"
             print(f"    {p:10} {x['verdict'] or '-':10} {d}")
-    print(c("\nNota: los exits de Tor y servidores VPN suelen figurar como maliciosos/scanners por el abuso de otros "
-            "usuarios; no implica nada de tu tráfico, pero esa salida está en listas de bloqueo.", "90"))
+    print(c(_("\nNota: los exits de Tor y servidores VPN suelen figurar como maliciosos/scanners por el abuso de otros "
+            "usuarios; no implica nada de tu tráfico, pero esa salida está en listas de bloqueo."), "90"))
 
 
 def cmd_panic(b, a):
@@ -774,7 +753,7 @@ def cmd_resume(b, a):
 
 def cmd_purge(b, a):
     if not a.yes:
-        print(f"Esto borrará el histórico anterior a {a.days} días. Repite con --yes para confirmar.")
+        print(_("Esto borrará el histórico anterior a {days} días. Repite con --yes para confirmar.", days=a.days))
         return None
     return b.call("purge", days=a.days)
 
@@ -786,10 +765,10 @@ def cmd_config(b, a):
         print(path)
     elif a.action == "show":
         r = b.call("config_get")
-        print(r["text"] or c(f"# {path} no existe: se usan los valores por defecto", "90"))
+        print(r["text"] or c(_("# {path} no existe: se usan los valores por defecto", path=path), "90"))
     elif a.action == "init":
         if path.exists() and not a.force:
-            print(f"{path} ya existe (usa --force)")
+            print(_("{path} ya existe (usa --force)", path=path))
             return None
         cm.save_text(EXAMPLE_CONFIG, path)
         print(f"creado {path}")
@@ -820,11 +799,11 @@ def cmd_daemon(b, a):
     if a.action in ("enable", "disable"):
         from . import autostart
         r = autostart.enable() if a.action == "enable" else autostart.disable()
-        print(("arranque con la sesión activado" if a.action == "enable" else "arranque con la sesión desactivado")
+        print((_("arranque con la sesión activado") if a.action == "enable" else _("arranque con la sesión desactivado"))
               if r["ok"] else f"systemd: {r['error']}")
         return None
     from .ipc import ping
-    print("velad: " + (c("en marcha", "32") if ping() else c("detenido", "90")))
+    print(_("velad: ") + (c(_("en marcha"), "32") if ping() else c(_("detenido"), "90")))
 
 
 def cmd_tui(b, a):
@@ -836,11 +815,10 @@ def cmd_app(b, a):
     try:
         from .native import app as native
     except (ImportError, ValueError) as e:
-        print(c(f"GUI nativa no disponible ({e}). Necesita GTK 4 y libadwaita: "
-                "sudo apt install gir1.2-adw-1 python3-gi. Alternativa: vela gui", "31"))
+        print(c(_("GUI nativa no disponible ({e}). Necesita GTK 4 y libadwaita: sudo apt install gir1.2-adw-1 python3-gi. Alternativa: vela gui", e=e), "31"))
         return None
     if a.install:
-        print(f"lanzador instalado en {native.install_desktop()} (búscalo como «VELA»)")
+        print(_("lanzador instalado en {v1} (búscalo como «VELA»)", v1=native.install_desktop()))
         return None
     native.run(b)
     return None
@@ -849,16 +827,16 @@ def cmd_app(b, a):
 def cmd_tray(b, a):
     from . import autostart
     if a.install:
-        print(f"icono de bandeja al iniciar sesión: {autostart.tray_enable()}")
+        print(_("icono de bandeja al iniciar sesión: {v1}", v1=autostart.tray_enable()))
         return None
     if a.remove:
         autostart.tray_disable()
-        print("icono de bandeja desactivado")
+        print(_("icono de bandeja desactivado"))
         return None
     try:
         from . import tray
     except (ImportError, ValueError) as e:
-        print(c(f"bandeja no disponible ({e}). Necesita gir1.2-ayatanaappindicator3-0.1 y la extensión AppIndicator.", "31"))
+        print(c(_("bandeja no disponible ({e}). Necesita gir1.2-ayatanaappindicator3-0.1 y la extensión AppIndicator.", e=e), "31"))
         return None
     sys.exit(tray.run())
 
@@ -871,10 +849,10 @@ def cmd_map(b, a):
         if a.json:
             return st
         if not st["installed"]:
-            print(f"Mapa OSM: no instalado ({st.get('error') or 'usa: vela map build'}). La app usa el contorno básico.")
+            print(_("Mapa OSM: no instalado ({v1}). La app usa el contorno básico.", v1=st.get('error') or 'usa: vela map build'))
             return None
         pts = ", ".join(f"z{k}: {v}" for k, v in (st.get("points") or {}).items())
-        print(f"Mapa OSM en uso ({st['source']}): {st['path']} ({st['bytes'] / 1e6:.1f} MB · {st['places']} lugares · puntos {pts})")
+        print(_("Mapa OSM en uso ({source}): {path} ({v5:.1f} MB · {places} lugares · puntos {pts})", source=st['source'], path=st['path'], v5=st['bytes'] / 1e6, places=st['places'], pts=pts))
         print(f"Generado {iso(st['created'])} · {st['attribution']} (ODbL)")
         return None
     from . import discovery
@@ -893,15 +871,15 @@ def cmd_map(b, a):
     if a.json or a.progress:
         print("result " + json.dumps(res, ensure_ascii=False) if a.progress else json.dumps(res, ensure_ascii=False))
         return None
-    print(c(f"Mapa generado: {res['path']} ({res['bytes'] / 1e6:.1f} MB, {res['places']} lugares, {res['seconds']} s)", "32"))
+    print(c(_("Mapa generado: {path} ({v3:.1f} MB, {places} lugares, {seconds} s)", path=res['path'], v3=res['bytes'] / 1e6, places=res['places'], seconds=res['seconds']), "32"))
     if res.get("downloaded"):
-        print(f"Descargado por {res['route']}: {', '.join(res['downloaded'])}")
+        print(_("Descargado por {route}: {v3}", route=res['route'], v3=', '.join(res['downloaded'])))
     else:
-        print("Sin descargas: datos reutilizados de la caché (~/.cache/vela/map). Para datos nuevos de OSM: "
-              "vela map build --refresh")
+        print(_("Sin descargas: datos reutilizados de la caché (~/.cache/vela/map). Para datos nuevos de OSM: "
+              "vela map build --refresh"))
     if res.get("places_error"):
-        print(c(f"Sin nombres de lugares: {res['places_error']}", "33"))
-    print("Reabre la app para verlo. Datos © OpenStreetMap contributors (ODbL).")
+        print(c(_("Sin nombres de lugares: {places_error}", places_error=res['places_error']), "33"))
+    print(_("Reabre la app para verlo. Datos © OpenStreetMap contributors (ODbL)."))
     return None
 
 
@@ -934,123 +912,136 @@ use_tor = false
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="vela", description=f"VELA — Vigilant Egress & Leak Analyst. {TAGLINE}")
+    p = argparse.ArgumentParser(prog="vela", description=_("VELA — Vigilant Egress & Leak Analyst. {TAGLINE}", TAGLINE=_(TAGLINE)))
     p.add_argument("--version", action="version", version=f"vela {__version__}")
-    p.add_argument("--json", action="store_true", help="salida JSON")
-    p.add_argument("--local", action="store_true", help="no usar el daemon aunque esté en marcha")
+    p.add_argument("--json", action="store_true", help=_("salida JSON"))
+    p.add_argument("--lang", choices=["es", "en", "ca", "pt", "fr", "de"],
+                   help=_("idioma de la interfaz (por defecto el del sistema o el elegido en Ajustes)"))
+    p.add_argument("--local", action="store_true", help=_("no usar el daemon aunque esté en marcha"))
     sub = p.add_subparsers(dest="cmd")
 
     def add(name, fn, help_):
         sp = sub.add_parser(name, help=help_)
         sp.set_defaults(fn=fn)
-        sp.add_argument("--json", dest="json_sub", action="store_true", help="salida JSON")
+        sp.add_argument("--json", dest="json_sub", action="store_true", help=_("salida JSON"))
         return sp
 
-    add("status", cmd_status, "estado actual")
-    sp = add("discover", cmd_discover, "descubrir capacidades del sistema")
+    add("status", cmd_status, _("estado actual"))
+    sp = add("discover", cmd_discover, _("descubrir capacidades del sistema"))
     sp.add_argument("--write-config", metavar="RUTA")
     sp.add_argument("--force", action="store_true")
-    add("network", cmd_network, "interfaces, direcciones y rutas")
-    sp = add("map", cmd_map, "mapa base propio de OpenStreetMap: estado o generarlo (descarga única por Tor/VPN)")
+    add("network", cmd_network, _("interfaces, direcciones y rutas"))
+    sp = add("map", cmd_map, _("mapa base propio de OpenStreetMap: estado o generarlo (descarga única por Tor/VPN)"))
     sp.add_argument("action", nargs="?", default="status", choices=["status", "build"])
     sp.add_argument("--via", default="auto", choices=["auto", "tor", "vpn", "direct"],
-                    help="por dónde descargar (auto: Tor si hay, si no la VPN; nunca directo salvo que lo pidas)")
-    sp.add_argument("--file", metavar="ZIP", help="usar un simplified-land-polygons-complete-3857.zip ya descargado")
-    sp.add_argument("--no-places", action="store_true", help="sin nombres de países y ciudades (no consulta Overpass)")
-    sp.add_argument("--refresh", action="store_true", help="volver a descargar los datos de OSM en vez de usar la caché")
+                    help=_("por dónde descargar (auto: Tor si hay, si no la VPN; nunca directo salvo que lo pidas)"))
+    sp.add_argument("--file", metavar="ZIP", help=_("usar un simplified-land-polygons-complete-3857.zip ya descargado"))
+    sp.add_argument("--no-places", action="store_true", help=_("sin nombres de países y ciudades (no consulta Overpass)"))
+    sp.add_argument("--refresh", action="store_true", help=_("volver a descargar los datos de OSM en vez de usar la caché"))
     sp.add_argument("--progress", action="store_true", help=argparse.SUPPRESS)
-    add("routes", cmd_routes, "cómo viaja tu tráfico: programa → directo/proxy/Tor → VPN → lo que ve el destino")
-    sp = add("leakwatch", cmd_leakwatch, "IP pública y fugas de IP en tiempo real (conexiones fuera del túnel)")
-    sp.add_argument("--once", action="store_true", help="una sola pasada")
-    sp.add_argument("--all", action="store_true", help="mostrar también las conexiones protegidas")
+    add("routes", cmd_routes, _("cómo viaja tu tráfico: programa → directo/proxy/Tor → VPN → lo que ve el destino"))
+    sp = add("leakwatch", cmd_leakwatch, _("IP pública y fugas de IP en tiempo real (conexiones fuera del túnel)"))
+    sp.add_argument("--once", action="store_true", help=_("una sola pasada"))
+    sp.add_argument("--all", action="store_true", help=_("mostrar también las conexiones protegidas"))
     sp.add_argument("--interval", type=float, default=2.0)
-    sp = add("networks", cmd_networks, "todas tus redes: WiFi, LAN, VPN, Docker, VMs, vecinos y tráfico")
-    sp.add_argument("--neighbors", "-n", action="store_true", help="listar los dispositivos vistos en cada red")
-    sp.add_argument("--all", action="store_true", help="incluir interfaces veth de contenedores")
-    sp = add("vpn", cmd_vpn, "VPN detectadas")
+    sp = add("networks", cmd_networks, _("todas tus redes: WiFi, LAN, VPN, Docker, VMs, vecinos y tráfico"))
+    sp.add_argument("--neighbors", "-n", action="store_true", help=_("listar los dispositivos vistos en cada red"))
+    sp.add_argument("--all", action="store_true", help=_("incluir interfaces veth de contenedores"))
+    sp = add("vpn", cmd_vpn, _("VPN detectadas"))
     sp.add_argument("action", nargs="?", default="list", choices=["list"])
-    sp = add("proxy", cmd_proxy, "proxies detectados")
+    sp = add("proxy", cmd_proxy, _("proxies detectados"))
     sp.add_argument("action", nargs="?", default="list", choices=["list"])
-    sp = add("tor", cmd_tor, "estado de Tor / nuevo circuito")
+    sp = add("tor", cmd_tor, _("estado de Tor / nuevo circuito"))
     sp.add_argument("action", nargs="?", default="status", choices=["status", "newnym"])
     sp.add_argument("--dry-run", action="store_true")
     sp.add_argument("--force", action="store_true")
-    sp = add("dns", cmd_dns, "DNS por enlace y fugas")
+    sp = add("dns", cmd_dns, _("DNS por enlace y fugas"))
     sp.add_argument("action", nargs="?", default="check", choices=["check"])
-    sp.add_argument("--active", action="store_true", help="test activo (requiere consentimiento)")
-    sp = add("ip", cmd_ip, "IP pública (con consentimiento) e IP WAN del router")
+    sp.add_argument("--active", action="store_true", help=_("test activo (requiere consentimiento)"))
+    sp = add("ip", cmd_ip, _("IP pública (con consentimiento) e IP WAN del router"))
     sp.add_argument("--route", choices=["default", "tor"])
-    sp = add("sessions", cmd_sessions, "sesiones de salida")
+    sp = add("sessions", cmd_sessions, _("sesiones de salida"))
     sp.add_argument("--limit", type=int, default=30)
     sp.add_argument("--since")
     sp.add_argument("--profile")
-    sp = add("counters", cmd_counters, "contadores de tiempo por IP/VPN/proxy/nodo/país…")
+    sp = add("counters", cmd_counters, _("contadores de tiempo por IP/VPN/proxy/nodo/país…"))
     sp.add_argument("--layer")
     sp.add_argument("--since")
     sp.add_argument("--profile")
-    sp = add("history", cmd_history, "OPSEC timeline")
+    sp = add("history", cmd_history, _("OPSEC timeline"))
     sp.add_argument("--since", default="24h")
     sp.add_argument("--limit", type=int, default=200)
     sp.add_argument("--severity")
-    add("watch", cmd_watch, "eventos en tiempo real (requiere daemon)")
-    sp = add("rotate", cmd_rotate, "rotar una capa (tor/proxy/vpn) o ver el estado")
+    add("watch", cmd_watch, _("eventos en tiempo real (requiere daemon)"))
+    sp = add("rotate", cmd_rotate, _("rotar una capa (tor/proxy/vpn) o ver el estado"))
     sp.add_argument("layer", nargs="?", choices=["tor", "proxy", "vpn"])
     sp.add_argument("--dry-run", action="store_true")
-    sp.add_argument("--force", action="store_true", help="ignorar el tiempo mínimo de uso")
-    sp = add("leaks", cmd_leaks, "pruebas de fugas")
+    sp.add_argument("--force", action="store_true", help=_("ignorar el tiempo mínimo de uso"))
+    sp = add("leaks", cmd_leaks, _("pruebas de fugas"))
     sp.add_argument("action", nargs="?", default="check", choices=["check"])
     sp.add_argument("--active", action="store_true")
-    sp = add("profiles", cmd_profiles, "perfiles OPSEC")
+    sp = add("profiles", cmd_profiles, _("perfiles OPSEC"))
     sp.add_argument("action", nargs="?", default="list", choices=["list", "activate", "correlation", "generate"])
     sp.add_argument("name", nargs="?")
-    sp.add_argument("--write", action="store_true", help="con generate: añadir al config.toml")
-    sp = add("audit", cmd_audit, "Privacy Audit")
+    sp.add_argument("--write", action="store_true", help=_("con generate: añadir al config.toml"))
+    sp = add("audit", cmd_audit, _("Privacy Audit"))
     sp.add_argument("--html", metavar="FICHERO")
-    add("doctor", cmd_doctor, "diagnóstico de la instalación")
-    sp = add("stats", cmd_stats, "estadísticas y anomalías")
+    add("doctor", cmd_doctor, _("diagnóstico de la instalación"))
+    sp = add("stats", cmd_stats, _("estadísticas y anomalías"))
     sp.add_argument("--period", default="week", choices=["day", "week", "month"])
     sp.add_argument("--profile")
-    sp = add("export", cmd_export, "exportar histórico")
+    sp = add("export", cmd_export, _("exportar histórico"))
     sp.add_argument("--format", default="json", choices=["json", "csv", "html"])
     sp.add_argument("--out", required=True)
     sp.add_argument("--since")
-    sp = add("killswitch", cmd_killswitch, "kill-switch nftables")
+    sp = add("killswitch", cmd_killswitch, _("kill-switch nftables"))
     sp.add_argument("action", nargs="?", default="status", choices=["status", "preview", "apply", "release"])
     sp.add_argument("--yes", action="store_true")
-    add("fix", cmd_fix, "comandos concretos para corregir lo detectado (no ejecuta nada)")
-    sp = add("intel", cmd_intel, "GreyNoise/VirusTotal/Shodan/Censys sobre las IPs de tu historial o un listado")
+    add("fix", cmd_fix, _("comandos concretos para corregir lo detectado (no ejecuta nada)"))
+    sp = add("intel", cmd_intel, _("GreyNoise/VirusTotal/Shodan/Censys sobre las IPs de tu historial o un listado"))
     sp.add_argument("action", nargs="?", default="show", choices=["scan", "show", "targets", "keys", "set-key"])
-    sp.add_argument("targets", nargs="*", help="IPs (scan/show) o nombre de clave (set-key)")
-    sp.add_argument("--file", help="fichero con un listado de IPs (cualquier formato; '-' = stdin)")
-    sp.add_argument("--history", action="store_true", help="incluir todas las IPs del historial y actuales")
-    sp.add_argument("--providers", help="lista separada por comas (greynoise,virustotal,shodan,censys)")
-    sp.add_argument("--include-own", action="store_true", help="incluir tus IPs propias (WAN/IP directa)")
-    sp.add_argument("--refresh", action="store_true", help="ignorar la caché")
-    sp.add_argument("--allow-direct", action="store_true", help="permitir consultar sin VPN (expone tu IP real)")
+    sp.add_argument("targets", nargs="*", help=_("IPs (scan/show) o nombre de clave (set-key)"))
+    sp.add_argument("--file", help=_("fichero con un listado de IPs (cualquier formato; '-' = stdin)"))
+    sp.add_argument("--history", action="store_true", help=_("incluir todas las IPs del historial y actuales"))
+    sp.add_argument("--providers", help=_("lista separada por comas (greynoise,virustotal,shodan,censys)"))
+    sp.add_argument("--include-own", action="store_true", help=_("incluir tus IPs propias (WAN/IP directa)"))
+    sp.add_argument("--refresh", action="store_true", help=_("ignorar la caché"))
+    sp.add_argument("--allow-direct", action="store_true", help=_("permitir consultar sin VPN (expone tu IP real)"))
     sp.add_argument("--since")
-    add("panic", cmd_panic, "modo de emergencia (no borra datos)")
-    add("resume", cmd_resume, "salir del modo de emergencia")
-    sp = add("purge", cmd_purge, "borrar histórico antiguo")
+    add("panic", cmd_panic, _("modo de emergencia (no borra datos)"))
+    add("resume", cmd_resume, _("salir del modo de emergencia"))
+    sp = add("purge", cmd_purge, _("borrar histórico antiguo"))
     sp.add_argument("--days", type=float, required=True)
     sp.add_argument("--yes", action="store_true")
-    sp = add("config", cmd_config, "configuración")
+    sp = add("config", cmd_config, _("configuración"))
     sp.add_argument("action", nargs="?", default="show", choices=["show", "path", "init", "edit"])
     sp.add_argument("--force", action="store_true")
-    sp = add("daemon", cmd_daemon, "gestionar velad")
+    sp = add("daemon", cmd_daemon, _("gestionar velad"))
     sp.add_argument("action", nargs="?", default="status", choices=["status", "start", "stop", "run", "enable", "disable"])
-    add("tui", cmd_tui, "interfaz de terminal")
-    sp = add("tray", cmd_tray, "icono en la bandeja del sistema con estado y controles")
-    sp.add_argument("--install", action="store_true", help="mostrarlo al iniciar sesión y arrancarlo ahora")
-    sp.add_argument("--remove", action="store_true", help="quitarlo del inicio de sesión y cerrarlo")
-    sp = add("app", cmd_app, "aplicación nativa de escritorio (GTK 4 + libadwaita)")
-    sp.add_argument("--install", action="store_true", help="instalar el lanzador en el menú de aplicaciones")
-    sp = add("gui", cmd_gui, "interfaz gráfica (web local)")
+    add("tui", cmd_tui, _("interfaz de terminal"))
+    sp = add("tray", cmd_tray, _("icono en la bandeja del sistema con estado y controles"))
+    sp.add_argument("--install", action="store_true", help=_("mostrarlo al iniciar sesión y arrancarlo ahora"))
+    sp.add_argument("--remove", action="store_true", help=_("quitarlo del inicio de sesión y cerrarlo"))
+    sp = add("app", cmd_app, _("aplicación nativa de escritorio (GTK 4 + libadwaita)"))
+    sp.add_argument("--install", action="store_true", help=_("instalar el lanzador en el menú de aplicaciones"))
+    sp = add("gui", cmd_gui, _("interfaz gráfica (web local)"))
     sp.add_argument("--no-browser", action="store_true")
     sp.add_argument("--port", type=int, default=0)
     return p
 
 
+def _early_lang(argv: list[str]) -> None:
+    """--lang se aplica antes de construir el parser (la ayuda ya sale traducida)."""
+    from . import i18n
+    for i, a in enumerate(argv):
+        code = a.split("=", 1)[1] if a.startswith("--lang=") else (argv[i + 1] if a == "--lang" and i + 1 < len(argv) else None)
+        if code in i18n.LANGS:
+            os.environ["VELA_LANG"] = code          # también para los procesos hijos (mapa, bandeja…)
+            i18n.set_language(code)
+
+
 def main(argv: list[str] | None = None) -> int:
+    _early_lang(sys.argv[1:] if argv is None else argv)
     parser = build_parser()
     a = parser.parse_args(argv)
     if not getattr(a, "fn", None):
@@ -1060,7 +1051,7 @@ def main(argv: list[str] | None = None) -> int:
     if not os.environ.get("VELA_NO_MIGRATE"):
         from . import migrate
         for msg in migrate.migrate():                 # una sola vez: datos del nombre anterior (opsectools)
-            print(c(f"migración a VELA: {msg}", "36"), file=sys.stderr)
+            print(c(_("migración a VELA: {msg}", msg=msg), "36"), file=sys.stderr)
     if a.cmd == "daemon":
         cmd_daemon(None, a)
         return 0

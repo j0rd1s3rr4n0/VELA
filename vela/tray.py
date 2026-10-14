@@ -11,6 +11,8 @@ muestra la extensión AppIndicator de Ubuntu/GNOME, KDE, XFCE…). Habla con `ve
 
 from __future__ import annotations
 
+from .i18n import _
+
 import os
 import subprocess
 import sys
@@ -55,20 +57,20 @@ def cc_flag(cc: str | None) -> str:
 
 
 EVENT_TEXT = {
-    "ip_leak": "Conexión fuera del túnel con tu IP real",
-    "dns_leak_live": "Consulta DNS fuera del túnel",
-    "public_ip_is_real": "Internet ve tu IP real con la VPN conectada",
-    "direct_exposure": "Sin VPN: hay conexiones con tu IP real",
-    "killswitch_change": "Cambió la protección del kill-switch",
-    "route_change": "La ruta de salida ha cambiado",
-    "tor_unavailable": "Tor ha dejado de estar disponible",
-    "gateway_mac_change": "Posible ARP spoofing: cambió la MAC del router",
-    "vm_isolation_broken": "Una red de VMs aislada tiene salida",
-    "rotation_failed": "Una rotación ha fallado",
-    "emergency": "Modo de emergencia activado",
-    "wifi_open": "Conectado a una WiFi abierta",
-    "tor_check_failed": "check.torproject.org dice que NO sales por Tor",
-    "killswitch_auto": "Kill-switch aplicado automáticamente por una fuga",
+    "ip_leak": _("Conexión fuera del túnel con tu IP real"),
+    "dns_leak_live": _("Consulta DNS fuera del túnel"),
+    "public_ip_is_real": _("Internet ve tu IP real con la VPN conectada"),
+    "direct_exposure": _("Sin VPN: hay conexiones con tu IP real"),
+    "killswitch_change": _("Cambió la protección del kill-switch"),
+    "route_change": _("La ruta de salida ha cambiado"),
+    "tor_unavailable": _("Tor ha dejado de estar disponible"),
+    "gateway_mac_change": _("Posible ARP spoofing: cambió la MAC del router"),
+    "vm_isolation_broken": _("Una red de VMs aislada tiene salida"),
+    "rotation_failed": _("Una rotación ha fallado"),
+    "emergency": _("Modo de emergencia activado"),
+    "wifi_open": _("Conectado a una WiFi abierta"),
+    "tor_check_failed": _("check.torproject.org dice que NO sales por Tor"),
+    "killswitch_auto": _("Kill-switch aplicado automáticamente por una fuga"),
 }
 
 
@@ -96,7 +98,7 @@ class Tray:
         it = Gtk.MenuItem(label=label)
         it.set_sensitive(sensitive and cb is not None)
         if cb:
-            it.connect("activate", lambda *_: cb())
+            it.connect("activate", lambda *_ign: cb())
         self.menu.append(it) if not hasattr(self, "_sub") or self._sub is None else self._sub.append(it)
         return it
 
@@ -106,33 +108,33 @@ class Tray:
         self._sub = None
         self.info = {k: self.info_item() for k in ("vpn", "ip", "exp", "conn", "ks", "dns")}
         self.menu.append(Gtk.SeparatorMenuItem())
-        self.item("Abrir VELA", lambda: spawn("app"))
-        self.item("Comprobar la IP pública ahora", self.check_ip)
-        self.item("Comprobar fugas ahora", self.check_leaks)
+        self.item(_("Abrir VELA"), lambda: spawn("app"))
+        self.item(_("Comprobar la IP pública ahora"), self.check_ip)
+        self.item(_("Comprobar fugas ahora"), self.check_leaks)
         self.menu.append(Gtk.SeparatorMenuItem())
         # perfiles
-        prof_item = Gtk.MenuItem(label="Perfil")
+        prof_item = Gtk.MenuItem(label=_("Perfil"))
         self.prof_menu = Gtk.Menu()
         prof_item.set_submenu(self.prof_menu)
         self.menu.append(prof_item)
         # tor
-        tor_item = Gtk.MenuItem(label="Tor")
+        tor_item = Gtk.MenuItem(label=_("Tor"))
         tor_menu = Gtk.Menu()
-        for label, dry in (("Nuevo circuito (simular)", True), ("Nuevo circuito (NEWNYM)", False)):
+        for label, dry in ((_("Nuevo circuito (simular)"), True), (_("Nuevo circuito (NEWNYM)"), False)):
             it = Gtk.MenuItem(label=label)
             it.connect("activate", lambda _i, d=dry: self.rotate_tor(d))
             tor_menu.append(it)
         tor_item.set_submenu(tor_menu)
         self.menu.append(tor_item)
         # ajustes rápidos
-        quick = Gtk.MenuItem(label="Ajustes rápidos")
+        quick = Gtk.MenuItem(label=_("Ajustes rápidos"))
         self.quick_menu = Gtk.Menu()
         self.quick = {}
         for key, label, invert, on_value in (
-                ("public_ip.require_tunnel", "Comprobar la IP pública siempre", True, None),
-                ("leakwatch.enabled", "Vigilante de fugas en tiempo real", False, None),
-                ("leakwatch.on_leak", "Kill-switch automático ante una fuga", False, "killswitch"),
-                ("consent.threat_intel_lookups", "Permitir threat intel", False, None)):
+                ("public_ip.require_tunnel", _("Comprobar la IP pública siempre"), True, None),
+                ("leakwatch.enabled", _("Vigilante de fugas en tiempo real"), False, None),
+                ("leakwatch.on_leak", _("Kill-switch automático ante una fuga"), False, "killswitch"),
+                ("consent.threat_intel_lookups", _("Permitir threat intel"), False, None)):
             ck = Gtk.CheckMenuItem(label=label)
             ck.connect("toggled", self.on_quick, key, invert, on_value)
             self.quick_menu.append(ck)
@@ -140,15 +142,15 @@ class Tray:
         quick.set_submenu(self.quick_menu)
         self.menu.append(quick)
         self.menu.append(Gtk.SeparatorMenuItem())
-        self.emerg = Gtk.MenuItem(label="Modo de emergencia")
-        self.emerg.connect("activate", lambda *_: self.toggle_emergency())
+        self.emerg = Gtk.MenuItem(label=_("Modo de emergencia"))
+        self.emerg.connect("activate", lambda *_ign: self.toggle_emergency())
         self.menu.append(self.emerg)
-        self.daemon_item = Gtk.MenuItem(label="Iniciar el daemon")
-        self.daemon_item.connect("activate", lambda *_: spawn("daemon", "start"))
+        self.daemon_item = Gtk.MenuItem(label=_("Iniciar el daemon"))
+        self.daemon_item.connect("activate", lambda *_ign: spawn("daemon", "start"))
         self.menu.append(self.daemon_item)
         self.menu.append(Gtk.SeparatorMenuItem())
-        q = Gtk.MenuItem(label="Cerrar el icono de la bandeja")
-        q.connect("activate", lambda *_: Gtk.main_quit())
+        q = Gtk.MenuItem(label=_("Cerrar el icono de la bandeja"))
+        q.connect("activate", lambda *_ign: Gtk.main_quit())
         self.menu.append(q)
         self.menu.show_all()
 
@@ -196,7 +198,7 @@ class Tray:
         self.daemon_item.set_visible(st is None)
         if not st:
             self.ind.set_icon_full(ICONS["off"], "daemon detenido")
-            self.info["vpn"].set_label("Daemon detenido: sin monitorización")
+            self.info["vpn"].set_label(_("Daemon detenido: sin monitorización"))
             for k in ("ip", "exp", "conn", "ks", "dns"):
                 self.info[k].set_label("—")
             return False
@@ -210,27 +212,27 @@ class Tray:
             state = "warn" if tunnel else "alert"
         else:
             state = "ok" if ex["level"] == "baja" else "warn"
-        desc = {"ok": "protegido", "warn": "exposición media", "alert": "alerta"}[state]
+        desc = {"ok": "protegido", "warn": _("exposición media"), "alert": "alerta"}[state]
         self.ind.set_icon_full(ICONS[state], f"VELA: {desc}")
         vpn = (obs.get("vpn") or {}).get("label")
         self.info["vpn"].set_label(f"{'🟢' if tunnel else '🔴'} VPN: {vpn if tunnel else 'desconectada'}")
         pub = (st.get("public") or {}).get("default") or {}
         if pub.get("ok"):
-            tag = "IP REAL" if pub.get("is_real_ip") or not pub.get("via_tunnel") else "IP de la VPN"
-            self.info["ip"].set_label(f"IP pública: {pub['ip']} ({(pub.get('geo') or {}).get('country') or '?'} · {tag})")
+            tag = _("IP REAL") if pub.get("is_real_ip") or not pub.get("via_tunnel") else _("IP de la VPN")
+            self.info["ip"].set_label(_("IP pública: {ip} ({v3} · {tag})", ip=pub['ip'], v3=(pub.get('geo') or {}).get('country') or '?', tag=tag))
         else:
-            self.info["ip"].set_label("IP pública: sin comprobar")
-        self.info["exp"].set_label(f"Exposición: {ex['score']}/100 ({ex['level']}) · perfil {st['profile']}")
+            self.info["ip"].set_label(_("IP pública: sin comprobar"))
+        self.info["exp"].set_label(_("Exposición: {score}/100 ({level}) · perfil {profile}", score=ex['score'], level=ex['level'], profile=st['profile']))
         self.info["conn"].set_label(f"Conexiones: {sm.get('fugas', 0)} fugas · {sm.get('directas', 0)} directas · "
                                     f"{sm.get('protegidas', 0)} protegidas")
         kx = (st.get("killswitch") or {}).get("external") or {}
         rp = kx.get("route_protection") or {}
-        self.info["ks"].set_label("Kill-switch: " + (f"si cae el túnel IPv4 {rp['ipv4']['state']}" if rp else "—"))
+        self.info["ks"].set_label("Kill-switch: " + (_("si cae el túnel IPv4 {state}", state=rp['ipv4']['state']) if rp else "—"))
         d = st.get("dns") or {}
         res = (d.get("encryption") or {}).get("resolvers") or [{}]
         self.info["dns"].set_label(f"DNS: {res[0].get('provider') or res[0].get('addr') or '—'} · "
-                                   f"{'cifrado' if d.get('encrypted') else 'en claro' if d.get('encrypted') is False else '?'}")
-        self.emerg.set_label("Salir del modo de emergencia" if st.get("emergency") else "Modo de emergencia…")
+                                   f"{_('cifrado') if d.get('encrypted') else _('en claro') if d.get('encrypted') is False else '?'}")
+        self.emerg.set_label(_("Salir del modo de emergencia") if st.get("emergency") else _("Modo de emergencia…"))
         self._updating = True
         vals = (self.settings or {}).get("values") or {}
         for key, (ck, invert, on_value) in self.quick.items():
@@ -254,48 +256,48 @@ class Tray:
         def done(rs):
             for r in rs:
                 if r.get("ok"):
-                    notify("IP pública", f"[{r['route']}] {r['ip']} ({(r.get('geo') or {}).get('country_name') or '?'})"
-                           + ("  ← ¡TU IP REAL!" if r.get("is_real_ip") and r.get("via_tunnel") else ""))
+                    notify(_("IP pública"), f"[{r['route']}] {r['ip']} ({(r.get('geo') or {}).get('country_name') or '?'})"
+                           + (_("  ← ¡TU IP REAL!") if r.get("is_real_ip") and r.get("via_tunnel") else ""))
                 else:
-                    notify("IP pública", f"[{r['route']}] {r.get('error')}")
+                    notify(_("IP pública"), f"[{r['route']}] {r.get('error')}")
             self.poll()
         self.bg(lambda: self.client.call("public_ip"), done)
 
     def check_leaks(self):
         def done(found):
             bad = [f for f in found if f["status"] == "fail"]
-            notify("Comprobación de fugas", "Sin fallos" if not bad else
+            notify(_("Comprobación de fugas"), _("Sin fallos") if not bad else
                    "\n".join(f"• {f['title']}" for f in bad[:6]), "critical" if bad else "normal")
         self.bg(lambda: self.client.call("leaks"), done)
 
     def rotate_tor(self, dry):
         def done(r):
-            notify("Tor", f"{'Simulación' if dry else 'NEWNYM'}: {r['result']}"
+            notify(_("Tor"), f"{_('Simulación') if dry else 'NEWNYM'}: {r['result']}"
                    + ("" if r["result"] in ("ok", "dry_run_ok") else
                       " — " + "; ".join(s["detail"] for s in r["steps"] if not s["ok"])))
         self.bg(lambda: self.client.call("rotate", layer="tor", dry_run=dry, force=True), done)
 
     def toggle_emergency(self):
         if (self.status or {}).get("emergency"):
-            self.bg(lambda: self.client.call("resume"), lambda r: (notify("VELA", "Emergencia desactivada"), self.poll()))
+            self.bg(lambda: self.client.call("resume"), lambda r: (notify("VELA", _("Emergencia desactivada")), self.poll()))
             return
         dlg = Gtk.MessageDialog(message_type=Gtk.MessageType.WARNING, buttons=Gtk.ButtonsType.OK_CANCEL,
-                                text="¿Activar el modo de emergencia?")
-        dlg.format_secondary_text("Detiene las rotaciones y, si está permitido, aplica el kill-switch. "
-                                  "No borra datos ni cambia la configuración.")
+                                text=_("¿Activar el modo de emergencia?"))
+        dlg.format_secondary_text(_("Detiene las rotaciones y, si está permitido, aplica el kill-switch. "
+                                  "No borra datos ni cambia la configuración."))
         ok = dlg.run() == Gtk.ResponseType.OK
         dlg.destroy()
         if ok:
             self.bg(lambda: self.client.call("panic"), lambda r: (notify(
-                "Modo de emergencia", "Activo · kill-switch " + ("aplicado" if r["killswitch"].get("ok") else
-                                                                  f"no aplicado ({r['killswitch'].get('error')})"),
+                _("Modo de emergencia"), "Activo · kill-switch " + ("aplicado" if r["killswitch"].get("ok") else
+                                                                  _("no aplicado ({v1})", v1=r['killswitch'].get('error'))),
                 "critical"), self.poll()))
 
     def on_profile(self, item, name):
         if self._updating or not item.get_active():
             return
         self.bg(lambda: self.client.call("profile_activate", name=name),
-                lambda r: (notify("Perfil", f"Activo: {name}"), self.poll()))
+                lambda r: (notify(_("Perfil"), f"Activo: {name}"), self.poll()))
 
     def on_quick(self, ck, key, invert, on_value):
         if self._updating:
@@ -338,7 +340,7 @@ class Tray:
 
 def run() -> int:
     if tray_running():
-        print("el icono de la bandeja ya está en marcha")
+        print(_("el icono de la bandeja ya está en marcha"))
         return 0
     private_dir(runtime_dir())
     pid_path().write_text(str(os.getpid()))

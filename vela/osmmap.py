@@ -18,6 +18,8 @@ dibujar solo lo visible. Coordenadas en Mercator normalizado [0, 1] cuantizado a
 
 from __future__ import annotations
 
+from .i18n import _
+
 import array
 import http.client
 import json
@@ -39,7 +41,7 @@ from .util import xdg_dir
 LAND_HOST = "osmdata.openstreetmap.de"
 LAND_PATH = "/download/simplified-land-polygons-complete-3857.zip"
 OVERPASS = [("overpass-api.de", "/api/interpreter"), ("overpass.private.coffee", "/api/interpreter")]
-ATTRIBUTION = "© OpenStreetMap contributors"
+ATTRIBUTION = "© OpenStreetMap contributors"     # texto oficial de la licencia ODbL: no se traduce
 USER_AGENT = "vela-command-center/1.0 (mapa base local; descarga única)"
 MAGIC = b"OPSECMAP1\n"
 R = 20037508.342789244          # semieje de Web Mercator (m)
@@ -115,7 +117,7 @@ def merc_to_norm(mx: float, my: float) -> tuple[float, float]:
 def lod_for_zoom(z: float) -> int:
     """Índice del nivel de detalle para un zoom efectivo (log2 del ancho del mundo en teselas de 256 px)."""
     best = 0
-    for i, (lz, _) in enumerate(LODS):
+    for i, (lz, _ign) in enumerate(LODS):
         if lz <= z + 0.6:
             best = i
     return best
@@ -126,7 +128,7 @@ def lod_for_zoom(z: float) -> int:
 def read_shp(data: bytes):
     """Genera las anillas (listas de (x, y) en metros) de cada polígono de un .shp."""
     if struct.unpack_from(">i", data, 0)[0] != 9994:
-        raise ValueError("no es un shapefile")
+        raise ValueError(_("no es un shapefile"))
     total = struct.unpack_from(">i", data, 24)[0] * 2
     off = 100
     while off + 8 <= min(total, len(data)):
@@ -270,7 +272,8 @@ def parse_places(doc: dict) -> list[dict]:
         except ValueError:
             pop = 0
         x, y = lonlat_to_norm(el["lon"], el["lat"])
-        out.append({"x": round(x, 7), "y": round(y, 7), "name": name, "kind": kind, "pop": pop,
+        names = {lang: t[f"name:{lang}"] for lang in ("es", "en", "ca", "pt", "fr", "de") if t.get(f"name:{lang}")}
+        out.append({"x": round(x, 7), "y": round(y, 7), "name": name, "names": names, "kind": kind, "pop": pop,
                     "cc": (t.get("ISO3166-1:alpha2") or t.get("country_code") or "").upper() or None})
     rank = {"country": 0, "capital": 1, "city": 2}
     out.sort(key=lambda p: (rank[p["kind"]], -p["pop"]))
@@ -319,7 +322,7 @@ def build_basemap(shp: bytes, places: list[dict] | None, out: Path, progress=lam
                   source: str = LAND_HOST + LAND_PATH) -> dict:
     """Convierte los polígonos de tierra (shapefile EPSG:3857) en el mapa base de la app."""
     t0 = time.time()
-    progress(0.02, "leyendo polígonos de tierra")
+    progress(0.02, _("leyendo polígonos de tierra"))
     rings = []
     npts = 0
     for poly in read_shp(shp):
@@ -346,7 +349,7 @@ def build_basemap(shp: bytes, places: list[dict] | None, out: Path, progress=lam
                 nxt.append(([xs[i] for i in idx], [ys[i] for i in idx]))
         cur = nxt
         levels.append((z, grid, cur))
-        progress(0.10 + 0.45 * (li + 1) / len(LODS), f"zoom {z}: {sum(len(x) for x, _ in cur)} puntos")
+        progress(0.10 + 0.45 * (li + 1) / len(LODS), f"zoom {z}: {sum(len(x) for x, _ign in cur)} puntos")
     total_pts = {}
     for li, (z, grid, rs) in enumerate(sorted(levels)):
         tiles: dict = {}
@@ -375,7 +378,7 @@ def build_basemap(shp: bytes, places: list[dict] | None, out: Path, progress=lam
         for b in blobs:
             f.write(b)
     tmp.replace(out)
-    progress(1.0, f"listo en {time.time() - t0:.0f} s")
+    progress(1.0, _("listo en {v1:.0f} s", v1=time.time() - t0))
     return {"path": str(out), "bytes": out.stat().st_size, "points": total_pts, "places": len(places or []),
             "seconds": round(time.time() - t0, 1)}
 
@@ -388,7 +391,7 @@ class Basemap:
     def __init__(self, path: Path):
         raw = Path(path).read_bytes()
         if not raw.startswith(MAGIC):
-            raise ValueError("formato de mapa desconocido")
+            raise ValueError(_("formato de mapa desconocido"))
         n = struct.unpack_from("<I", raw, len(MAGIC))[0]
         p = len(MAGIC) + 4
         self.head = json.loads(raw[p:p + n])
@@ -500,7 +503,7 @@ def status() -> dict:
         return {"installed": False, "path": str(basemap_path())}
     bm = load(p)
     if not bm:
-        return {"installed": False, "path": str(p), "error": "fichero dañado"}
+        return {"installed": False, "path": str(p), "error": _("fichero dañado")}
     h = bm.head
     return {"installed": True, "path": str(p), "bundled": p == BUNDLED,
             "source": "incorporado en la app" if p == BUNDLED else "generado por ti (vela map build)",
@@ -520,12 +523,12 @@ def choose_route(via: str, env: dict) -> tuple[str, tuple[str, int] | None]:
     if via in ("auto", "tor") and socks:
         return "tor", ("127.0.0.1", socks[0])
     if via == "tor":
-        raise OSError("Tor no está disponible (no hay SocksPort)")
+        raise OSError(_("Tor no está disponible (no hay SocksPort)"))
     if via in ("auto", "vpn"):
         if tunnel:
             return "vpn", None
-        raise OSError("sin Tor ni VPN conectada: la descarga saldría con tu IP real. Usa --via direct si te da igual "
-                      "(solo se descarga un fichero público del mundo entero; no revela qué zonas miras)")
+        raise OSError(_("sin Tor ni VPN conectada: la descarga saldría con tu IP real. Usa --via direct si te da igual "
+                      "(solo se descarga un fichero público del mundo entero; no revela qué zonas miras)"))
     if via == "direct":
         return "direct", None
     raise ValueError(via)
@@ -574,7 +577,7 @@ def fetch(host: str, path: str, socks, dest: Path, *, method="GET", body: bytes 
                     progress(got / size if size else 0.0, f"{label} {got / 1e6:.1f}"
                              + (f" / {size / 1e6:.1f}" if size else "") + " MB")
         if size and got != size:
-            raise OSError(f"{host}: descarga incompleta ({got} de {size} bytes)")
+            raise OSError(_("{host}: descarga incompleta ({got} de {size} bytes)", host=host, got=got, size=size))
         tmp.replace(dest)
         return dest
     finally:
@@ -645,7 +648,7 @@ def download_and_build(via: str, env: dict, land_file: Path | None = None, place
     if land_file is None:
         land_file = cdir / "simplified-land-polygons-complete-3857.zip"
         if not land_file.exists():
-            fetch(LAND_HOST, LAND_PATH, socks, land_file, timeout=120, label="tierra (OSM)",
+            fetch(LAND_HOST, LAND_PATH, socks, land_file, timeout=120, label=_("tierra (OSM)"),
                   progress=lambda f, m: progress(0.02 + 0.45 * f, m))
             downloaded.append("costas")
     pl = None

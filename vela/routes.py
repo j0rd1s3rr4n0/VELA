@@ -12,6 +12,8 @@ por la VPN o por tu conexión), mientras que un proxy remoto o Tor sí.
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 
 LOOPBACK = {"127.0.0.1", "::1"}
@@ -60,7 +62,7 @@ def build(flows: list[dict], loop_socks: list[dict], loop_owners: dict, local_pr
             continue
         app = comm or "desconocido"
         if port in tor_ports:
-            mid = node(f"tor:{port}", 1, f"Tor (SOCKS :{port})", "tor")
+            mid = node(f"tor:{port}", 1, _("Tor (SOCKS :{port})", port=port), "tor")
         else:
             mid = node(f"proxy:{port}", 1, f"Proxy {proxy_ports[port].upper()} :{port}", "proxy")
         link(node(f"app:{app}", 0, app, "app"), mid, 1, nodes[mid]["kind"], f"{app} → 127.0.0.1:{port}")
@@ -71,26 +73,26 @@ def build(flows: list[dict], loop_socks: list[dict], loop_owners: dict, local_pr
     for f in flows:
         app = f["process"]
         tunnel = f.get("iface_kind") in ("wireguard", "tun", "ppp")
-        net_id = node(f"net:{f.get('iface')}", 2, f"Túnel VPN {f.get('iface')}" if tunnel else
-                      f"Sin túnel ({f.get('iface') or '?'})", "vpn" if tunnel else "direct")
+        net_id = node(f"net:{f.get('iface')}", 2, _("Túnel VPN {v1}", v1=f.get('iface')) if tunnel else
+                      _("Sin túnel ({v1})", v1=f.get('iface') or '?'), "vpn" if tunnel else "direct")
         if f.get("pid") in pid_to_proxy:                       # tráfico del servidor proxy
             src = node(f"proxy:{pid_to_proxy[f['pid']]}", 1, f"Proxy {proxy_ports[pid_to_proxy[f['pid']]].upper()} "
                        f":{pid_to_proxy[f['pid']]}", "proxy")
         elif app in ("[debian-tor]", "[tor]", "[_tor]", "tor"):  # tráfico del daemon de Tor hacia sus guards
             port = sorted(tor_ports)[0] if tor_ports else 9050
-            src = node(f"tor:{port}", 1, f"Tor (SOCKS :{port})", "tor")
+            src = node(f"tor:{port}", 1, _("Tor (SOCKS :{port})", port=port), "tor")
         else:
-            src = node("direct", 1, "Directo (sin proxy)", "direct")
+            src = node("direct", 1, _("Directo (sin proxy)"), "direct")
             link(node(f"app:{app}", 0, app, "app"), src, 1, "direct", f"{app} → {f['remote']}:{f['rport']}")
         link(src, net_id, 1, "vpn" if tunnel else "direct", f"{f['remote']}:{f['rport']}")
         if nodes[src]["kind"] == "tor":
-            dest = node("dst:tor", 3, "Red Tor → los destinos ven un exit de Tor", "tor")
+            dest = node("dst:tor", 3, _("Red Tor → los destinos ven un exit de Tor"), "tor")
         elif tunnel:
             ip = pub.get("ip") if pub.get("via_tunnel") else None
-            dest = node("dst:vpn", 3, f"IP de la VPN{f' {ip}' if ip else ''}", "vpn")
+            dest = node("dst:vpn", 3, _("IP de la VPN{v1}", v1=f' {ip}' if ip else ''), "vpn")
         else:
             ip = pub.get("ip") if pub.get("ok") and not pub.get("via_tunnel") else None
-            dest = node("dst:real", 3, f"Tu IP real{f' {ip}' if ip else ''}", "direct")
+            dest = node("dst:real", 3, _("Tu IP real{v1}", v1=f' {ip}' if ip else ''), "direct")
         if nodes[src]["kind"] == "proxy" and not _is_loop(f["remote"]):
             vis.setdefault(src, set()).add(f["remote"])
         link(net_id, dest, 1, nodes[dest]["kind"], f"{app} → {f['remote']}")
@@ -113,32 +115,32 @@ def explain_routes(nodes, links, tunnels, pub, proxy_dests) -> list[str]:
         u = users(p["id"])
         o = outs(p["id"])
         nets = ", ".join(nodes[l["target"]]["label"] for l in o) or "—"
-        line = f"{p['label']}: lo usan {', '.join(u) or 'ningún programa ahora mismo'}. Su tráfico sale por {nets}"
+        line = _("{label}: lo usan {v2}. Su tráfico sale por {nets}", label=p['label'], v2=', '.join(u) or _('ningún programa ahora mismo'), nets=nets)
         if o and all(nodes[l["target"]]["kind"] == "vpn" for l in o):
-            line += " → los destinos ven la IP de la VPN: un proxy LOCAL no cambia tu IP de salida (sí puede ver y modificar el tráfico)."
+            line += _(" → los destinos ven la IP de la VPN: un proxy LOCAL no cambia tu IP de salida (sí puede ver y modificar el tráfico).")
         elif o:
-            line += " → sin túnel: los destinos ven tu IP real aunque uses el proxy."
+            line += _(" → sin túnel: los destinos ven tu IP real aunque uses el proxy.")
         dests = proxy_dests.get(p["id"]) or set()
         if len(dests) == 1:
-            line += f" Todo va a {next(iter(dests))}: parece un proxy encadenado a otro proxy remoto (el destino final verá la IP de ese proxy)."
+            line += _(" Todo va a {v1}: parece un proxy encadenado a otro proxy remoto (el destino final verá la IP de ese proxy).", v1=next(iter(dests)))
         out.append(line)
     for t in by_kind("tor"):
         u = users(t["id"])
         o = outs(t["id"])
         nets = ", ".join(nodes[l["target"]]["label"] for l in o)
-        out.append(f"{t['label']}: lo usan {', '.join(u) or 'ningún programa ahora mismo'}. "
-                   + (f"Tor conecta con sus guards por {nets}" + (" (Tor sobre VPN: tu ISP no ve que usas Tor)."
+        out.append(_("{label}: lo usan {v2}. ", label=t['label'], v2=', '.join(u) or _('ningún programa ahora mismo'))
+                   + (_("Tor conecta con sus guards por {nets}", nets=nets) + (_(" (Tor sobre VPN: tu ISP no ve que usas Tor).")
                        if o and all(nodes[l["target"]]["kind"] == "vpn" for l in o) else
-                       " (sin VPN: tu ISP ve que usas Tor, aunque no qué haces).") if o else "")
-                   + " Los destinos ven la IP de un exit de Tor.")
+                       _(" (sin VPN: tu ISP ve que usas Tor, aunque no qué haces).")) if o else "")
+                   + _(" Los destinos ven la IP de un exit de Tor."))
     d = nodes.get("direct")
     if d:
         u = users("direct")
         o = outs("direct")
         via_vpn = o and all(nodes[l["target"]]["kind"] == "vpn" for l in o)
-        out.append(f"Directo (sin proxy): {len(u)} programas ({', '.join(u[:6])}{'…' if len(u) > 6 else ''}) → "
-                   + ("por el túnel VPN: los destinos ven la IP de la VPN." if via_vpn else
-                      "sin túnel: los destinos ven tu IP real."))
+        out.append(_("Directo (sin proxy): {n} programas ({v3}{v4}) → ", n=len(u), v3=', '.join(u[:6]), v4='…' if len(u) > 6 else '')
+                   + (_("por el túnel VPN: los destinos ven la IP de la VPN.") if via_vpn else
+                      _("sin túnel: los destinos ven tu IP real.")))
     if not tunnels:
-        out.append("No hay VPN conectada: todo lo que no va por Tor (o por un proxy REMOTO) muestra tu IP real.")
+        out.append(_("No hay VPN conectada: todo lo que no va por Tor (o por un proxy REMOTO) muestra tu IP real."))
     return out

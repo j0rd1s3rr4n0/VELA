@@ -8,6 +8,8 @@ Distingue tres niveles de evidencia:
 
 from __future__ import annotations
 
+from .i18n import _
+
 import ipaddress
 import json
 import os
@@ -96,7 +98,7 @@ def snapshot() -> dict:
         "links": {},
         "global": {},
     }
-    code, out, _ = run(["resolvectl", "status", "--no-pager"])
+    code, out, _ign = run(["resolvectl", "status", "--no-pager"])
     if code == 0 and out.strip():
         snap["backend"] = "systemd-resolved"
         sections = parse_resolvectl_status(out)
@@ -156,7 +158,7 @@ def active_leak_test(base_url: str = "https://bash.ws", queries: int = 10, timeo
     try:
         test_id = _NO_PROXY.open(f"{base_url}/id", timeout=timeout).read().decode().strip()
         if not re.fullmatch(r"[0-9a-zA-Z]+", test_id):
-            raise ValueError("id no válido")
+            raise ValueError(_("id no válido"))
         host = base_url.split("//", 1)[1].split("/")[0]
         for i in range(1, queries + 1):
             try:

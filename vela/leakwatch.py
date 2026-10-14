@@ -19,6 +19,8 @@ conexiones muy breves. Para bloqueo garantizado hace falta un kill-switch (clien
 
 from __future__ import annotations
 
+from .i18n import _
+
 import glob
 import ipaddress
 import os
@@ -50,8 +52,8 @@ def parse_proc_net(text: str, proto: str) -> list[dict]:
         f = line.split()
         if len(f) < 10:
             continue
-        lh, _, lp = f[1].partition(":")
-        rh, _, rp = f[2].partition(":")
+        lh, _ign, lp = f[1].partition(":")
+        rh, _ign, rp = f[2].partition(":")
         try:
             local, remote = _addr(lh), _addr(rh)
             lport, rport = int(lp, 16), int(rp, 16)
@@ -232,9 +234,9 @@ class LeakWatcher(threading.Thread):
             self.engine.emit("ip_leak" if not f["dns"] else "dns_leak_live", "critical" if not f["dns"] else "high", {
                 "process": f["process"], "pid": f["pid"], "proto": f["proto"], "remote": f"{f['remote']}:{f['rport']}",
                 "local": f["local"], "iface": f["iface"],
-                "detail": "conexión fuera del túnel con tu IP real mientras la VPN está activa"})
+                "detail": _("conexión fuera del túnel con tu IP real mientras la VPN está activa")})
         if leaks and cfg.get("on_leak") == "killswitch" and not self.engine.ks.state.get("active"):
-            res = self.engine.ks.engage(reason="fuga detectada en tiempo real")
+            res = self.engine.ks.engage(reason=_("fuga detectada en tiempo real"))
             self.engine.emit("killswitch_auto", "critical", {"result": res, "leaks": len(leaks)})
         # Exposición directa con un perfil que exige VPN: un aviso por transición
         exposed = (not st["tunnel_up"]) and st["summary"].get("directas", 0) > 0
@@ -243,7 +245,7 @@ class LeakWatcher(threading.Thread):
                 procs = sorted({f["process"] for f in st["flows"] if f["verdict"] == "directa"})[:12]
                 self.engine.emit("direct_exposure", "high", {
                     "flows": st["summary"]["directas"], "processes": procs,
-                    "detail": "sin túnel: estas conexiones muestran tu IP real y el perfil exige VPN"})
+                    "detail": _("sin túnel: estas conexiones muestran tu IP real y el perfil exige VPN")})
             self._was_exposed = exposed
         for k in [k for k, v in self._seen.items() if t - v > self.cooldown * 3]:
             del self._seen[k]

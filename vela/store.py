@@ -15,6 +15,8 @@ Modelo:
 
 from __future__ import annotations
 
+from .i18n import _
+
 import json
 import os
 import sqlite3

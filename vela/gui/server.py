@@ -10,6 +10,8 @@ Seguridad:
 
 from __future__ import annotations
 
+from ..i18n import _
+
 import hmac
 import json
 import mimetypes
@@ -73,15 +75,20 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if not self._host_ok():
-            return self._json(403, {"error": "host/origen no permitido"})
+            return self._json(403, {"error": _("host/origen no permitido")})
         path = urlsplit(self.path).path
         if path == "/":
             path = "/index.html"
         if path.startswith("/api/"):
-            return self._json(405, {"error": "usa POST"})
+            return self._json(405, {"error": _("usa POST")})
+        if path == "/i18n.json":                      # catálogo del idioma activo (no es información sensible)
+            from .. import i18n
+            lang = i18n.language()
+            return self._json(200, {"lang": lang, "locale": i18n.LOCALES.get(lang, "es-ES"),
+                                    "catalog": i18n.catalog(lang)})
         f = (STATIC / path.lstrip("/")).resolve()
         if STATIC.resolve() not in f.parents or not f.is_file():
-            return self._json(404, {"error": "no encontrado"})
+            return self._json(404, {"error": _("no encontrado")})
         data = f.read_bytes()
         ctype = mimetypes.guess_type(f.name)[0] or "application/octet-stream"
         if ctype.startswith("text/") or ctype in ("application/javascript",):
@@ -91,17 +98,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         if not self._host_ok():
-            return self._json(403, {"error": "host/origen no permitido"})
+            return self._json(403, {"error": _("host/origen no permitido")})
         if not self._auth():
-            return self._json(401, {"error": "token no válido"})
+            return self._json(401, {"error": _("token no válido")})
         path = urlsplit(self.path).path
         length = int(self.headers.get("Content-Length") or 0)
         if length > 2_000_000:
-            return self._json(413, {"error": "petición demasiado grande"})
+            return self._json(413, {"error": _("petición demasiado grande")})
         try:
             params = json.loads(self.rfile.read(length) or b"{}")
         except ValueError:
-            return self._json(400, {"error": "JSON no válido"})
+            return self._json(400, {"error": _("JSON no válido")})
         if path == "/api/stream":
             return self._stream()
         if path == "/api/export_html":
@@ -113,7 +120,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.wfile.write(body)
         method = path.removeprefix("/api/")
         if method not in METHODS:
-            return self._json(404, {"error": f"método desconocido: {method}"})
+            return self._json(404, {"error": _("método desconocido: {method}", method=method)})
         try:
             with self.server.call_lock if method not in READ_ONLY else _nullctx():
                 result = self.server.backend.call(method, **(params or {}))
@@ -151,7 +158,7 @@ class GUIServer(ThreadingHTTPServer):
 
 def serve(backend, host: str = "127.0.0.1", port: int = 0, open_browser: bool = True):
     if host not in ("127.0.0.1", "::1", "localhost"):
-        raise ValueError("la GUI solo puede escuchar en loopback")
+        raise ValueError(_("la GUI solo puede escuchar en loopback"))
     srv = GUIServer((host, port), backend)
     url = f"http://127.0.0.1:{srv.server_address[1]}/#t={srv.token}"
     if not getattr(backend, "remote", False):
@@ -165,7 +172,7 @@ def serve(backend, host: str = "127.0.0.1", port: int = 0, open_browser: bool = 
                     pass
                 time.sleep(2)
         threading.Thread(target=ticker, daemon=True).start()
-    print(f"GUI en {url}\n(el token va en el fragmento #; no compartas esta URL) · Ctrl-C para salir", flush=True)
+    print(_("GUI en {url}\n(el token va en el fragmento #; no compartas esta URL) · Ctrl-C para salir", url=url), flush=True)
     if open_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

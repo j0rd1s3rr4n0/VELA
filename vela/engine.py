@@ -6,6 +6,8 @@ marcha. Es síncrona y thread-safe; el daemon la ejecuta en hilos y la expone po
 
 from __future__ import annotations
 
+from .i18n import _
+
 import os
 import threading
 import time
@@ -210,8 +212,8 @@ class Engine:
                     res["learned_real_ip"] = True
                 elif self.cfg["public_ip"].get("require_tunnel", True) and self.net is not None and not via:
                     res = {"route": "default", "ts": now(), "ok": False, "skipped": True,
-                           "error": "omitida: sin túnel, la consulta expondría tu IP real "
-                                    "(public_ip.require_tunnel = true)"}
+                           "error": _("omitida: sin túnel, la consulta expondría tu IP real "
+                                    "(public_ip.require_tunnel = true)")}
                 else:
                     res = self.pubip.check("default", force=force)
             if res.get("ok"):
@@ -224,7 +226,7 @@ class Engine:
                               {"route": r, "before": prev["ip"], "after": res["ip"],
                                "country": res["geo"].get("country")})
                 if r == "tor" and res.get("is_tor") is False:
-                    self.emit("tor_check_failed", "critical", {"detail": "check.torproject.org dice que NO sales por Tor"})
+                    self.emit("tor_check_failed", "critical", {"detail": _("check.torproject.org dice que NO sales por Tor")})
             if res.get("ok") or res.get("consent_required") or r not in self.public:
                 self.public[r] = res
             results.append(res)
@@ -240,15 +242,15 @@ class Engine:
         res["own_known"] = bool(own)
         if via and res["is_real_ip"]:
             res["leak"] = "IP real"
-            self.emit("public_ip_is_real", "critical", {"ip": res["ip"], "detail": "Con la VPN activa, Internet ve tu "
-                                                        "IP real: el tráfico no está saliendo por el túnel"})
+            self.emit("public_ip_is_real", "critical", {"ip": res["ip"], "detail": _("Con la VPN activa, Internet ve tu "
+                                                        "IP real: el tráfico no está saliendo por el túnel")})
         vpn = (self.obs or {}).get("vpn") or {}
         exp_cc = ((vpn.get("geo") or {}).get("source") == "nombre del servidor") and (vpn.get("geo") or {}).get("country")
         got_cc = (res.get("geo") or {}).get("country")
         if via and exp_cc and got_cc and exp_cc != got_cc:
             res["country_mismatch"] = {"expected": exp_cc, "observed": got_cc}
             self.emit("public_ip_country_mismatch", "warning", {"expected": exp_cc, "observed": got_cc, "ip": res["ip"],
-                                                                "note": "la GeoIP local puede estar desactualizada"})
+                                                                "note": _("la GeoIP local puede estar desactualizada")})
         if not via:
             # sin túnel la IP vista es la real: se recuerda para detectar fugas futuras
             sid = self.tracker.session_id
@@ -293,13 +295,13 @@ class Engine:
                   "iface": egress.get("dev"), **home}]
         if net.get("gateway"):
             chain.append({"type": "router", "label": net["gateway"], "ip": wan["ip"] if wan else None,
-                          "note": "IP WAN por UPnP" if wan else "IP WAN desconocida", **home})
+                          "note": _("IP WAN por UPnP") if wan else _("IP WAN desconocida"), **home})
         if vpn:
             chain.append({"type": "vpn", "label": vpn["label"], "ip": vpn.get("server"), **_geo(vpn.get("geo"))})
         if proxy:
             chain.append({"type": "proxy", "label": proxy["label"]})
-        why_not = (self.public.get("default") or {}).get("error") or "pendiente de la primera comprobación"
-        chain.append({"type": "internet", "label": pub["ip"] if pub else "IP pública no comprobada",
+        why_not = (self.public.get("default") or {}).get("error") or _("pendiente de la primera comprobación")
+        chain.append({"type": "internet", "label": pub["ip"] if pub else _("IP pública no comprobada"),
                       "note": None if pub else why_not,
                       "ip": pub["ip"] if pub else None, **_geo((pub or {}).get("geo"))})
         tor_chain = []
@@ -361,10 +363,10 @@ class Engine:
                 res = dns_mod.active_leak_test(self.cfg["dns"]["leak_test_url"])
                 found.append(leaks.check_active_dns(res, self.net))
             else:
-                found.append(leaks.finding("dns_leak_active", "Test activo de fugas DNS no ejecutado", "info",
-                                           "unknown", "activa", "—", None, "sin consentimiento",
-                                           "Requiere consent.active_dns_leak_test = true (el servicio verá tu IP).",
-                                           "—", "Actívalo si quieres confirmar la configuración observada."))
+                found.append(leaks.finding("dns_leak_active", _("Test activo de fugas DNS no ejecutado"), "info",
+                                           "unknown", "activa", "—", None, _("sin consentimiento"),
+                                           _("Requiere consent.active_dns_leak_test = true (el servicio verá tu IP)."),
+                                           "—", _("Actívalo si quieres confirmar la configuración observada.")))
         with self.lock:
             self.findings = found
             for f in found:
@@ -426,7 +428,7 @@ class Engine:
             self.timers["rediscover"] = now()
             self.discover()
         for layer in self.rot.due():
-            res = self.rotate(layer, reason="tiempo máximo alcanzado")
+            res = self.rotate(layer, reason=_("tiempo máximo alcanzado"))
             if res["result"] not in ("ok", "dry_run_ok"):
                 # evita reintentar cada segundo: reprograma según la política
                 st = self.rot.state[layer]
@@ -629,7 +631,7 @@ class Engine:
 
     def api_profile_activate(self, name: str) -> dict:
         if name not in self.cfg["profiles"]:
-            raise ValueError(f"perfil desconocido: {name}")
+            raise ValueError(_("perfil desconocido: {name}", name=name))
         with self.lock:
             old = self.cfg["active_profile"]
             self.cfg["active_profile"] = name
@@ -691,7 +693,7 @@ class Engine:
                        background: bool = False) -> dict:
         from . import intel
         if not self.cfg["consent"].get("threat_intel_lookups"):
-            raise PermissionError("activa consent.threat_intel_lookups = true: los servicios sabrán qué IPs consultas")
+            raise PermissionError(_("activa consent.threat_intel_lookups = true: los servicios sabrán qué IPs consultas"))
         self._intel_route_ok()
         tg = self.api_intel_targets(include_own=include_own) if (history or current) and not ips else {"targets": {}, "excluded": []}
         own = set() if include_own else intel.own_ips(self.store, self)
@@ -717,20 +719,20 @@ class Engine:
         self.ensure_fresh()
         if not self.cfg["intel"].get("via_tor") and not self.net["via_tunnel"].get("ipv4") \
                 and not self.cfg["intel"].get("allow_direct"):
-            raise PermissionError("sin VPN la consulta saldría desde tu IP real: conecta la VPN, activa «consultas por "
-                                  "Tor» o «permitir consultas sin VPN» en Ajustes")
+            raise PermissionError(_("sin VPN la consulta saldría desde tu IP real: conecta la VPN, activa «consultas por "
+                                  "Tor» o «permitir consultas sin VPN» en Ajustes"))
 
     def api_intel_test(self, provider: str) -> dict:
         """Prueba una clave con una IP neutra (8.8.8.8). Respeta la regla de VPN/Tor."""
         from . import intel
         if provider not in intel.QUERY:
-            raise ValueError(f"proveedor desconocido: {provider}")
+            raise ValueError(_("proveedor desconocido: {provider}", provider=provider))
         self._intel_route_ok()
         sc = intel.Scanner(self.store, self.cfg)
         res = sc.lookup("8.8.8.8", provider, refresh=True)
         ok = res["status"] == "ok"
         return {"ok": ok, "status": res["status"], "provider": provider,
-                "detail": "clave válida" if ok else res["status"]}
+                "detail": _("clave válida") if ok else res["status"]}
 
     def api_settings_get(self) -> dict:
         from . import autostart
@@ -759,6 +761,10 @@ class Engine:
                 config_mod.set_key(self.cfg, k, v)    # en el mismo dict: todos los módulos lo ven al momento
         self.store.audit(self.actor, "settings_set", clean)
         self.emit("settings_change", "info", {"changed": sorted(clean)})
+        if "ui.language" in clean:                    # los mensajes nuevos del daemon salen ya en ese idioma
+            from . import i18n
+            i18n.set_language(None if clean["ui.language"] == "auto" else clean["ui.language"])
+            self.mark_dirty("leaks", "rediscover", "dns", "networks", "network")    # recalcular ya los avisos en el idioma nuevo
         if "public_ip.require_tunnel" in clean or "consent.direct_ip_checks" in clean:
             self.mark_dirty("public")
         return {"saved": str(path), "changed": clean}
@@ -782,11 +788,11 @@ class Engine:
         """Consulta ExoneraTor (por Tor) para las IPs dadas o las de los resultados de threat intel."""
         from . import intel, torcheck
         if not self.cfg["consent"].get("threat_intel_lookups"):
-            raise PermissionError("activa el consentimiento de threat intel: ExoneraTor recibe la IP consultada")
+            raise PermissionError(_("activa el consentimiento de threat intel: ExoneraTor recibe la IP consultada"))
         self.ensure_fresh()
         socks = self._tor_socks()
         if not socks:
-            raise PermissionError("ExoneraTor solo se consulta a través de Tor y no hay SocksPort disponible")
+            raise PermissionError(_("ExoneraTor solo se consulta a través de Tor y no hay SocksPort disponible"))
         ips = [ip for ip in (ips or [r["ip"] for r in self._intel_scanner().results()]) if intel.is_scannable(ip)]
         todo = [ip for ip in ips if ip not in self._exonerator_cached(ips)]
 
@@ -869,8 +875,8 @@ class Engine:
                                             "country": h.get("country"), "lat": h.get("lat"), "lon": h.get("lon")}
                                            for h in c["path"]]} for c in (self.tor or {}).get("circuits", [])],
                 "history": hist, "heat": list(heat.values()),
-                "note": "Ubicaciones estimadas por GeoIP local (precisión de país salvo base .mmdb); "
-                        "no son la ubicación física real de los servidores."}
+                "note": _("Ubicaciones estimadas por GeoIP local (precisión de país salvo base .mmdb); "
+                        "no son la ubicación física real de los servidores.")}
 
     def api_worldmap(self) -> dict:
         return worldmap.as_json()
@@ -907,8 +913,8 @@ class Engine:
                 {"ok": False, "error": self.ks.can_apply()[1]}
             self.store.audit(self.actor, "panic", {"killswitch": ks})
             self.emit("emergency", "critical", {"rotations": "detenidas", "killswitch": ks})
-        _notify("VELA: modo de emergencia", "Rotaciones detenidas. Kill-switch: " +
-                ("activo" if ks.get("ok") else f"NO aplicado ({ks.get('error')})"))
+        _notify(_("VELA: modo de emergencia"), _("Rotaciones detenidas. Kill-switch: ") +
+                ("activo" if ks.get("ok") else _("NO aplicado ({v1})", v1=ks.get('error'))))
         return {"emergency": True, "killswitch": ks}
 
     def api_resume(self) -> dict:
