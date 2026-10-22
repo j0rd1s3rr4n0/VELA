@@ -4,7 +4,7 @@
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
+    <!-- <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png"> -->
     <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
   </picture>
 </p>
