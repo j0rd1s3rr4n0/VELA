@@ -342,6 +342,8 @@ def cmd_tor(b, a):
 
 
 def cmd_dns(b, a):
+    if getattr(a, "action", "check") in ("encrypt", "restore", "status"):
+        return cmd_dns_fix(b, a)
     r = b.call("dns_check", active=a.active)
     if a.json:
         return r
@@ -593,6 +595,303 @@ def cmd_export(b, a):
     for f in files:
         os.chmod(f, 0o600)
     print("exportado: " + ", ".join(map(str, files)))
+
+
+def cmd_data(b, a):
+    if a.action == "info":
+        r = b.call("data_info")
+        if a.json:
+            return r
+        print(bold(_("Datos de VELA")))
+        for k in ("database", "config", "settings", "secrets"):
+            print(f"  {k:10} {r[k]}")
+        print("  " + ", ".join(f"{k}={v}" for k, v in r["rows"].items()))
+        return None
+    if a.action == "export":
+        include = {"history": not a.no_history, "config": a.config, "settings": a.settings, "secrets": a.secrets}
+        if not any(include.values()):
+            print(_("no has elegido ninguna parte para exportar"))
+            return None
+        r = b.call("data_export", path=a.out, include=include)
+        if a.json:
+            return r
+        print(_("backup escrito en {path} ({size} bytes)", path=r["path"], size=r["size"]))
+        return None
+    if a.action == "import":
+        if not a.path:
+            print(_("indica el fichero de backup: vela data import FICHERO"))
+            return None
+        include = {"history": not a.no_history, "config": a.config, "settings": a.settings, "secrets": a.secrets}
+        r = b.call("data_import", path=a.path, mode=a.mode, include=include)
+        if a.json:
+            return r
+        print(_("importado en modo {mode}", mode=r["mode"]))
+        for n in r.get("notes") or []:
+            print(_("  nota: {n}", n=n))
+        if r.get("restart_required"):
+            print(_("  reinicia velad y la app para aplicar la configuración importada"))
+        return None
+    if a.action == "reset":
+        if not a.yes:
+            print(_("Esto borra {scope}. Repite con --yes para confirmar.", scope=_("el historial") if a.scope == "history" else _("TODOS los datos de VELA")))
+            return None
+        r = b.call("data_reset", scope=a.scope, keep_backup=a.backup)
+        if a.json:
+            return r
+        print(_("borrado: {scope}", scope=r["scope"]))
+        if r.get("backup"):
+            print(_("  copia previa en {path}", path=r["backup"]["path"]))
+        if r.get("restart_required"):
+            print(_("  reinicia velad y la app para volver a los valores por defecto"))
+        return None
+    return None
+
+
+def cmd_deps(b, a):
+    from . import deps
+    if a.action == "check":
+        r = deps.status(a.feature) if a.feature else deps.summary()
+        if a.json:
+            return r
+        items = [r] if a.feature else r
+        for x in items:
+            print(f"{'OK ' if x['ok'] else 'FALTA'} {x['title']}"
+                  + (f" — faltan: {', '.join(x['missing'])}" if x["missing"] else "")
+                  + (f" — {x['note']}" if x.get("note") else ""))
+        return None
+    if a.action == "install":
+        if not a.feature:
+            print(_("indica qué función instalar: --feature ocr|mac|dns|llm|capture"))
+            return None
+        r = deps.install(a.feature, yes=a.yes)
+        if a.json:
+            return r
+        if r.get("plan", {}).get("command"):
+            print(_("comando: {cmd}", cmd=" ".join(r["plan"]["command"])))
+        print(_("instalado") if r.get("ok") else _("no instalado: {e}", e=r.get("error")))
+        return None
+    if a.action == "ollama":
+        r = deps.install_ollama(yes=a.yes)
+        if a.json:
+            return r
+        print(_("Ollama listo con el modelo {model}", model=r.get("model")) if r.get("ok")
+              else _("no se pudo instalar Ollama: {e}", e=r.get("error")))
+        return None
+    return None
+
+
+def cmd_translate(b, a):
+    from . import translate as tr
+    text = a.text
+    if not text and not sys.stdin.isatty():
+        text = sys.stdin.read()
+    if not text:
+        print(_("texto vacío; pasa el texto como argumento o por stdin"))
+        return None
+    r = tr.translate(text, target=a.to, source=a.source)
+    if a.json:
+        return r
+    print(r["text"])
+    return None
+
+
+def cmd_ocr(b, a):
+    from . import ocr
+    if a.image:
+        res = ocr.ocr_image(a.image, a.langs.split(",") if a.langs else None)
+        if a.no_translate:
+            return res if a.json else (print(res["text"]), None)[1]
+        from . import translate as tr
+        out = {"ocr": res, "translation": tr.translate(res["text"], target=a.to, source=a.source)}
+        if a.json:
+            return out
+        print(out["translation"]["text"])
+        return None
+    r = ocr.scan_and_translate(target=a.to, source=a.source,
+                               languages=a.langs.split(",") if a.langs else None)
+    if a.json:
+        return r
+    if r.get("ocr", {}).get("text") and not r.get("translation"):
+        print(r["ocr"]["text"])
+    if r.get("error"):
+        print(_("error: {e}", e=r["error"]))
+    elif r.get("translation"):
+        print(r["translation"]["text"])
+    return None
+
+
+def cmd_tz(b, a):
+    from . import applaunch
+    if a.action == "list":
+        r = {"apps": applaunch.apps(a.query), "timezones": applaunch.timezones()}
+        if a.json:
+            return r
+        print(bold(_("Aplicaciones ({n})", n=len(r["apps"]))))
+        for app in r["apps"][:80]:
+            print(f"  {app['name']:42} {app['id']}")
+        print(bold(_("\nZonas horarias: {n} (ej. Europe/Madrid, UTC)", n=len(r["timezones"]))))
+        return None
+    if a.command:
+        r = applaunch.launch_command(a.command, a.tz, dry_run=a.dry_run)
+    elif a.app:
+        r = applaunch.launch(a.app, a.tz, dry_run=a.dry_run)
+    else:
+        print(_("indica --app NOMBRE o --command «comando»"))
+        return None
+    if a.json:
+        return r
+    if r.get("dry_run"):
+        print(_("plan: {cmd}", cmd=" ".join(r["command"])) + _(" · TZ={tz}", tz=a.tz))
+    else:
+        print(_("lanzado con TZ={tz}: {cmd}", tz=a.tz, cmd=" ".join(r["command"])))
+    if r.get("warning"):
+        print(_("  aviso: {w}", w=r["warning"]))
+    return None
+
+
+def cmd_mac(b, a):
+    from . import mac
+    if a.action == "list":
+        r = mac.interfaces()
+        if a.json:
+            return r
+        table([[i["name"], i["mac"], i["permanent"] or "—", i["kind"], i["state"], i["driver"] or "—"]
+               for i in r], ["interfaz", "MAC", _("permanente"), _("tipo"), _("estado"), "driver"])
+        return None
+    if a.action in ("set", "random", "restore") and not a.iface:
+        print(_("indica la interfaz con --iface (vela mac list)"))
+        return None
+    if a.action == "set":
+        if not a.mac:
+            print(_("indica la MAC con --mac o usa la acción random"))
+            return None
+        r = mac.set_mac(a.iface, mac=a.mac, apply=a.yes, engine=getattr(b, "engine", None))
+    elif a.action == "random":
+        r = mac.set_mac(a.iface, use_random=True, apply=a.yes, engine=getattr(b, "engine", None))
+    elif a.action == "restore":
+        r = mac.restore(a.iface, apply=a.yes, engine=getattr(b, "engine", None))
+    else:
+        return None
+    if a.yes and not r.get("dry_run"):
+        _refresh_backend(b, ["network", "networks", "leaks"])
+    if a.json:
+        return r
+    if r.get("dry_run"):
+        print(_("plan: {cmd}", cmd=" ".join(" ".join(c) for c in r["plan"]["commands"])))
+        print(_("repite con --yes para aplicarlo"))
+    else:
+        print(_("MAC de {iface}: {mac}", iface=r.get("iface"), mac=r.get("actual") or r.get("mac"))
+              if r.get("ok") else _("error: {e}", e=r.get("error")))
+    return None
+
+
+def cmd_logs(b, a):
+    if a.action == "clear":
+        r = b.call("logs_clear", kind=a.kind)
+        if a.json:
+            return r
+        print(_("registro borrado: {v1}", v1=", ".join(r.get("cleared") or [])))
+        return None
+    r = b.call("logs", kind=a.kind, limit=a.limit)
+    if a.json:
+        return r
+    if a.kind in ("all", "errors"):
+        print(bold(_("Errores ({n})", n=len(r.get("errors") or []))))
+        for e in r.get("errors") or []:
+            detail = e.get("exception") or e.get("message") or ""
+            print(f"  {iso(e.get('ts')) if e.get('ts') else '—'} {str(e.get('level') or 'error'):8} {detail}")
+        print(bold(_("Errores: {v1}", v1=r.get("paths", {}).get("errors"))))
+    if a.kind in ("all", "audit"):
+        print(bold(_("Auditoría ({n})", n=len(r.get("audit") or []))))
+        for x in r.get("audit") or []:
+            print(f"  {iso(x.get('ts')) if x.get('ts') else '—'} {str(x.get('actor') or '-'):10} "
+                  f"{str(x.get('action') or ''):24} {json.dumps(x.get('detail'), ensure_ascii=False, default=str)[:160]}")
+        print(bold(_("Auditoría: {v1}", v1=r.get("paths", {}).get("audit"))))
+    return None
+
+
+def cmd_refresh(b, a):
+    """Invalida caches y recalcula alertas/recomendaciones ahora."""
+    r = b.call("refresh", domains=a.domains or None)
+    if a.json:
+        return r
+    st = r.get("status") or {}
+    print(_("estado actualizado · revisión {n} · {alerts} alertas",
+            n=r.get("revision", "?"), alerts=len(st.get("findings") or [])))
+    for f in st.get("findings") or []:
+        print(f"  {c(f['severity'].upper(), SEV_COLOR.get(f['severity'], '37'))} {f['title']} — {f['observed']}")
+    return None
+
+
+def cmd_anomalies(b, a):
+    r = b.call("anomalies")
+    if a.json:
+        return r
+    if not r:
+        print(_("Sin anomalías en la ventana analizada."))
+        return None
+    for x in r:
+        print(f"  {c(x['severity'].upper(), SEV_COLOR.get(x['severity'], '37'))} {x['type']}: {x['detail']}")
+    return None
+
+
+def cmd_about(b, a):
+    from . import about
+    info = about.app_info()
+    prof = about.profile(refresh=a.sync)
+    r = {"app": info, "profile": prof}
+    if a.json:
+        return r
+    print(bold(f"{info['name']} {info['version']}") + f" · {info['acronym']}\n{_(info['tagline'])}")
+    print(_("\nCreador: {name} (@{login})", name=prof.get("name"), login=prof.get("login")))
+    print(f"  GitHub: {prof.get('github')}\n  Web: {prof.get('blog')}\n  {prof.get('bio')}")
+    if prof.get("error"):
+        print(c(_("  perfil no sincronizado: {e}", e=prof["error"]), "90"))
+    print("\n" + bold(_("Créditos")))
+    for x in info["credits"]:
+        print(f"  · {x}")
+    return None
+
+
+def _refresh_backend(b, domains):
+    """Pide al motor que invalide y recalcule; no rompe la CLI si el backend es antiguo."""
+    try:
+        return b.call("refresh", domains=domains)
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def cmd_dns_fix(b, a):
+    from . import dnsfix
+    if a.action == "encrypt":
+        if not getattr(a, "yes", False):
+            p = dnsfix.plan(a.transport, a.provider)
+            print(_("plan: {cmds}", cmds="; ".join(p["commands"])))
+            print(_("repite con --yes para aplicar; requiere [consent] allow_dns_changes = true"))
+            return p if a.json else None
+        r = dnsfix.apply(a.transport, a.provider, cfg=None, engine=getattr(b, "engine", None))
+        _refresh_backend(b, ["dns", "leaks"])
+    elif a.action == "restore":
+        r = dnsfix.restore(engine=getattr(b, "engine", None))
+        _refresh_backend(b, ["dns", "leaks"])
+    else:
+        r = dnsfix.status()
+    if a.json:
+        return r
+    if a.action == "encrypt":
+        print(_("DNS cifrado con {transport}/{provider}: {ok}", transport=a.transport, provider=a.provider,
+                ok=_("sí") if r.get("ok") else _("no")))
+        if r.get("error"):
+            print(c("  " + r["error"], "31"))
+        if r.get("backup"):
+            print(_("  backup: {backup}", backup=r["backup"]))
+    elif a.action == "restore":
+        print(_("DNS restaurado: {ok}", ok=_("sí") if r.get("ok") else _("no")))
+    else:
+        print(_("DNS cifrado: {state}", state={True: _("sí"), False: _("no"), None: "?"}[r.get("encrypted")]))
+        for x in r.get("resolvers") or []:
+            print(f"  {x['addr']:14} {x['provider'] or '?'} [{x['transport']}]")
+    return None
 
 
 def cmd_killswitch(b, a):
@@ -1045,9 +1344,12 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("action", nargs="?", default="status", choices=["status", "newnym"])
     sp.add_argument("--dry-run", action="store_true")
     sp.add_argument("--force", action="store_true")
-    sp = add("dns", cmd_dns, _("DNS por enlace y fugas"))
-    sp.add_argument("action", nargs="?", default="check", choices=["check"])
+    sp = add("dns", cmd_dns, _("DNS por enlace y fugas; cifrar o restaurar DoT/DoH"))
+    sp.add_argument("action", nargs="?", default="check", choices=["check", "status", "encrypt", "restore"])
     sp.add_argument("--active", action="store_true", help=_("test activo (requiere consentimiento)"))
+    sp.add_argument("--transport", default="dot", choices=["dot", "doh"])
+    sp.add_argument("--provider", default="cloudflare", choices=["cloudflare", "quad9", "google", "mullvad"])
+    sp.add_argument("--yes", action="store_true", help=_("aplicar el cambio (requiere allow_dns_changes)"))
     sp = add("ip", cmd_ip, _("IP pública (con consentimiento) e IP WAN del router"))
     sp.add_argument("--route", choices=["default", "tor"])
     sp = add("sessions", cmd_sessions, _("sesiones de salida"))
@@ -1084,6 +1386,54 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--format", default="json", choices=["json", "csv", "html"])
     sp.add_argument("--out", required=True)
     sp.add_argument("--since")
+    sp = add("data", cmd_data, _("backup completo, importación y borrado de datos"))
+    sp.add_argument("action", nargs="?", default="info", choices=["info", "export", "import", "reset"])
+    sp.add_argument("path", nargs="?")
+    sp.add_argument("--out", default="vela-backup.json")
+    sp.add_argument("--mode", default="merge", choices=["merge", "replace"])
+    sp.add_argument("--scope", default="history", choices=["history", "all"])
+    sp.add_argument("--no-history", action="store_true")
+    sp.add_argument("--config", action="store_true")
+    sp.add_argument("--settings", action="store_true")
+    sp.add_argument("--secrets", action="store_true")
+    sp.add_argument("--backup", action="store_true", help=_("guardar una copia antes de borrar"))
+    sp.add_argument("--yes", action="store_true")
+    sp = add("deps", cmd_deps, _("comprobar o instalar dependencias opcionales"))
+    sp.add_argument("action", nargs="?", default="check", choices=["check", "install", "ollama"])
+    sp.add_argument("--feature", choices=["ocr", "capture", "mac", "dns", "cloudflared", "llm"])
+    sp.add_argument("--yes", action="store_true")
+    sp = add("translate", cmd_translate, _("traducir texto con el LLM local"))
+    sp.add_argument("text", nargs="?")
+    sp.add_argument("--to", default="es")
+    sp.add_argument("--source", default="auto")
+    sp = add("ocr", cmd_ocr, _("OCR de una región de pantalla o de una imagen y traducción"))
+    sp.add_argument("--image")
+    sp.add_argument("--langs", default="spa,eng")
+    sp.add_argument("--to", default="es")
+    sp.add_argument("--source", default="auto")
+    sp.add_argument("--no-translate", action="store_true")
+    sp = add("tz", cmd_tz, _("abrir una aplicación con otra zona horaria"))
+    sp.add_argument("action", nargs="?", default="list", choices=["list", "launch"])
+    sp.add_argument("--app")
+    sp.add_argument("--command")
+    sp.add_argument("--tz", default="UTC")
+    sp.add_argument("--query")
+    sp.add_argument("--dry-run", action="store_true")
+    sp = add("mac", cmd_mac, _("cambiar o restaurar la MAC de una interfaz"))
+    sp.add_argument("action", nargs="?", default="list", choices=["list", "set", "random", "restore"])
+    sp.add_argument("--iface")
+    sp.add_argument("--mac")
+    sp.add_argument("--yes", action="store_true")
+    add("anomalies", cmd_anomalies, _("anomalías de red de la línea base"))
+    sp = add("logs", cmd_logs, _("log de auditoría y log de errores"))
+    sp.add_argument("action", nargs="?", default="show", choices=["show", "clear"])
+    sp.add_argument("--kind", default="all", choices=["all", "audit", "errors"])
+    sp.add_argument("--limit", type=int, default=100)
+    sp = add("refresh", cmd_refresh, _("invalidar caches y recalcular alertas y recomendaciones ahora"))
+    sp.add_argument("domains", nargs="*", choices=["network", "networks", "dns", "tor", "leaks", "profiles",
+                                                   "anomalies", "public", "all"])
+    sp = add("about", cmd_about, _("información de VELA y del creador"))
+    sp.add_argument("--sync", action="store_true", help=_("sincronizar el perfil público de GitHub"))
     sp = add("killswitch", cmd_killswitch, _("kill-switch nftables"))
     sp.add_argument("action", nargs="?", default="status", choices=["status", "preview", "apply", "release"])
     sp.add_argument("--yes", action="store_true")
@@ -1120,6 +1470,49 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def _drop_sudo_privileges(argv: list[str]) -> None:
+    """Si se lanzó con `sudo vela …`, vuelve a ejecutar como el usuario que invocó sudo.
+
+    Así los datos no quedan en /root y la app puede abrir la sesión gráfica del usuario. Las
+    acciones que necesitan root (DNS, MAC, kill-switch) siguen usando pkexec/sudo desde ese
+    usuario. Para conservar root a propósito: `VELA_KEEP_ROOT=1 sudo vela …`.
+    """
+    if os.geteuid() != 0 or os.environ.get("VELA_KEEP_ROOT") == "1" or os.environ.get("VELA_REEXEC") == "1":
+        return
+    user = os.environ.get("SUDO_USER")
+    if not user or user == "root":
+        return
+    try:
+        import pwd
+        pw = pwd.getpwnam(user)
+    except (ImportError, KeyError):
+        return
+    if pw.pw_uid == 0:
+        return
+    env = os.environ.copy()
+    env.update({"HOME": pw.pw_dir, "USER": user, "LOGNAME": user, "VELA_REEXEC": "1"})
+    runtime = f"/run/user/{pw.pw_uid}"
+    if os.path.isdir(runtime):
+        env["XDG_RUNTIME_DIR"] = runtime
+        bus = os.path.join(runtime, "bus")
+        if os.path.exists(bus):
+            env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={bus}"
+        if os.path.exists(os.path.join(runtime, "wayland-0")):
+            env.setdefault("WAYLAND_DISPLAY", "wayland-0")
+    xauth = os.path.join(pw.pw_dir, ".Xauthority")
+    if os.path.exists(xauth):
+        env["XAUTHORITY"] = xauth
+    try:
+        print(_("sudo detectado: ejecutando VELA como {user} (VELA_KEEP_ROOT=1 conserva root)", user=user),
+              file=sys.stderr)
+        os.setgid(pw.pw_gid)
+        os.setgroups(os.getgrouplist(user, pw.pw_gid))
+        os.setuid(pw.pw_uid)
+        os.execvpe(sys.executable, [sys.executable, "-m", "vela", *argv], env)
+    except (OSError, PermissionError) as e:
+        print(_("no se pudo cambiar al usuario {user}: {e}; sigo como root", user=user, e=e), file=sys.stderr)
+
+
 def _early_lang(argv: list[str]) -> None:
     """--lang se aplica antes de construir el parser (la ayuda ya sale traducida)."""
     from . import i18n
@@ -1131,6 +1524,9 @@ def _early_lang(argv: list[str]) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    from . import logs
+    logs.setup()
+    _drop_sudo_privileges(sys.argv[1:] if argv is None else argv)
     _early_lang(sys.argv[1:] if argv is None else argv)
     if not sys.platform.startswith("linux"):
         print(_("VELA solo funciona en Linux. Las versiones para Windows están en las ramas «windows-lite» y «windows» del repositorio."), file=sys.stderr)
@@ -1167,6 +1563,10 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     except KeyboardInterrupt:
         return 130
+    except Exception as e:  # noqa: BLE001 — la CLI informa del error sin enseñar una traza al usuario
+        logs.error(_("error en la CLI"), e, {"command": getattr(a, "cmd", "?")})
+        print(c(f"error: {e}", "31"), file=sys.stderr)
+        return 1
     if res is not None:
         print(json.dumps(res, indent=2, ensure_ascii=False, default=str))
     return 0

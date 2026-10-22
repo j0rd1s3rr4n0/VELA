@@ -44,6 +44,7 @@ ENV_KEYS = {
     "censys_org": ["CENSYS_ORG_ID"],
     "censys_id": ["CENSYS_API_ID"],
     "censys_secret": ["CENSYS_API_SECRET"],
+    "translate": ["VELA_TRANSLATE_API_KEY", "OPENAI_API_KEY"],
 }
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS intel (

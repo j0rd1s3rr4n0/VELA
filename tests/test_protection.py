@@ -41,7 +41,7 @@ class RouteProtectionTests(unittest.TestCase):
 
     def test_proton_server_names(self):
         f = protection.proton_exit_country
-        self.assertEqual(f("ProtonVPN CH-DE#2"), "DE")
+        self.assertEqual(f("ProtonVPN CH-XX#2"), "XX")
         self.assertEqual(f("ProtonVPN ES#12"), "ES")
         self.assertEqual(f("ProtonVPN US-NY#5"), "US")
         self.assertIsNone(f("Wired connection 1"))

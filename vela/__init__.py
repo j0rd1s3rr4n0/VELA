@@ -4,7 +4,7 @@ Vigila por dónde sale tu tráfico (router, VPN, proxies, Tor, DNS), cuánto tie
 las fugas que te exponen y la reputación de las IPs con las que hablas. Tu identidad de red, siempre en vela.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 NAME = "VELA"
 ACRONYM = "Vigilant Egress & Leak Analyst"

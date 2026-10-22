@@ -53,6 +53,9 @@ CREATE TABLE IF NOT EXISTS rotations (
 );
 CREATE TABLE IF NOT EXISTS audit (id INTEGER PRIMARY KEY, ts REAL NOT NULL, actor TEXT, action TEXT, detail TEXT);
 CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS metrics (id INTEGER PRIMARY KEY, ts REAL NOT NULL, key TEXT NOT NULL,
+  value REAL, meta TEXT);
+CREATE INDEX IF NOT EXISTS ix_metrics_key_ts ON metrics(key, ts);
 """
 
 
@@ -94,6 +97,12 @@ class Store:
     def _rows(self, sql: str, args=()) -> list[dict]:
         with self.lock:
             return [dict(r) for r in self.db.execute(sql, args).fetchall()]
+
+    def count(self, table: str) -> int:
+        if table not in ("sessions", "intervals", "events", "findings", "rotations", "metrics", "audit"):
+            raise ValueError(table)
+        with self.lock:
+            return int(self.db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
 
     # ── kv ──
     def get(self, key: str, default=None):
@@ -279,18 +288,150 @@ class Store:
         return rows
 
     def audit(self, actor: str, action: str, detail=None):
+        detail = redact(detail)
         self._x("INSERT INTO audit(ts,actor,action,detail) VALUES(?,?,?,?)",
-                (now(), actor, action, json.dumps(redact(detail), default=str)))
+                (now(), actor, action, json.dumps(detail, default=str)))
+        if not self.memory and os.environ.get("VELA_NO_AUDIT_FILE") != "1":
+            try:
+                from . import logs
+                logs.audit(actor, action, detail)
+            except Exception:  # noqa: BLE001 — la auditoría no debe romper la acción
+                pass
 
     def audit_log(self, limit: int = 100) -> list[dict]:
         return self._rows("SELECT * FROM audit ORDER BY ts DESC LIMIT ?", (limit,))
+
+    def clear_audit(self) -> int:
+        with self.lock:
+            return self.db.execute("DELETE FROM audit").rowcount
+
+    # ── métricas (línea base de anomalías) ──
+    def add_metric(self, key: str, value: float | None, meta: dict | None = None, ts: float | None = None) -> int:
+        cur = self._x("INSERT INTO metrics(ts,key,value,meta) VALUES(?,?,?,?)",
+                      (ts or now(), key, value, json.dumps(redact(meta or {}), default=str)))
+        return cur.lastrowid
+
+    def metrics(self, key: str | None = None, since: float | None = None, limit: int = 10000) -> list[dict]:
+        q, args = "SELECT * FROM metrics WHERE 1=1", []
+        if key:
+            q += " AND key=?"
+            args.append(key)
+        if since:
+            q += " AND ts >= ?"
+            args.append(since)
+        q += " ORDER BY ts DESC LIMIT ?"
+        args.append(limit)
+        rows = self._rows(q, args)
+        for r in rows:
+            r["meta"] = json.loads(r["meta"] or "{}")
+        return rows
+
+    def latest_metric(self, key: str) -> dict | None:
+        rows = self.metrics(key=key, limit=1)
+        return rows[0] if rows else None
+
+    def prune_metrics(self, before: float) -> int:
+        with self.lock:
+            return self.db.execute("DELETE FROM metrics WHERE ts < ?", (before,)).rowcount
+
+    # ── importación / borrado ──
+    def reset(self, everything: bool = False) -> dict:
+        """Borra el histórico. Con `everything` también ajustes en kv y métricas."""
+        tables = ["sessions", "intervals", "events", "findings", "rotations", "audit", "metrics"]
+        if everything:
+            tables += ["kv"]
+        counts = {}
+        with self.lock:
+            for table in tables:
+                counts[table] = self.db.execute(f"DELETE FROM {table}").rowcount
+            if not self.memory:
+                self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                self.db.execute("VACUUM")
+        return counts
+
+    def import_data(self, data: dict, mode: str = "merge") -> dict:
+        """Importa un export de `report.export_data`. `mode`: merge (omite ids repetidos) o replace."""
+        if mode not in ("merge", "replace"):
+            raise ValueError(_("modo de importación no válido: {mode}", mode=mode))
+        if mode == "replace":
+            self.reset(everything=False)
+        counts = {k: 0 for k in ("sessions", "intervals", "events", "findings", "rotations", "metrics")}
+
+        def j(v):
+            return json.dumps(v, default=str) if isinstance(v, (dict, list)) else v
+
+        with self.lock:
+            for s in data.get("sessions") or []:
+                try:
+                    cur = self.db.execute(
+                        """INSERT OR IGNORE INTO sessions(id,profile,started,ended,status,fingerprint,chain,
+                           egress_iface,local_ip,wan_ip,public_ip,vpn,proxy,tor_exit,country,asn,dns,end_reason)
+                           VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (s.get("id"), s.get("profile"), s.get("started"), s.get("ended"), s.get("status"),
+                         s.get("fingerprint"), j(s.get("chain") or []), s.get("egress_iface"), s.get("local_ip"),
+                         s.get("wan_ip"), s.get("public_ip"), s.get("vpn"), s.get("proxy"), s.get("tor_exit"),
+                         s.get("country"), s.get("asn"), j(s.get("dns") or []), s.get("end_reason")))
+                    counts["sessions"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            for i in data.get("intervals") or []:
+                try:
+                    cur = self.db.execute(
+                        """INSERT INTO intervals(session_id,profile,layer,key,label,country,asn,lat,lon,started,
+                           ended,meta) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (i.get("session_id"), i.get("profile"), i.get("layer"), i.get("key"), i.get("label"),
+                         i.get("country"), i.get("asn"), i.get("lat"), i.get("lon"), i.get("started"),
+                         i.get("ended"), j(i.get("meta") or {})))
+                    counts["intervals"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            for e in data.get("events") or []:
+                try:
+                    cur = self.db.execute(
+                        "INSERT INTO events(ts,session_id,profile,kind,severity,data) VALUES(?,?,?,?,?,?)",
+                        (e.get("ts"), e.get("session_id"), e.get("profile"), e.get("kind"),
+                         e.get("severity") or "info", j(e.get("data") or {})))
+                    counts["events"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            for f in data.get("findings") or []:
+                try:
+                    cur = self.db.execute(
+                        """INSERT INTO findings(ts,check_id,title,severity,status,mode,method,evidence,observed,
+                           limitations,confidence,recommendation,profile) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                        (f.get("ts"), f.get("check_id"), f.get("title"), f.get("severity"), f.get("status"),
+                         f.get("mode"), f.get("method"), j(f.get("evidence")), f.get("observed"),
+                         f.get("limitations"), f.get("confidence"), f.get("recommendation"), f.get("profile")))
+                    counts["findings"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            for r in data.get("rotations") or []:
+                try:
+                    cur = self.db.execute(
+                        """INSERT INTO rotations(ts,layer,adapter,dry_run,from_target,to_target,result,detail)
+                           VALUES(?,?,?,?,?,?,?,?)""",
+                        (r.get("ts"), r.get("layer"), r.get("adapter"), int(bool(r.get("dry_run"))),
+                         r.get("from_target"), r.get("to_target"), r.get("result"), j(r.get("detail"))))
+                    counts["rotations"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            for m in data.get("metrics") or []:
+                try:
+                    cur = self.db.execute("INSERT INTO metrics(ts,key,value,meta) VALUES(?,?,?,?)",
+                                          (m.get("ts"), m.get("key"), m.get("value"), j(m.get("meta") or {})))
+                    counts["metrics"] += cur.rowcount
+                except sqlite3.Error:
+                    continue
+            if not self.memory:
+                self.db.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        return {"mode": mode, "imported": counts}
 
     # ── retención ──
     def purge(self, before: float) -> dict:
         """Borra el histórico anterior a `before` (secure_delete activo sobrescribe las páginas)."""
         counts = {}
         with self.lock:
-            for table, col in (("events", "ts"), ("findings", "ts"), ("rotations", "ts")):
+            for table, col in (("events", "ts"), ("findings", "ts"), ("rotations", "ts"), ("metrics", "ts")):
                 counts[table] = self.db.execute(f"DELETE FROM {table} WHERE {col} < ?", (before,)).rowcount
             counts["intervals"] = self.db.execute(
                 "DELETE FROM intervals WHERE ended IS NOT NULL AND ended < ?", (before,)).rowcount

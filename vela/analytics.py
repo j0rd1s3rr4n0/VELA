@@ -235,6 +235,11 @@ def anomalies(store, window: float = 86400) -> list[dict]:
     if len({i["key"] for i in countries}) >= 4:
         out.append({"type": "country_hopping", "severity": "low",
                     "detail": _("{n} países de salida en 24h", n=len({i['key'] for i in countries}))})
+    try:                                   # línea base de red (volumen, fan-out, destinos nuevos…)
+        from . import anomaly
+        out += anomaly.detect(store)
+    except Exception:  # noqa: BLE001 — la analítica básica no debe romperse por la línea base
+        pass
     return out
 
 

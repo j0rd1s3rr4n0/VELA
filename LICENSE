@@ -1,0 +1,67 @@
+VELA — PROPRIETARY SOFTWARE LICENSE
+===================================
+
+Copyright (c) 2026 Jordi Serrano (j0rd1s3rr4n0)
+All rights reserved.
+
+VELA (the "Software"), including its source code, object code, documentation, design,
+brand assets, screenshots and any accompanying files, is proprietary software owned by
+the copyright holder.
+
+NO LICENSE IS GRANTED
+---------------------
+No permission or license, express or implied, is granted to any person or entity to use,
+run, copy, reproduce, modify, adapt, translate, merge, publish, distribute, sublicense,
+sell, rent, lease, host, deploy, make available as a service, or create derivative works
+from the Software, in whole or in part, for any purpose, without the prior written
+permission of the copyright holder.
+
+The source code may be viewed for informational or security-review purposes only. Viewing
+the source does not grant any right to use it, and any evaluation, production, internal,
+commercial or non-commercial use requires a separate written agreement.
+
+PERMISSIONS AND COMMERCIAL LICENSES
+-----------------------------------
+Requests for permission, evaluation licenses, commercial licenses, distribution rights,
+SaaS/hosting rights, support or custom development must be made through the channels
+described in LICENSING.md. No permission exists until a written agreement has been
+accepted by the copyright holder. The copyright holder may grant, refuse or condition
+permission at their sole discretion, and may charge a fee.
+
+TRADEMARKS
+----------
+No trademark or branding license is granted. The names "VELA", "Vigilant Egress & Leak
+Analyst", the VELA logo and the visual identity are trademarks of the copyright holder.
+You may not use them to identify, promote or endorse a fork, derivative, service or
+product without prior written permission. See TRADEMARK.md.
+
+THIRD-PARTY MATERIAL
+--------------------
+The bundled OpenStreetMap data (vela/data/basemap-osm.bin and
+vela/data/OSM-ATTRIBUTION.txt) is © OpenStreetMap contributors and is licensed under the
+Open Database License 1.0 (ODbL). It is NOT covered by this proprietary license and any
+use or distribution of that data must comply with the ODbL.
+
+Other third-party components, if any, remain under their respective licenses as stated in
+the corresponding files or notices.
+
+CONTRIBUTIONS
+-------------
+External contributions are not accepted unless the contributor has first agreed in
+writing to the contribution terms described in CONTRIBUTING.md. Do not submit code,
+patches or assets unless you accept those terms.
+
+NO WARRANTY
+-----------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED,
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE, TITLE AND NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR
+ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.
+
+This license is governed by the laws applicable to the copyright holder's place of
+residence, without prejudice to any mandatory consumer-protection rules. If any provision
+is held unenforceable, the remaining provisions remain in force.
+
+For permission requests: see LICENSING.md or https://github.com/j0rd1s3rr4n0

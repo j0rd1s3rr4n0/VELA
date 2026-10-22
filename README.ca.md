@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/brand/logo.svg" width="96" alt="VELA — Vigilant Egress &amp; Leak Analyst">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
     <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
@@ -21,7 +25,8 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Sense dependències" src="https://img.shields.io/badge/depend%C3%A8ncies-cap-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Proves" src="https://img.shields.io/badge/proves-171%20OK-0ca30c">
+  <img alt="Proves" src="https://img.shields.io/badge/proves-255%20OK-0ca30c">
+  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 idiomes" src="https://img.shields.io/badge/idiomes-CA%20·%20EN%20·%20ES%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Dades del mapa ODbL" src="https://img.shields.io/badge/mapa-OpenStreetMap%20(ODbL)-d95926">
 </p>
@@ -45,8 +50,8 @@ sense dependències externes: descobreix què hi ha al teu equip i només activa
 
 *Vela* és la flama que es queda encesa quan tot dorm: **estar en vela** (en vetlla) és quedar-se vigilant.
 
-> Les captures fan servir dades reals **anonimitzades**: IP en rangs de documentació (RFC 5737/3849), MAC,
-> noms de WiFi, xarxes i relays de Tor inventats, i hores desplaçades.
+> Les captures fan servir dades **anonimitzades**: adreces privades i de documentació, MAC, SSIDs, xarxes,
+> noms de processos i relays de Tor inventats, i hores desplaçades.
 
 ---
 
@@ -111,6 +116,20 @@ surten per la VPN o per Tor; les claus es desen a `~/.config/vela/secrets.toml` 
 També inclou **icona a la safata** (estat, perfil, Tor, emergència i notificacions), **TUI** al terminal,
 **GUI web** local (només 127.0.0.1, amb testimoni) i una **CLI** completa amb sortida `--json`.
 
+### Eines
+
+- **Traductor + OCR** — un LLM local petit (Ollama o llama.cpp) tradueix qualsevol text; selecciona una regió de la pantalla i tesseract la llegeix. Res no surt de la màquina tret que activis una API remota.
+- **Dades** — exporta/importa còpies completes (historial, ajustos, configuració i opcionalment secrets) i esborra només l'historial o totes les dades de VELA, amb confirmació.
+- **Anomalies de xarxa** — línia base local de volum, fan-out de connexions, processos/països/ports nous, canvis de ruta i de DNS.
+- **DNS xifrat** — un clic per activar DoT (systemd-resolved) o DoH (cloudflared) amb còpia, verificació i reversió; avisa abans de trepitjar el DNS de la VPN.
+- **Apps amb una altra zona horària** — obre qualsevol app `.desktop` o comanda amb `TZ=Asia/Tokyo` sense canviar el rellotge de l'escriptori.
+- **Canviador de MAC** — MAC aleatòria o manual, amb l'original guardada i restauració en un clic.
+- **Dependències opcionals** — detecta i instal·la paquets d'OCR, captura, MAC, DNS i LLM amb confirmació i la comanda exacta a la vista.
+- **About** — versió, crèdits i perfil del creador, offline per defecte amb sincronització opcional de GitHub.
+- **Perfils adaptables** — en arrencar, VELA crea els perfils `diario`, `privado`, `anonimo`, `alto_riesgo` i
+  `laboratorio` segons el que tingui l'equip (VPN, kill-switch, Tor, proxys i DNS xifrat). Es recalculen quan canvia
+  el sistema i els pots escriure a `config.toml` amb `vela profiles generate --write`.
+
 ## Privadesa per disseny
 
 - **Per defecte només observa.** Tot el que genera trànsit cap a tercers o canvia el sistema requereix un
@@ -169,7 +188,8 @@ AyatanaAppIndicator3, ja presents a GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-./install.sh          # instal·la l'app, el servei velad, la icona de la safata i el llançador (sense pip ni root)
+./install.sh          # instal·la l'app, el servei velad, la icona de la safata i el llançador (sense pip; també amb sudo, instal·la per al teu usuari)
+./install.sh --with-all   # afegeix OCR, captura, MAC i Ollama + qwen2.5:1.5b (≈1 GB)
 ```
 
 Actualitzar: **Ajustos → Actualitzacions** a l'app o `vela update` (consulta el remot del teu clon per Tor o per la VPN, mai pel seu compte, mostra els commits nous i només avança; `vela update --check` no canvia res) · Desinstal·lar: `./install.sh --uninstall` (`--purge` també esborra les teves dades). Detecta els paquets del sistema que faltin (apt, dnf, pacman, zypper) i pregunta abans d'instal·lar-los; vegeu `./install.sh --help`.
@@ -276,15 +296,15 @@ Llegenda:
 | Interfícies, rutes, ruta efectiva, classificació IPv4/IPv6/CGNAT/ULA | ✅ | proves + `vela network` real |
 | Esdeveniments netlink | ✅ | daemon real: "netlink: esdeveniments actius" |
 | Tor: SAFECOOKIE, circuits, guard/middle/exit, streams, guards | ✅ | servidor fals + 22 circuits reals |
-| Tor: IP de sortida via check.torproject.org (IsTor) | ✅ | real: 185.220.101.140 confirmat |
+| Tor: IP de sortida via check.torproject.org (IsTor) | ✅ | real: 192.0.2.140 confirmat |
 | Tor: NEWNYM amb límit de freqüència i sense repetir exit | ✅ / 🟡 | provat amb mocks i dry-run real; NEWNYM real no executat (sense consentiment) |
 | DNS per enllaç (systemd-resolved), DNS dividit, DoT | ✅ | proves + `vela dns check` real |
 | DNS efectiu i xifrat: WARP DoH, cloudflared, dnscrypt/stubby, DoT, DoH de Firefox/Chromium; ruta del DoH | ✅ | proves + real: WARP DoH per `proton0` |
 | Kill-switch de clients (ProtonVPN, Mullvad, NordVPN) + verificació per rutes «i si cau el túnel?» | ✅ / 🟡 | ProtonVPN real verificat (IPv4/IPv6); Mullvad/NordVPN sense validar (no instal·lats) |
-| Clients VPN en snap/flatpak (ProtonVPN) i servidor VPN a partir del nom de la connexió | ✅ | real: `ProtonVPN CH-DE#2` |
+| Clients VPN en snap/flatpak (ProtonVPN) i servidor VPN a partir del nom de la connexió | ✅ | real: `ProtonVPN XX-YY#2` |
 | Generació de perfils (diari, privat, anònim, alt risc, laboratori) i polítiques `require_killswitch`/`dns_policy` | ✅ | proves + perfils reals avaluats en directe |
 | Fuites passives: IPv6, túnel, DNS, proxy exposat, zona horària, MAC, kill-switch | ✅ | proves + troballes reals |
-| Monitoratge de totes les xarxes: trànsit, veïns ARP (sense escanejar), empremta de xarxa, canvi de MAC de la passarel·la (ARP spoofing), dispositius nous, WiFi oberta, aïllament de xarxes libvirt | ✅ | proves + real: va detectar `pentest-isolated` amb NAT |
+| Monitoratge de totes les xarxes: trànsit, veïns ARP (sense escanejar), empremta de xarxa, canvi de MAC de la passarel·la (ARP spoofing), dispositius nous, WiFi oberta, aïllament de xarxes libvirt | ✅ | proves + real: va detectar `lab-isolated` amb NAT |
 | IP pública només pel túnel (`public_ip.require_tunnel`) | ✅ | proves + real: omesa en caure la VPN |
 | IP pública en temps real (cada 60 s amb túnel + immediata en canviar la ruta) i detecció de «Internet veu la teva IP real» | ✅ / 🟡 | proves; validació real pendent de reconnectar la VPN |
 | Vigilant de fuites en temps real (sòcols del nucli cada 2 s, programa responsable, fuites DNS, reacció automàtica amb kill-switch) | ✅ | proves + real: 29 connexions directes detectades amb la VPN caiguda |
@@ -333,7 +353,7 @@ Llegenda:
 python3 -m unittest discover -s tests -t .
 ```
 
-171 proves amb mocks i backends simulats (servidor de control de Tor fals amb SAFECOOKIE real, rotació amb errors
+255 proves amb mocks i backends simulats (servidor de control de Tor fals amb SAFECOOKIE real, rotació amb errors
 i rollback, fuites simulades, IPC, seguretat de la GUI, proxy SOCKS5 fals, mapa OSM, migració, guardià de git i
 traduccions). Cap no toca la connectivitat real.
 
@@ -360,6 +380,10 @@ sobreescriu dades noves i no actua mentre el daemon antic continuï en marxa.
 
 ## Llicència i crèdits
 
+- **Codi, documentació, disseny i marca: propietaris, tots els drets reservats.** VELA
+  **no és open source**. No es permet usar, copiar, modificar, distribuir, allotjar, oferir com a
+  servei ni explotar comercialment sense permís previ per escrit. Vegeu [LICENSE](LICENSE),
+  [LICENSING.md](LICENSING.md) i [TRADEMARK.md](TRADEMARK.md).
 - Dades del mapa: © OpenStreetMap contributors, [ODbL 1.0](https://www.openstreetmap.org/copyright)
-  (vegeu [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)).
-- Llicència del codi: pendent de triar.
+  (vegeu [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)). Les dades ODbL no estan
+  cobertes per la llicència propietària.

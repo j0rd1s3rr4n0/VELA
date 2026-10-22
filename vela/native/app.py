@@ -30,6 +30,8 @@ from gi.repository import Adw, Gdk, Gio, GLib, Gtk  # noqa: E402
 import cairo  # noqa: E402
 
 from .. import ACRONYM, TAGLINE, osmmap, worldmap  # noqa: E402
+from .. import (about as about_mod, applaunch, backup as backup_mod, deps, dnsfix, logs, mac as mac_mod, ocr,
+                translate)  # noqa: E402
 from ..geo import country_label  # noqa: E402
 from .. import APP_ID as VELA_APP_ID  # noqa: E402
 from ..ipc import connect  # noqa: E402
@@ -48,6 +50,12 @@ SEV_STATUS = {"critical": "critical", "high": "critical", "medium": "serious", "
 SEV_LABEL = {"critical": _("Crítica"), "high": _("Alta"), "medium": _("Media"), "warning": _("Aviso"), "low": _("Baja"),
              "info": _("Info")}
 SEV_ORDER = ["critical", "high", "medium", "warning", "low", "info"]
+# Eventos que invalidan el estado visible: la UI vuelve a pedir status/fixes con debounce.
+REFRESH_EVENTS = {"finding", "dns_change", "dns_encryption_change", "dns_route_change",
+                  "killswitch_change", "network_new", "gateway_mac_change", "rotation",
+                  "profile_change", "config_change", "settings_change", "anomaly_detected",
+                  "emergency", "emergency_end", "public_ip_change", "wan_ip_change",
+                  "tor_available", "tor_unavailable", "direct_exposure", "ip_leak"}
 
 
 def sev_pill(sev):
@@ -113,6 +121,46 @@ def clear(box):
         n = c.get_next_sibling()
         box.remove(c)
         c = n
+
+
+def _log_detail(entry: dict) -> str:
+    """Resumen de una entrada de log para la tabla; el texto completo va en el tooltip."""
+    if entry.get("detail") is not None:
+        try:
+            return json.dumps(entry["detail"], ensure_ascii=False, default=str)
+        except (TypeError, ValueError):
+            return str(entry["detail"])
+    parts = []
+    if entry.get("type"):
+        parts.append(str(entry["type"]))
+    if entry.get("exception"):
+        parts.append(str(entry["exception"]))
+    if entry.get("context"):
+        try:
+            parts.append(json.dumps(entry["context"], ensure_ascii=False, default=str))
+        except (TypeError, ValueError):
+            parts.append(str(entry["context"]))
+    if entry.get("traceback"):
+        parts.append(entry["traceback"].strip().splitlines()[-1])
+    return " · ".join(parts)[:500]
+
+
+def _log_buttons(app, kind: str, entries: list[dict]):
+    box = hbox(8)
+    copy = Gtk.Button(label=_("Copiar registro"))
+    copy.add_css_class("flat")
+    copy.connect("clicked", lambda *_ign: app.copy(json.dumps(entries, ensure_ascii=False, indent=2, default=str),
+                                                   _("Registro copiado")))
+    box.append(copy)
+    clear = Gtk.Button(label=_("Vaciar registro"))
+    clear.add_css_class("flat")
+    clear.add_css_class("destructive-action")
+    clear.connect("clicked", lambda *_ign: app._confirm(
+        _("¿Vaciar el registro de {kind}?", kind=_("errores") if kind == "errors" else _("auditoría")),
+        _("El fichero se borra del disco. No se puede deshacer."),
+        lambda: app._log_clear(kind), _("Vaciar"), destructive=True))
+    box.append(clear)
+    return box
 
 
 # Identificadores técnicos que se leen mejor en monoespaciada: IPs (con o sin puerto/prefijo), MAC, hashes
@@ -862,7 +910,10 @@ PAGES = [("dash", _("Panel de mando"), "utilities-system-monitor-symbolic"),
          ("fix", _("Alertas y acciones"), "dialog-warning-symbolic"),
          ("intel", _("Threat intel"), "security-high-symbolic"),
          ("prof", _("Perfiles"), "system-users-symbolic"),
-         ("settings", _("Ajustes"), "emblem-system-symbolic")]
+         ("tools", _("Utilidades"), "applications-utilities-symbolic"),
+         ("errors", _("Errores"), "dialog-error-symbolic"),
+         ("settings", _("Ajustes"), "emblem-system-symbolic"),
+         ("about", _("Acerca de"), "help-about-symbolic")]
 KEY_ROWS = [("virustotal", "VirusTotal", "virustotal"), ("shodan", _("Shodan"), "shodan"),
             ("greynoise", _("GreyNoise (opcional: sin clave usa la API comunitaria)"), "greynoise"),
             ("censys_token", _("Censys · token de la Platform"), "censys"),
@@ -925,6 +976,7 @@ class Window(Adw.ApplicationWindow):
         self.sig: dict[str, str] = {}
         self.traffic = {"rx": deque(maxlen=120), "tx": deque(maxlen=120)}
         self._last_counters = None
+        self._refresh_timer = None
 
         # barra lateral
         side = vbox(0)
@@ -1020,6 +1072,8 @@ class Window(Adw.ApplicationWindow):
 
         self.build_dash()
         self.build_map()
+        self.build_tools()
+        self.build_about()
         self.themes = app.themes
         self.themes.listeners.append(self.on_theme)
         self.on_theme(self.themes.tokens, self.themes.dark)
@@ -1062,12 +1116,15 @@ class Window(Adw.ApplicationWindow):
                 if done:
                     GLib.idle_add(done, r)
             except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e, {"method": method})
                 GLib.idle_add(self.toast, f"Error: {e}")
         threading.Thread(target=work, daemon=True).start()
 
-    def refresh(self, full=False):
+    def refresh(self, full=False, force_slow=False):
         if self.busy:
             return
+        if force_slow:
+            self.data["_slow"] = 0
         self.busy = True
 
         def work():
@@ -1080,20 +1137,23 @@ class Window(Adw.ApplicationWindow):
                     try:
                         d["routes"] = self.b.call("routes")
                     except Exception as e:  # noqa: BLE001
+                        logs.error(_("error al cargar rutas"), e)
                         d["routes_error"] = str(e)
                 d["leakwatch"] = self.b.call("leakwatch")
-                if full or time.monotonic() - self.data.get("_slow", 0) > 20:
+                if full or force_slow or time.monotonic() - self.data.get("_slow", 0) > 20:
                     for k, m, p in (("networks", "networks", {}), ("map", "map", {}), ("sessions", "sessions", {"limit": 80}),
                                     ("counters", "counters", {}), ("timeline", "timeline", {"limit": 600}),
                                     ("fixes", "fixes", {}), ("profiles", "profiles", {}), ("intel", "intel_results", {}),
                                     ("intel_keys", "intel_keys", {}), ("stats", "stats", {"period": "week"}),
-                                    ("settings", "settings_get", {})):
+                                    ("anomalies", "anomalies", {}), ("data_info", "data_info", {}),
+                                    ("logs", "logs", {"limit": 300}), ("settings", "settings_get", {})):
                         try:
                             d[k] = self.b.call(m, **p)
                         except Exception as e:  # noqa: BLE001
                             d[k + "_error"] = str(e)
                     d["_slow"] = time.monotonic()
             except Exception as e:  # noqa: BLE001
+                logs.error(_("error al actualizar la interfaz"), e)
                 d["error"] = str(e)
             GLib.idle_add(self._apply, d)
         threading.Thread(target=work, daemon=True).start()
@@ -1102,6 +1162,49 @@ class Window(Adw.ApplicationWindow):
         self.busy = False
         self.data.update(d)
         self.render()
+        return False
+
+    def refresh_after(self, domains=None, message=None):
+        """Invalida el motor y recarga la UI tras una acción que cambia el sistema."""
+        def work():
+            try:
+                self.b.call("refresh", domains=list(domains or ["all"]))
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error al refrescar el estado"), e, {"domains": list(domains or ["all"])})
+                GLib.idle_add(self.toast, _("No se pudo refrescar: {e}", e=e))
+
+            def finish():
+                self.data["_slow"] = 0
+                self.sig.clear()
+                self._tools_checked = 0
+                self.busy = False
+                if message:
+                    self.toast(message)
+                self.refresh(full=True, force_slow=True)
+                return False
+            GLib.idle_add(finish)
+        threading.Thread(target=work, daemon=True).start()
+
+    def refresh_ui(self, message=None):
+        """Recarga la UI cuando el motor ya invalidó su estado (acciones del daemon)."""
+        self.data["_slow"] = 0
+        self.sig.clear()
+        self._tools_checked = 0
+        self.busy = False
+        if message:
+            self.toast(message)
+        self.refresh(full=True, force_slow=True)
+
+    def _queue_refresh(self):
+        """Un solo refresco diferido para ráfagas de eventos (netlink, DNS, fugas…)."""
+        if self._refresh_timer is not None:
+            return False
+        self._refresh_timer = GLib.timeout_add(1200, self._do_queued_refresh)
+        return False
+
+    def _do_queued_refresh(self):
+        self._refresh_timer = None
+        self.refresh(full=True, force_slow=True)
         return False
 
     def _fast(self):
@@ -1149,8 +1252,10 @@ class Window(Adw.ApplicationWindow):
             for ev in self.b.subscribe():
                 if ev.get("severity") in ("high", "critical"):
                     GLib.idle_add(self._notify, ev)
-        except Exception:  # noqa: BLE001
-            pass
+                if ev.get("kind") in REFRESH_EVENTS:
+                    GLib.idle_add(self._queue_refresh)
+        except Exception as e:  # noqa: BLE001
+            logs.error(_("error en el flujo de eventos"), e)
 
     def _notify(self, ev):
         from ..autostart import tray_running
@@ -1177,8 +1282,11 @@ class Window(Adw.ApplicationWindow):
         i = dd.get_selected()
         if 0 <= i < len(self._profiles) and self._profiles[i] != (self.data.get("status") or {}).get("profile"):
             name = self._profiles[i]
-            self.call_bg("profile_activate", {"name": name}, lambda r: (self.toast(_("Perfil activo: {name}", name=name)),
-                                                                      self.refresh(full=True)))
+
+            def done(_r):
+                self.refresh_ui(_("Perfil activo: {name}", name=name))
+                return False
+            self.call_bg("profile_activate", {"name": name}, done)
 
     def on_panic(self, *_ign):
         dlg = Adw.AlertDialog(heading=_("¿Activar el modo de emergencia?"),
@@ -1187,9 +1295,16 @@ class Window(Adw.ApplicationWindow):
         dlg.add_response("cancel", _("Cancelar"))
         dlg.add_response("panic", _("Activar"))
         dlg.set_response_appearance("panic", Adw.ResponseAppearance.DESTRUCTIVE)
-        dlg.connect("response", lambda d, r: r == "panic" and self.call_bg("panic", {}, lambda res: (
-            self.toast(_("Emergencia activa · kill-switch ") + (_("aplicado") if res["killswitch"].get("ok") else _("no aplicado"))),
-            self.refresh(full=True))))
+        def go(_d, r):
+            if r != "panic":
+                return
+
+            def done(res):
+                self.refresh_ui(_("Emergencia activa · kill-switch ") +
+                                (_("aplicado") if res["killswitch"].get("ok") else _("no aplicado")))
+                return False
+            self.call_bg("panic", {}, done)
+        dlg.connect("response", go)
         dlg.present(self)
 
     # ── render común ──
@@ -1227,6 +1342,15 @@ class Window(Adw.ApplicationWindow):
             return
         if page == "map":
             self.render_map()
+            return
+        if page == "tools":
+            self.render_tools()
+            return
+        if page == "errors":
+            self.render_errors()
+            return
+        if page == "about":
+            self.render_about()
             return
         payload = {"live": ("leakwatch", "routes"), "nets": "networks", "map": "map", "hist": "timeline", "fix": "fixes",
                    "intel": ("intel", "intel_keys"), "prof": "profiles", "settings": "settings"}[page]
@@ -1309,6 +1433,8 @@ class Window(Adw.ApplicationWindow):
         pc.set_size_request(420, -1)
         row3.append(pc)
         box.append(row3)
+        self.anom_box = vbox(0)
+        box.append(card(_("Anomalías de red · línea base"), self.anom_box))
 
         row4 = hbox(12)
         self.events_chart = Columns(height=120)
@@ -1399,6 +1525,15 @@ class Window(Adw.ApplicationWindow):
         self.alerts_box.append(table([(_("Severidad"), 0.8), (_("Alerta"), 2.6), (_("Observado"), 2.4)],
                                      [[sev_pill(f["severity"]), f["title"], f["observed"]]
                                       for f in fs], max_rows=8))
+        clear(self.anom_box)
+        anoms = self.data.get("anomalies") or []
+        if anoms:
+            self.anom_box.append(table([(_("Tipo"), 1.4), (_("Severidad"), 0.8), (_("Detalle"), 4.2)],
+                                       [[a.get("type", ""), sev_pill(a.get("severity", "info")), a.get("detail", "")]
+                                        for a in anoms], max_rows=8))
+        else:
+            self.anom_box.append(lbl(_("Sin anomalías en la ventana analizada. La línea base se construye con las "
+                                       "muestras del daemon."), "kpi-sub", wrap=True))
         # procesos
         counts = {}
         for f in lw.get("flows") or []:
@@ -1801,7 +1936,16 @@ class Window(Adw.ApplicationWindow):
                 ver.append(v)
                 inner.append(ver)
             sev = fx.get("severity") or "info"
-            c = card(fx["title"], inner, sev_pill(sev))
+            suffix = sev_pill(sev)
+            if fx.get("check") == "dns_plaintext":
+                quick = hbox(6)
+                quick.append(suffix)
+                b = Gtk.Button(label=_("Cifrar DNS ahora"))
+                b.add_css_class("suggested-action")
+                b.connect("clicked", lambda *_ign: self.tools_dns_apply())
+                quick.append(b)
+                suffix = quick
+            c = card(fx["title"], inner, suffix)
             c.add_css_class("callout")
             c.add_css_class(f"callout-{SEV_STATUS.get(sev, 'neutral')}")
             box.append(c)
@@ -1945,6 +2089,665 @@ class Window(Adw.ApplicationWindow):
         self.call_bg("intel_keys", {}, lambda r: (self.data.__setitem__("intel_keys", r), self.render()))
 
     # ── ajustes ──
+    # ── utilidades: traductor, OCR, DNS, zona horaria, MAC y dependencias ──
+    def _confirm(self, heading, body, action, label=_("Aplicar"), destructive=False):
+        dlg = Adw.AlertDialog(heading=heading, body=body)
+        dlg.add_response("cancel", _("Cancelar"))
+        dlg.add_response("go", label)
+        if destructive:
+            dlg.set_response_appearance("go", Adw.ResponseAppearance.DESTRUCTIVE)
+        else:
+            dlg.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
+        dlg.connect("response", lambda _d, r: action() if r == "go" else None)
+        dlg.present(self)
+
+    def build_tools(self):
+        box = self.pages["tools"]
+        clear(box)
+        box.append(lbl(_("Herramientas locales de VELA. Lo que modifica el sistema (DNS, MAC) pide consentimiento, "
+                         "confirmación y deja un registro; lo demás funciona sin salir de tu máquina."), "kpi-sub", wrap=True))
+
+        # traductor + OCR
+        g = card(_("Traductor y OCR"))
+        self.tr_in = Gtk.TextView(wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        self.tr_in.set_top_margin(8)
+        self.tr_in.set_bottom_margin(8)
+        self.tr_in.set_left_margin(8)
+        self.tr_in.set_right_margin(8)
+        sw = Gtk.ScrolledWindow()
+        sw.set_min_content_height(130)
+        sw.set_child(self.tr_in)
+        g.append(sw)
+        row = hbox(8)
+        codes = [c for c in translate.LANGUAGES if c != "auto"]
+        self.tr_langs = codes
+        try:
+            from .. import config as config_mod
+            cur = (config_mod.load().get("translate") or {}).get("target", "es")
+        except Exception:  # noqa: BLE001
+            cur = "es"
+        self.tr_lang = Gtk.DropDown(model=Gtk.StringList.new([translate.LANGUAGES[c] for c in codes]),
+                                    tooltip_text=_("Idioma de destino"))
+        self.tr_lang.set_selected(codes.index(cur) if cur in codes else codes.index("es"))
+        row.append(lbl(_("Traducir a"), "td-strong"))
+        row.append(self.tr_lang)
+        tr_btn = Gtk.Button(label=_("Traducir"))
+        tr_btn.add_css_class("suggested-action")
+        tr_btn.connect("clicked", lambda *_ign: self.tools_translate())
+        row.append(tr_btn)
+        ocr_btn = Gtk.Button(label=_("Escanear pantalla y traducir"))
+        ocr_btn.connect("clicked", lambda *_ign: self.tools_ocr())
+        row.append(ocr_btn)
+        ocr_only = Gtk.Button(label=_("Solo OCR"))
+        ocr_only.add_css_class("flat")
+        ocr_only.set_tooltip_text(_("Captura y reconoce el texto sin traducirlo; útil para comprobar la selección"))
+        ocr_only.connect("clicked", lambda *_ign: self.tools_ocr_only())
+        row.append(ocr_only)
+        clr = Gtk.Button(label=_("Limpiar"))
+        clr.add_css_class("flat")
+        clr.connect("clicked", lambda *_ign: (self.tr_in.get_buffer().set_text(""), self.tr_out.get_buffer().set_text("")))
+        row.append(clr)
+        g.append(row)
+        self.tr_status = lbl("", "kpi-sub", wrap=True)
+        g.append(self.tr_status)
+        self.tr_out = Gtk.TextView(editable=False, cursor_visible=False, wrap_mode=Gtk.WrapMode.WORD_CHAR)
+        self.tr_out.set_top_margin(8)
+        self.tr_out.set_bottom_margin(8)
+        self.tr_out.set_left_margin(8)
+        self.tr_out.set_right_margin(8)
+        sw2 = Gtk.ScrolledWindow()
+        sw2.set_min_content_height(130)
+        sw2.set_child(self.tr_out)
+        g.append(sw2)
+        cp = Gtk.Button(label=_("Copiar traducción"))
+        cp.add_css_class("flat")
+        cp.connect("clicked", lambda *_ign: self.copy(self.tr_out.get_buffer().get_text(
+            self.tr_out.get_buffer().get_start_iter(), self.tr_out.get_buffer().get_end_iter(), False),
+            _("Traducción copiada")))
+        g.append(cp)
+        box.append(g)
+
+        # DNS
+        d = card(_("DNS cifrado"))
+        self.dns_status_lbl = lbl("", "kpi-sub", wrap=True)
+        d.append(self.dns_status_lbl)
+        drow = hbox(8)
+        self.dns_transport = Gtk.DropDown(model=Gtk.StringList.new([_("DoT (systemd-resolved)"), _("DoH (cloudflared)")]))
+        self.dns_provider = Gtk.DropDown(model=Gtk.StringList.new(list(dnsfix.PROVIDERS)))
+        drow.append(lbl(_("Método"), "td-strong"))
+        drow.append(self.dns_transport)
+        drow.append(lbl(_("Proveedor"), "td-strong"))
+        drow.append(self.dns_provider)
+        db = Gtk.Button(label=_("Cifrar DNS"))
+        db.add_css_class("suggested-action")
+        db.connect("clicked", lambda *_ign: self.tools_dns_apply())
+        drow.append(db)
+        dr = Gtk.Button(label=_("Restaurar"))
+        dr.add_css_class("flat")
+        dr.connect("clicked", lambda *_ign: self.tools_dns_restore())
+        drow.append(dr)
+        d.append(drow)
+        d.append(lbl(_("DoT cambia el DNS del sistema y puede sustituir el de la VPN: VELA guarda una copia y puede "
+                       "revertirlo. DoH requiere cloudflared."), "kpi-sub", wrap=True))
+        box.append(d)
+
+        # zona horaria
+        tz = card(_("Abrir una aplicación con otra zona horaria"))
+        tz.append(lbl(_("Arranca la app con TZ=<zona>; la zona del escritorio no cambia. Las apps que reutilizan una "
+                        "instancia por D-Bus pueden no heredarla."), "kpi-sub", wrap=True))
+        self.tz_apps_all = applaunch.apps()
+        self.tz_apps = list(self.tz_apps_all)
+        self.tz_search = Gtk.SearchEntry(placeholder_text=_("Buscar aplicación…"))
+        self.tz_search.connect("search-changed", lambda *_ign: self._tz_filter())
+        tz.append(self.tz_search)
+        self.tz_app_dd = Gtk.DropDown(model=Gtk.StringList.new([a["name"] for a in self.tz_apps] or ["—"]))
+        tz.append(self.tz_app_dd)
+        self.tz_zone_dd = Gtk.DropDown(model=Gtk.StringList.new(applaunch.timezone_names()))
+        try:
+            z = applaunch.current_timezone()
+            names = applaunch.timezone_names()
+            self.tz_zone_dd.set_selected(names.index(z) if z in names else 0)
+        except Exception:  # noqa: BLE001
+            pass
+        tz.append(self.tz_zone_dd)
+        lrow = hbox(8)
+        lb = Gtk.Button(label=_("Abrir con esta zona"))
+        lb.add_css_class("suggested-action")
+        lb.connect("clicked", lambda *_ign: self.tools_launch_tz())
+        lrow.append(lb)
+        self.tz_cmd = Gtk.Entry(placeholder_text=_("…o un comando (opcional): firefox --private-window"))
+        self.tz_cmd.set_hexpand(True)
+        lrow.append(self.tz_cmd)
+        lc = Gtk.Button(label=_("Ejecutar comando"))
+        lc.add_css_class("flat")
+        lc.connect("clicked", lambda *_ign: self.tools_launch_cmd())
+        lrow.append(lc)
+        tz.append(lrow)
+        self.tz_status = lbl("", "kpi-sub", wrap=True)
+        tz.append(self.tz_status)
+        box.append(tz)
+
+        # MAC
+        m = card(_("Cambiador de MAC"))
+        m.append(lbl(_("Cambio temporal: la conexión se corta unos segundos y NetworkManager puede restaurarla al "
+                       "reconectar. Se guarda la MAC original para poder volver."), "kpi-sub", wrap=True))
+        self.mac_ifaces = [i for i in mac_mod.interfaces() if i.get("kind") == "física"]
+        self.mac_dd = Gtk.DropDown(model=Gtk.StringList.new([
+            _("{name} · {mac}", name=i["name"], mac=i["mac"]) for i in self.mac_ifaces] or ["—"]))
+        self.mac_dd.connect("notify::selected", lambda *_ign: self._mac_selected())
+        m.append(self.mac_dd)
+        self.mac_lbl = lbl("", "kpi-sub", wrap=True)
+        m.append(self.mac_lbl)
+        mrow = hbox(8)
+        self.mac_entry = Gtk.Entry(placeholder_text="02:11:22:33:44:55")
+        self.mac_entry.set_hexpand(True)
+        mrow.append(self.mac_entry)
+        rb = Gtk.Button(label=_("Aleatoria"))
+        rb.connect("clicked", lambda *_ign: self.mac_entry.set_text(mac_mod.random_mac()))
+        mrow.append(rb)
+        sb = Gtk.Button(label=_("Aplicar"))
+        sb.add_css_class("suggested-action")
+        sb.connect("clicked", lambda *_ign: self.tools_mac_set())
+        mrow.append(sb)
+        rs = Gtk.Button(label=_("Restaurar original"))
+        rs.add_css_class("flat")
+        rs.connect("clicked", lambda *_ign: self.tools_mac_restore())
+        mrow.append(rs)
+        m.append(mrow)
+        self.mac_status = lbl("", "kpi-sub", wrap=True)
+        m.append(self.mac_status)
+        box.append(m)
+        self._mac_selected()
+
+        # dependencias
+        dep = card(_("Dependencias opcionales"))
+        self.dep_lbl = lbl("", "kpi-sub", wrap=True)
+        dep.append(self.dep_lbl)
+        drow2 = hbox(8)
+        for label, feat in ((_("Instalar OCR"), ["ocr", "capture"]), (_("Instalar MAC"), ["mac"]),
+                            (_("Comprobar"), None)):
+            b = Gtk.Button(label=label)
+            b.add_css_class("flat")
+            b.connect("clicked", lambda _b, f=feat: self.tools_deps(f))
+            drow2.append(b)
+        ob = Gtk.Button(label=_("Instalar Ollama + modelo"))
+        ob.add_css_class("suggested-action")
+        ob.connect("clicked", lambda *_ign: self.tools_ollama())
+        drow2.append(ob)
+        dep.append(drow2)
+        box.append(dep)
+
+        dat = card(_("Datos"))
+        self.tools_data_lbl = lbl("", "kpi-sub", wrap=True)
+        dat.append(self.tools_data_lbl)
+        brows = hbox(8)
+        for label, cb in ((_("Exportar"), self.data_export), (_("Importar"), self.data_import),
+                          (_("Borrar…"), self.data_reset)):
+            b = Gtk.Button(label=label)
+            b.add_css_class("flat")
+            b.connect("clicked", lambda _b, f=cb: f())
+            brows.append(b)
+        dat.append(brows)
+        box.append(dat)
+        self._tools_status()
+
+    def _tz_filter(self):
+        q = (self.tz_search.get_text() or "").strip().lower()
+        self.tz_apps = [a for a in self.tz_apps_all if not q or q in a["name"].lower() or q in a["id"].lower()]
+        self.tz_app_dd.set_model(Gtk.StringList.new([a["name"] for a in self.tz_apps] or ["—"]))
+
+    def _mac_selected(self):
+        if not self.mac_ifaces:
+            self.mac_lbl.set_text(_("No hay interfaces disponibles"))
+            return
+        i = self.mac_ifaces[min(self.mac_dd.get_selected(), len(self.mac_ifaces) - 1)]
+        self.mac_lbl.set_text(_("Actual: {mac} · permanente: {perm} · {kind} · {state}", mac=i["mac"],
+                                perm=i.get("permanent") or _("desconocida"), kind=i["kind"], state=i["state"]))
+
+    def _tools_status(self):
+        self._tools_checked = time.monotonic()
+        try:
+            st = translate.status()
+            self.tr_status.set_text((_("Motor: {engine} · {endpoint} · modelo {model}", engine=st["engine"],
+                                       endpoint=st["endpoint"], model=st.get("model") or "?")
+                                     if st["ok"] else _("Sin LLM local. Instala Ollama y descarga un modelo.")))
+        except Exception as e:  # noqa: BLE001
+            self.tr_status.set_text(str(e))
+        try:
+            d = dnsfix.status()
+            self.dns_status_lbl.set_text(_("DNS cifrado: {state} · {resolvers}", state={
+                True: _("sí"), False: _("no"), None: _("sin verificar")}[d.get("encrypted")],
+                resolvers=", ".join(f"{r['addr']} [{r['transport']}]" for r in d.get("resolvers") or []) or "—"))
+        except Exception as e:  # noqa: BLE001
+            self.dns_status_lbl.set_text(str(e))
+        try:
+            sm = deps.summary()
+            bad = [x for x in sm if not x["ok"]]
+            self.dep_lbl.set_text(_("Todo instalado.") if not bad else
+                                  _("Falta: {items}", items=", ".join(x["title"] for x in bad)))
+        except Exception as e:  # noqa: BLE001
+            self.dep_lbl.set_text(str(e))
+        d = self.data.get("data_info") or {}
+        if hasattr(self, "tools_data_lbl"):
+            rows = d.get("rows") or {}
+            self.tools_data_lbl.set_text(_("{db} · sesiones {sessions} · eventos {events}", db=d.get("database") or "—",
+                                            sessions=rows.get("sessions", 0), events=rows.get("events", 0)))
+
+    def render_tools(self):
+        if time.monotonic() - getattr(self, "_tools_checked", 0) > 30:
+            self._tools_checked = time.monotonic()
+            self._tools_status()
+
+    def tools_translate(self):
+        buf = self.tr_in.get_buffer()
+        text = buf.get_text(buf.get_start_iter(), buf.get_end_iter(), False)
+        target = self.tr_langs[self.tr_lang.get_selected()]
+        if not text.strip():
+            self.toast(_("Escribe o pega un texto"))
+            return
+        self.tr_status.set_text(_("Traduciendo…"))
+
+        def work():
+            try:
+                r = translate.translate(text, target=target)
+                def done():
+                    self.tr_out.get_buffer().set_text(r["text"])
+                    self.tr_status.set_text(_("Traducido con {engine} · {model}", engine=r["engine"], model=r["model"]))
+                GLib.idle_add(done)
+            except Exception as e:  # noqa: BLE001
+                GLib.idle_add(self.tr_status.set_text, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_ocr(self):
+        target = self.tr_langs[self.tr_lang.get_selected()]
+        self.tr_status.set_text(_("Selecciona la región de la pantalla…"))
+
+        def work():
+            try:
+                r = ocr.scan_and_translate(target=target)
+                def done():
+                    text = (r.get("ocr") or {}).get("text") or ""
+                    if text:
+                        self.tr_in.get_buffer().set_text(text)
+                    if r.get("error"):
+                        self.tr_status.set_text(_("OCR: {e}", e=r["error"]))
+                        self.toast(_("OCR: {e}", e=r["error"]))
+                        return
+                    self.tr_out.get_buffer().set_text(r["translation"]["text"])
+                    self.tr_status.set_text(_("OCR ({langs}) y traducción listos", langs="+".join(r["ocr"]["languages"])))
+                    if r.get("captured", {}).get("path"):
+                        Path(r["captured"]["path"]).unlink(missing_ok=True)
+                GLib.idle_add(done)
+            except Exception as e:  # noqa: BLE001
+                GLib.idle_add(self.tr_status.set_text, _("Error: {e}", e=e))
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_ocr_only(self):
+        self.tr_status.set_text(_("Selecciona la región de la pantalla…"))
+
+        def work():
+            cap = None
+            try:
+                cap = ocr.capture_region()
+                res = ocr.ocr_image(cap["path"])
+                def done():
+                    self.tr_in.get_buffer().set_text(res["text"])
+                    self.tr_status.set_text(_("OCR ({langs}, PSM {psm}) listo", langs="+".join(res["languages"]),
+                                              psm=res.get("psm", "?")))
+                    if not res["text"]:
+                        self.toast(_("No se reconoció texto en la selección"))
+                GLib.idle_add(done)
+            except Exception as e:  # noqa: BLE001
+                GLib.idle_add(self.tr_status.set_text, _("OCR: {e}", e=e))
+                GLib.idle_add(self.toast, _("OCR: {e}", e=e))
+            finally:
+                if cap:
+                    Path(cap["path"]).unlink(missing_ok=True)
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_dns_apply(self):
+        transport = "dot" if self.dns_transport.get_selected() == 0 else "doh"
+        provider = list(dnsfix.PROVIDERS)[self.dns_provider.get_selected()]
+        try:
+            p = dnsfix.plan(transport, provider)
+        except Exception as e:  # noqa: BLE001
+            self.toast(str(e))
+            return
+        body = _("Se modificará {file} y se reiniciará systemd-resolved. Comandos: {cmds}",
+                 file=p["file"], cmds="; ".join(p["commands"]))
+        self._confirm(_("¿Cifrar el DNS del sistema?"), body, lambda: self._dns_apply_bg(transport, provider),
+                      _("Cifrar"), destructive=False)
+
+    def _dns_apply_bg(self, transport, provider):
+        def work():
+            try:
+                r = dnsfix.apply(transport, provider)
+                GLib.idle_add(self._after_dns, r, "dns_encrypt")
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _after_dns(self, r, action="dns_encrypt"):
+        self.call_bg("log_action", {"action": action, "detail": {k: r.get(k) for k in ("ok", "transport",
+                                                                                       "provider", "error")}})
+        self.toast(_("DNS cifrado y verificado") if r.get("ok") else
+                   _("No se pudo cifrar: {e}", e=r.get("error") or "?"))
+        self._tools_status()
+        self.refresh_after(["dns", "leaks"])
+
+    def tools_dns_restore(self):
+        self._confirm(_("¿Restaurar el DNS anterior?"),
+                      _("Se elimina la configuración de VELA y se reinicia systemd-resolved."),
+                      self._dns_restore_bg, _("Restaurar"), destructive=True)
+
+    def _dns_restore_bg(self):
+        def work():
+            try:
+                r = dnsfix.restore()
+                GLib.idle_add(self._after_dns, r, "dns_restore")
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_launch_tz(self):
+        if not self.tz_apps:
+            self.toast(_("No se encontraron aplicaciones .desktop"))
+            return
+        app = self.tz_apps[min(self.tz_app_dd.get_selected(), len(self.tz_apps) - 1)]
+        tz = applaunch.timezone_names()[self.tz_zone_dd.get_selected()]
+        try:
+            r = applaunch.launch(app, tz)
+            self.tz_status.set_text(_("Lanzado: {cmd} · TZ={tz}", cmd=" ".join(r["command"]), tz=tz)
+                                    if r.get("ok") else _("Error: {e}", e=r.get("error")))
+        except Exception as e:  # noqa: BLE001
+            self.tz_status.set_text(_("Error: {e}", e=e))
+
+    def tools_launch_cmd(self):
+        cmd = self.tz_cmd.get_text().strip()
+        if not cmd:
+            self.toast(_("Escribe un comando"))
+            return
+        tz = applaunch.timezone_names()[self.tz_zone_dd.get_selected()]
+        try:
+            r = applaunch.launch_command(cmd, tz)
+            self.tz_status.set_text(_("Lanzado con TZ={tz}: {cmd}", tz=tz, cmd=" ".join(r["command"]))
+                                    if r.get("ok") else _("Error: {e}", e=r.get("error")))
+        except Exception as e:  # noqa: BLE001
+            self.tz_status.set_text(_("Error: {e}", e=e))
+
+    def tools_mac_set(self):
+        if not self.mac_ifaces:
+            return
+        i = self.mac_ifaces[min(self.mac_dd.get_selected(), len(self.mac_ifaces) - 1)]
+        mac = self.mac_entry.get_text().strip()
+        if not mac:
+            self.toast(_("Escribe una MAC o pulsa Aleatoria"))
+            return
+        self._confirm(_("¿Cambiar la MAC de {iface}?", iface=i["name"]),
+                      _("La conexión se cortará unos segundos. Se guarda la MAC actual para restaurarla."),
+                      lambda: self._mac_bg(i["name"], mac), _("Cambiar"), destructive=True)
+
+    def _mac_bg(self, iface, mac):
+        def work():
+            try:
+                r = mac_mod.set_mac(iface, mac=mac, apply=True)
+                GLib.idle_add(self._after_mac, r, "mac_change")
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def _after_mac(self, r, action="mac_change"):
+        self.call_bg("log_action", {"action": action, "detail": {"ok": r.get("ok"), "iface": r.get("iface"),
+                                                                 "old": r.get("old"), "new": r.get("actual")}})
+        self.mac_status.set_text(_("MAC de {iface}: {mac}", iface=r.get("iface"), mac=r.get("actual"))
+                                 if r.get("ok") else _("Error: {e}", e=r.get("error")))
+        self.mac_ifaces = [i for i in mac_mod.interfaces() if i.get("kind") == "física"]
+        self.mac_dd.set_model(Gtk.StringList.new([_("{name} · {mac}", name=i["name"], mac=i["mac"])
+                                                  for i in self.mac_ifaces] or ["—"]))
+        self._mac_selected()
+        if r.get("ok"):
+            self.refresh_after(["network", "networks", "leaks"])
+
+    def tools_mac_restore(self):
+        if not self.mac_ifaces:
+            return
+        i = self.mac_ifaces[min(self.mac_dd.get_selected(), len(self.mac_ifaces) - 1)]
+        self._confirm(_("¿Restaurar la MAC original de {iface}?", iface=i["name"]),
+                      _("La conexión se cortará unos segundos."),
+                      lambda: self._mac_restore_bg(i["name"]), _("Restaurar"), destructive=True)
+
+    def _mac_restore_bg(self, iface):
+        def work():
+            try:
+                r = mac_mod.restore(iface, apply=True)
+                GLib.idle_add(self._after_mac, r, "mac_restore")
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_deps(self, features):
+        if features is None:
+            self._tools_status()
+            self.toast(_("Dependencias comprobadas"))
+            return
+        pl = deps.plan(features)
+        if not pl["packages"]:
+            self.toast(_("No falta ningún paquete"))
+            return
+        self._confirm(_("¿Instalar dependencias?"),
+                      _("Paquetes: {pkgs}\nComando: {cmd}", pkgs=", ".join(pl["packages"]),
+                        cmd=" ".join(pl["command"] or [])),
+                      lambda: self._deps_bg(features), _("Instalar"))
+
+    def _deps_bg(self, features):
+        def work():
+            try:
+                r = deps.install(features, yes=True)
+                GLib.idle_add(self.toast, _("Dependencias instaladas") if r.get("ok")
+                              else _("No se pudo instalar: {e}", e=r.get("error")))
+                GLib.idle_add(self._tools_status)
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def tools_ollama(self):
+        self._confirm(_("¿Instalar Ollama y el modelo?"),
+                      _("Se descarga el instalador oficial de ollama.com y el modelo qwen2.5:1.5b (≈1 GB). "
+                        "Es una petición externa; el texto que traduzcas luego se queda en tu máquina."),
+                      self._ollama_bg, _("Instalar"))
+
+    def _ollama_bg(self):
+        def work():
+            r = deps.install_ollama(yes=True)
+            GLib.idle_add(self.toast, _("Ollama listo con {model}", model=r.get("model")) if r.get("ok")
+                          else _("No se pudo instalar: {e}", e=r.get("error")))
+            GLib.idle_add(self._tools_status)
+        threading.Thread(target=work, daemon=True).start()
+
+    # ── Errores y auditoría ──
+    def render_errors(self):
+        box = self.pages["errors"]
+        clear(box)
+        data = self.data.get("logs") or {}
+        paths = data.get("paths") or logs.paths()
+        head = hbox(8)
+        head.append(lbl(_("Registros locales de VELA. No se envían a ningún servidor."), "kpi-sub", wrap=True))
+        head.append(Gtk.Box(hexpand=True))
+        ref = Gtk.Button(label=_("Actualizar"))
+        ref.add_css_class("flat")
+        ref.connect("clicked", lambda *_ign: self.refresh(full=True, force_slow=True))
+        head.append(ref)
+        folder = Gtk.Button(label=_("Abrir carpeta"))
+        folder.add_css_class("flat")
+        folder.connect("clicked", lambda *_ign: self._open_url("file://" + str(logs.state_dir())))
+        head.append(folder)
+        box.append(head)
+        box.append(lbl(_("Auditoría: {audit} · Errores: {errors}", audit=paths.get("audit"),
+                         errors=paths.get("errors")), "kpi-sub", wrap=True))
+
+        row = hbox(12)
+        err_card = card(_("Errores ({n})", n=len(data.get("errors") or [])))
+        errs = data.get("errors") or []
+        err_card.append(table([(_("Hora"), 1.0), (_("Nivel"), 0.7), (_("Mensaje"), 3.0), (_("Detalle"), 2.2)],
+                              [[iso(e.get("ts")) if e.get("ts") else "—", str(e.get("level") or e.get("type") or "error"),
+                                e.get("message") or "", _log_detail(e)] for e in errs], max_rows=200,
+                              empty=_("sin errores registrados")))
+        err_card.append(_log_buttons(self, "errors", errs))
+        err_card.set_hexpand(True)
+        row.append(err_card)
+
+        audit_card = card(_("Auditoría ({n})", n=len(data.get("audit") or [])))
+        audit = data.get("audit") or []
+        audit_card.append(table([(_("Hora"), 1.0), (_("Actor"), 0.9), (_("Acción"), 1.5), (_("Detalle"), 3.0)],
+                                [[iso(a.get("ts")) if a.get("ts") else "—", a.get("actor") or "—",
+                                  a.get("action") or "", _log_detail(a)] for a in audit], max_rows=200,
+                                empty=_("sin acciones registradas")))
+        audit_card.append(_log_buttons(self, "audit", audit))
+        audit_card.set_hexpand(True)
+        row.append(audit_card)
+        box.append(row)
+
+    def _log_clear(self, kind):
+        def done(_r):
+            self.refresh_ui(_("Registro borrado"))
+            return False
+        self.call_bg("logs_clear", {"kind": kind}, done)
+
+    # ── About ──
+    def build_about(self):
+        box = self.pages["about"]
+        clear(box)
+        head = hbox(16)
+        try:
+            img = Gtk.Image.new_from_file(str(BRAND_DIR / "vela-symbol-256.png"))
+            img.set_pixel_size(96)
+            head.append(img)
+        except Exception:  # noqa: BLE001
+            pass
+        titles = vbox(4)
+        titles.append(lbl("VELA", "brand-title"))
+        titles.append(lbl(_(TAGLINE), "kpi-sub", wrap=True))
+        titles.append(lbl(_("Vigilant Egress & Leak Analyst · versión {v}", v=about_mod.app_info()["version"]),
+                          "kpi-sub", wrap=True))
+        head.append(titles)
+        box.append(card(None, head))
+        left = card(_("Creador"))
+        self.about_avatar = Gtk.Picture()
+        self.about_avatar.set_size_request(128, 128)
+        self.about_avatar.set_content_fit(Gtk.ContentFit.COVER)
+        self.about_avatar.set_can_shrink(True)
+        try:
+            self.about_avatar.set_filename(str(about_mod.BUNDLED_AVATAR
+                                               if about_mod.BUNDLED_AVATAR.exists()
+                                               else BRAND_DIR / "vela-symbol-256.png"))
+        except Exception:  # noqa: BLE001
+            pass
+        left.append(self.about_avatar)
+        self.about_profile_lbl = lbl("", "td", wrap=True)
+        left.append(self.about_profile_lbl)
+        links = hbox(8)
+        gh = Gtk.Button(label="GitHub")
+        gh.connect("clicked", lambda *_ign: self._open_url(about_mod.PROFILE["github"]))
+        links.append(gh)
+        web = Gtk.Button(label=_("Sitio web"))
+        web.connect("clicked", lambda *_ign: self._open_url(about_mod.PROFILE["blog"]))
+        links.append(web)
+        cp = Gtk.Button(label=_("Copiar perfil"))
+        cp.add_css_class("flat")
+        cp.connect("clicked", lambda *_ign: self.copy(about_mod.PROFILE["github"], _("Perfil copiado")))
+        links.append(cp)
+        sync = Gtk.Button(label=_("Sincronizar perfil"))
+        sync.add_css_class("suggested-action")
+        sync.connect("clicked", lambda *_ign: self._about_sync())
+        links.append(sync)
+        left.append(links)
+        box.append(left)
+        info = about_mod.app_info()
+        right = card(_("Aplicación"))
+        right.append(table([(_("Campo"), 1.0), (_("Valor"), 3.0)], [
+            [_("Versión"), info["version"]], [_("Python"), info["python"]], [_("GTK"), info["gtk"] or "—"],
+            [_("libadwaita"), info["libadwaita"] or "—"], [_("Sistema"), info["platform"]],
+            [_("Repositorio"), info["repo"]], [_("Licencia"), info["license"]]]))
+        right.append(lbl(_("Funciones").upper(), "card-title"))
+        right.append(lbl(" · ".join(t for _k, t, _i in PAGES), "kpi-sub", wrap=True))
+        right.append(lbl(_("Créditos").upper(), "card-title"))
+        right.append(lbl("\n".join("• " + x for x in info["credits"]), "kpi-sub", wrap=True))
+        box.append(right)
+        self._about_fill()
+
+    def _open_url(self, url):
+        try:
+            Gio.AppInfo.launch_default_for_uri(url, None)
+        except Exception as e:  # noqa: BLE001
+            self.toast(str(e))
+
+    def _about_fill(self, prof=None):
+        prof = prof or about_mod.profile()
+        self.about_profile_lbl.set_text(
+            _("{name} (@{login})\n{bio}\n{location} · {blog}\nRepos: {repos} · Seguidores: {followers}",
+              name=prof.get("name"), login=prof.get("login"), bio=prof.get("bio"), location=prof.get("location"),
+              blog=prof.get("blog"), repos=prof.get("public_repos") or "—", followers=prof.get("followers") or "—")
+            + (f"\n{prof['error']}" if prof.get("error") else ""))
+        avatar = prof.get("avatar")
+        if not avatar and about_mod.BUNDLED_AVATAR.exists():
+            avatar = str(about_mod.BUNDLED_AVATAR)
+        if avatar and Path(avatar).exists():
+            try:
+                self.about_avatar.set_filename(avatar)
+            except Exception:  # noqa: BLE001
+                pass
+
+    def _about_sync(self):
+        from .. import config as config_mod
+        try:
+            cfg = config_mod.load()
+        except Exception as e:  # noqa: BLE001
+            self.toast(_("No se pudo leer la configuración: {e}", e=e))
+            return
+        if not (cfg.get("consent") or {}).get("about_profile_lookup"):
+            dlg = Adw.AlertDialog(
+                heading=_("¿Sincronizar el perfil de GitHub?"),
+                body=_("VELA consultará api.github.com y descargará el avatar público de j0rd1s3rr4n0. "
+                       "No envía datos personales; la petición sale desde tu conexión y se guarda en caché local."))
+            dlg.add_response("cancel", _("Cancelar"))
+            dlg.add_response("allow", _("Permitir y sincronizar"))
+            dlg.set_response_appearance("allow", Adw.ResponseAppearance.SUGGESTED)
+            dlg.connect("response", lambda _d, r: self._about_allow_sync() if r == "allow" else None)
+            dlg.present(self)
+            return
+        self._about_sync_now()
+
+    def _about_allow_sync(self):
+        def done(_r):
+            self.toast(_("Consentimiento guardado"))
+            self._about_sync_now()
+            return False
+        self.call_bg("settings_set", {"changes": {"consent.about_profile_lookup": True}}, done)
+
+    def _about_sync_now(self):
+        self.about_profile_lbl.set_text(_("Sincronizando perfil público de GitHub…"))
+
+        def work():
+            try:
+                prof = about_mod.profile(refresh=True)
+                GLib.idle_add(self._about_fill, prof)
+                GLib.idle_add(self.toast, _("Perfil sincronizado") if not prof.get("error")
+                              else _("No se pudo sincronizar: {e}", e=prof.get("error")))
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def render_about(self):
+        self._about_fill()
+
     def render_settings(self):
         box = self.pages["settings"]
         clear(box)
@@ -1996,7 +2799,11 @@ class Window(Adw.ApplicationWindow):
                 ("consent.threat_intel_lookups", _("Threat intel (GreyNoise, VirusTotal, Shodan, Censys)"), _("Los servicios sabrán qué IPs consultas")),
                 ("consent.active_dns_leak_test", _("Test activo de fugas DNS"), _("Un servicio externo verá tus resolvers")),
                 ("consent.allow_rotation_changes", _("Permitir rotaciones reales"), _("Cambia conexiones VPN/proxy/Tor de verdad")),
-                ("consent.allow_killswitch", _("Permitir el kill-switch propio (nftables)"), _("Necesita sudo sin contraseña o pkexec"))):
+                ("consent.allow_killswitch", _("Permitir el kill-switch propio (nftables)"), _("Necesita sudo sin contraseña o pkexec")),
+                ("consent.allow_dns_changes", _("Permitir cifrar el DNS del sistema"), _("Modifica systemd-resolved; guarda copia y permite revertir")),
+                ("consent.allow_mac_changes", _("Permitir cambiar la MAC"), _("Corta la conexión unos segundos y requiere pkexec/sudo")),
+                ("consent.llm_remote", _("Permitir una API de traducción remota"), _("El texto saldría de tu máquina; por defecto solo LLM local")),
+                ("consent.about_profile_lookup", _("Sincronizar el perfil del About"), _("Consulta api.github.com y descarga el avatar"))):
             switch(g, key, title, sub_)
         box.append(g)
 
@@ -2024,9 +2831,201 @@ class Window(Adw.ApplicationWindow):
         switch(g, "intel.via_tor", _("Consultas de threat intel por Tor"), _("Algunos servicios limitan o bloquean Tor"))
         switch(g, "intel.allow_direct", _("Permitir consultas sin VPN"), _("Saldrían desde tu IP real"))
         box.append(g)
+        g = Adw.PreferencesGroup(title=_("Anomalías y traducción"),
+                                 description=_("La línea base se calcula solo con tu historial local. El traductor "
+                                               "usa Ollama/llama.cpp en localhost salvo que actives la API remota."))
+        switch(g, "anomaly.enabled", _("Detectar anomalías de red"), _("Volumen, fan-out, procesos y destinos nuevos"))
+        sn = Adw.ComboRow(title=_("Sensibilidad"))
+        sn.set_model(Gtk.StringList.new([_("Baja"), _("Media"), _("Alta")]))
+        sn.set_selected({"baja": 0, "media": 1, "alta": 2}.get(v.get("anomaly.sensitivity"), 1))
+        sn.connect("notify::selected", lambda r, _p: self.set_setting(
+            "anomaly.sensitivity", ["baja", "media", "alta"][r.get_selected()]))
+        g.add(sn)
+        wd = Adw.SpinRow.new_with_range(1, 90, 1)
+        wd.set_title(_("Ventana de la línea base (días)"))
+        wd.set_value(v.get("anomaly.window_days") or 14)
+        wd.connect("notify::value", lambda r, _p: self.set_setting("anomaly.window_days", int(r.get_value()), quiet=True))
+        g.add(wd)
+        te = Adw.ComboRow(title=_("Motor de traducción"))
+        te.set_model(Gtk.StringList.new(["auto", "ollama", "llamacpp", "openai"]))
+        te.set_selected(["auto", "ollama", "llamacpp", "openai"].index(v.get("translate.engine") or "auto"))
+        te.connect("notify::selected", lambda r, _p: self.set_setting(
+            "translate.engine", ["auto", "ollama", "llamacpp", "openai"][r.get_selected()]))
+        g.add(te)
+        model = Adw.EntryRow(title=_("Modelo de traducción"))
+        model.set_text(v.get("translate.model") or "qwen2.5:1.5b")
+        model.connect("apply", lambda r: self.set_setting("translate.model", r.get_text()))
+        g.add(model)
+        box.append(g)
         box.append(self.map_group())
         box.append(self.update_group())
+        box.append(self.data_group())
         box.append(lbl(_("Guardado en {v1} (no se modifica tu config.toml)", v1=tilde(s['path'])), "kpi-sub"))
+
+    def data_group(self):
+        if getattr(self, "_data_grp", None) is not None:
+            self._data_refresh()
+            return self._data_grp
+        g = Adw.PreferencesGroup(
+            title=_("Datos"),
+            description=_("Copia de seguridad, importación y borrado. Un backup puede contener datos personales y "
+                          "claves: guárdalo en un lugar seguro."))
+        self._data_row = Adw.ActionRow(title=_("Base de datos"))
+        g.add(self._data_row)
+        exp = Adw.ActionRow(title=_("Exportar datos"), subtitle=_("Historial, configuración, ajustes y/o secretos"))
+        eb = Gtk.Button(label=_("Exportar"), valign=Gtk.Align.CENTER)
+        eb.connect("clicked", lambda *_ign: self.data_export())
+        exp.add_suffix(eb)
+        g.add(exp)
+        imp = Adw.ActionRow(title=_("Importar datos"), subtitle=_("Fusionar o reemplazar el historial actual"))
+        ib = Gtk.Button(label=_("Importar"), valign=Gtk.Align.CENTER)
+        ib.connect("clicked", lambda *_ign: self.data_import())
+        imp.add_suffix(ib)
+        g.add(imp)
+        rst = Adw.ActionRow(title=_("Borrar datos"), subtitle=_("Historial o todos los datos de VELA (no borra el código)"))
+        rb = Gtk.Button(label=_("Borrar…"), valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+        rb.connect("clicked", lambda *_ign: self.data_reset())
+        rst.add_suffix(rb)
+        g.add(rst)
+        self._data_grp = g
+        self._data_refresh()
+        return g
+
+    def _data_refresh(self):
+        d = self.data.get("data_info") or {}
+        if d.get("rows"):
+            self._data_row.set_subtitle(_("{db} · sesiones {sessions} · eventos {events} · hallazgos {findings}",
+                                          db=d.get("database"), sessions=d["rows"].get("sessions", 0),
+                                          events=d["rows"].get("events", 0), findings=d["rows"].get("findings", 0)))
+
+    def _file_save(self, cb, name):
+        dlg = Gtk.FileDialog(title=_("Guardar backup"), initial_name=name)
+
+        def done(d, res):
+            try:
+                f = d.save_finish(res)
+                cb(f.get_path())
+            except GLib.Error:
+                pass
+        dlg.save(self, None, done)
+
+    def _file_open(self, cb):
+        dlg = Gtk.FileDialog(title=_("Abrir backup"))
+
+        def done(d, res):
+            try:
+                f = d.open_finish(res)
+                cb(f.get_path())
+            except GLib.Error:
+                pass
+        dlg.open(self, None, done)
+
+    def data_export(self):
+        box = vbox(6)
+        checks = {}
+        for key, label, active in (("history", _("Historial (sesiones, eventos, hallazgos)"), True),
+                                   ("config", _("Configuración (config.toml)"), False),
+                                   ("settings", _("Ajustes de la app"), True),
+                                   ("secrets", _("Secretos (claves de API)"), False)):
+            c = Gtk.CheckButton(label=label)
+            c.set_active(active)
+            checks[key] = c
+            box.append(c)
+        dlg = Adw.AlertDialog(heading=_("¿Qué incluir en el backup?"),
+                              body=_("El historial se exporta siempre con credenciales redactadas."))
+        dlg.set_extra_child(box)
+        dlg.add_response("cancel", _("Cancelar"))
+        dlg.add_response("go", _("Elegir destino"))
+        dlg.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
+        dlg.connect("response", lambda _d, r: self._file_save(
+            lambda path: self._data_export_bg(path, {k: c.get_active() for k, c in checks.items()},
+                                              checks["secrets"].get_active()),
+            f"vela-backup-{time.strftime('%Y%m%d-%H%M')}.json") if r == "go" else None)
+        dlg.present(self)
+
+    def _data_export_bg(self, path, include, secrets):
+        include = {**include, "secrets": bool(secrets)}
+
+        def work():
+            try:
+                r = self.b.call("data_export", path=path, include=include)
+                GLib.idle_add(self.toast, _("Backup escrito en {path}", path=tilde(r["path"])))
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def data_import(self):
+        def chosen(path):
+            try:
+                info = backup_mod.inspect_bundle(path)
+            except Exception as e:  # noqa: BLE001
+                self.toast(_("Backup no válido: {e}", e=e))
+                return
+            body = _("Manifiesto de VELA {version} · {size} bytes · partes: {parts}",
+                     version=(info.get("manifest") or {}).get("version", "?"), size=info["size"],
+                     parts=", ".join(info.get("parts") or []))
+            dlg = Adw.AlertDialog(heading=_("¿Importar este backup?"), body=body)
+            sec = None
+            if info.get("has", {}).get("secrets"):
+                box = vbox(6)
+                sec = Gtk.CheckButton(label=_("Incluir también los secretos del backup"))
+                box.append(sec)
+                dlg.set_extra_child(box)
+            dlg.add_response("cancel", _("Cancelar"))
+            dlg.add_response("merge", _("Fusionar"))
+            dlg.add_response("replace", _("Reemplazar historial"))
+            dlg.set_response_appearance("replace", Adw.ResponseAppearance.DESTRUCTIVE)
+            dlg.connect("response", lambda _d, r: self._data_import_bg(path, r, bool(sec and sec.get_active()))
+                         if r in ("merge", "replace") else None)
+            dlg.present(self)
+        self._file_open(chosen)
+
+    def _data_import_bg(self, path, mode, secrets=False):
+        def work():
+            try:
+                r = self.b.call("data_import", path=path, mode=mode,
+                                include={"history": True, "config": True, "settings": True, "secrets": secrets})
+                msg = _("Importado: {n}", n=json.dumps(r.get("history", {}).get("imported", {}))) if r.get("ok") else _("Error al importar")
+                if r.get("restart_required"):
+                    msg += _(" · reinicia VELA para aplicar la configuración importada")
+                GLib.idle_add(self.toast, msg)
+                GLib.idle_add(self.refresh_ui)
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
+
+    def data_reset(self):
+        box = vbox(6)
+        keep = Gtk.CheckButton(label=_("Guardar una copia antes de borrar"))
+        keep.set_active(True)
+        box.append(keep)
+        dlg = Adw.AlertDialog(heading=_("¿Qué quieres borrar?"),
+                              body=_("Esto no se puede deshacer. El historial incluye sesiones, eventos y hallazgos; "
+                                     "«todo» borra también ajustes, configuración y secretos."))
+        dlg.set_extra_child(box)
+        dlg.add_response("cancel", _("Cancelar"))
+        dlg.add_response("history", _("Solo historial"))
+        dlg.add_response("all", _("Todos los datos"))
+        dlg.set_response_appearance("all", Adw.ResponseAppearance.DESTRUCTIVE)
+        dlg.connect("response", lambda _d, r: self._data_reset_bg(r, keep.get_active())
+                     if r in ("history", "all") else None)
+        dlg.present(self)
+
+    def _data_reset_bg(self, scope, keep):
+        def work():
+            try:
+                r = self.b.call("data_reset", scope=scope, keep_backup=keep)
+                msg = _("Datos borrados") if r.get("ok") else _("No se pudo borrar")
+                if r.get("restart_required"):
+                    msg += _(" · reinicia VELA para aplicar los valores por defecto")
+                GLib.idle_add(self.toast, msg)
+                GLib.idle_add(self.refresh_ui)
+            except Exception as e:  # noqa: BLE001
+                logs.error(_("error en la interfaz"), e)
+                GLib.idle_add(self.toast, _("Error: {e}", e=e))
+        threading.Thread(target=work, daemon=True).start()
 
     # ── mapa OpenStreetMap ──
     MAP_VIA = [("auto", _("Automático: Tor y, si no hay, la VPN")), ("tor", _("Solo por Tor")), ("vpn", _("Solo por la VPN")),
@@ -2421,8 +3420,9 @@ class Window(Adw.ApplicationWindow):
             else:
                 suffix = Gtk.Button(label=_("Activar"))
                 suffix.add_css_class("flat")
-                suffix.connect("clicked", lambda _b, n=name: self.call_bg("profile_activate", {"name": n}, lambda r: (
-                    self.toast(_("Perfil activo: {n}", n=n)), self.refresh(full=True))))
+                suffix.connect("clicked", lambda _b, n=name: self.call_bg(
+                    "profile_activate", {"name": n},
+                    lambda r: (self.toast(_("Perfil activo: {n}", n=n)), self.refresh_ui())))
             c = card(name, inner, suffix)
             if active:
                 c.add_css_class("profile-active")
@@ -2461,6 +3461,7 @@ class App(Adw.Application):
         self.win = None
 
     def do_activate(self):
+        logs.setup()
         if self.win is None:
             # tema: se aplica ANTES de crear la ventana (preferencias leídas del fichero de ajustes)
             self.themes = theme_mod.ThemeManager(Gdk.Display.get_default())
@@ -2505,12 +3506,13 @@ StartupWMClass=io.github.j0rd1s3rr4n0.Vela
 
 def install_desktop() -> str:
     import os
-    p = Path.home() / f".local/share/applications/{APP_ID}.desktop"
+    data_home = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+    p = data_home / f"applications/{APP_ID}.desktop"
     p.parent.mkdir(parents=True, exist_ok=True)
     root = Path(__file__).resolve().parents[2]
     # icono en el tema de iconos del usuario (hicolor, todos los tamaños) para el menú de aplicaciones
     import shutil
-    hicolor = Path.home() / ".local/share/icons/hicolor"
+    hicolor = data_home / "icons/hicolor"
     for n in ICON_SIZES:
         dst = hicolor / f"{n}x{n}" / "apps" / f"{APP_ID}.png"
         dst.parent.mkdir(parents=True, exist_ok=True)

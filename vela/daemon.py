@@ -29,6 +29,8 @@ def pid_path():
 
 
 def run(foreground: bool = True, log_level: str = "INFO") -> int:
+    from . import logs
+    logs.setup()
     logging.basicConfig(level=log_level, format="%(asctime)s velad %(levelname)s %(message)s")
     if ping():
         print(_("velad ya está en marcha ({v1})", v1=socket_path()), file=sys.stderr)
@@ -79,7 +81,8 @@ def run(foreground: bool = True, log_level: str = "INFO") -> int:
         t0 = time.monotonic()
         try:
             engine.tick()
-        except Exception:  # noqa: BLE001 — el daemon no debe caer por un fallo puntual
+        except Exception as e:  # noqa: BLE001 — el daemon no debe caer por un fallo puntual
+            logs.error(_("error en el ciclo de monitorización"), e)
             log.exception(_("error en el ciclo de monitorización"))
         if now() - last_retention > 3600:
             engine.retention()

@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/brand/logo.svg" width="96" alt="VELA — Vigilant Egress &amp; Leak Analyst">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
     <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
@@ -21,7 +25,8 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="No dependencies" src="https://img.shields.io/badge/dependencies-none-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-171%20OK-0ca30c">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-255%20OK-0ca30c">
+  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 languages" src="https://img.shields.io/badge/languages-EN%20·%20ES%20·%20CA%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Map data ODbL" src="https://img.shields.io/badge/map-OpenStreetMap%20(ODbL)-d95926">
 </p>
@@ -45,8 +50,8 @@ external dependencies: it discovers what is on your machine and only enables wha
 
 *Vela* is Spanish for the candle that stays lit while everyone sleeps: **estar en vela** means to keep watch.
 
-> The screenshots use real **anonymised** data: IPs in documentation ranges (RFC 5737/3849), made-up MACs,
-> Wi-Fi names, networks and Tor relays, and shifted times.
+> The screenshots use **anonymised** data: private/documentation addresses, made-up MACs, SSIDs, networks,
+> process names and Tor relays, and shifted times.
 
 ---
 
@@ -111,6 +116,29 @@ VPN or Tor; keys are stored in `~/.config/vela/secrets.toml` (0600).
 It also includes a **tray icon** (status, profile, Tor, emergency and notifications), a terminal **TUI**, a
 local **web GUI** (127.0.0.1 only, with a token) and a complete **CLI** with `--json` output.
 
+### Tools
+
+- **Translator + OCR** — a small local LLM (Ollama or llama.cpp) translates any text; select a screen region and
+  tesseract reads it. Nothing leaves the machine unless you explicitly enable a remote API.
+- **Data** — export/import complete backups (history, settings, configuration and optionally secrets) and reset
+  only the history or all VELA data, with confirmation.
+- **Network anomalies** — a local baseline of traffic volume, connection fan-out, new processes/countries/ports,
+  route flapping and DNS churn.
+- **Encrypted DNS** — one click to enable DoT (systemd-resolved) or DoH (cloudflared) with a backup, verification
+  and rollback; it warns before overriding a VPN's DNS.
+- **Apps with another timezone** — open any `.desktop` app or command with `TZ=Asia/Tokyo` without changing the
+  desktop clock.
+- **MAC changer** — random or manual MAC, with the original saved and a one-click restore.
+- **Optional dependencies** — detect and install OCR, capture, MAC, DNS and LLM packages with a confirmation and
+  the exact command shown first.
+- **Logs** — a local **Errors** tab with two persistent files: `audit.log` (actions taken by you or the daemon) and
+  `errors.log` (uncaught exceptions and UI/CLI failures), with rotation, copy and clear actions.
+- **About** — version, credits and the creator profile, offline by default with an optional GitHub sync.
+- **Adaptive profiles** — on startup VELA creates `diario`, `privado`, `anonimo`, `alto_riesgo` and
+  `laboratorio` profiles from what the machine actually has (VPN, kill-switch, Tor, proxies, encrypted DNS).
+  They are recalculated when the system changes and can be written to `config.toml` with
+  `vela profiles generate --write`.
+
 ## Privacy by design
 
 - **Observe-only by default.** Anything that generates traffic to third parties or changes the system sits
@@ -167,19 +195,47 @@ The whole interface (desktop app, tray, CLI, TUI, web GUI, alerts and explanatio
 Requirements: **Linux** and **Python ≥ 3.10**. The desktop app uses GTK 4 + libadwaita (PyGObject) and the
 tray uses AyatanaAppIndicator3, already present on GNOME/Ubuntu.
 
+**One-line autoinstall** (downloads the script, installs git/curl if needed, clones or updates VELA and runs
+`install.sh`):
+
 ```bash
-git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-./install.sh          # installs the app, the velad service, the tray icon and the launcher (no pip, no root)
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash
 ```
 
-Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data). It detects missing system packages (apt, dnf, pacman, zypper) and asks before installing them; see `./install.sh --help`.
+Use the **raw** URL, not the GitHub `/blob/` page. Options go after `bash -s --`:
+
+```bash
+# also OCR, screenshot capture, MAC changer and Ollama + qwen2.5:1.5b
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash -s -- --with-all
+
+# install in a custom directory, without starting the service/tray
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash -s -- --dir ~/src/VELA --no-service --no-tray
+```
+
+From a clone:
+
+```bash
+git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
+./install.sh          # app, velad service, tray, launcher and the small system dependencies
+./install.sh --with-all   # also OCR, screenshot capture, MAC changer and Ollama + qwen2.5:1.5b (≈1 GB)
+```
+
+`install.sh` installs PyGObject, pycairo, GTK 4, libadwaita, AyatanaAppIndicator3, PolicyKit (`pkexec`), systemd-resolved, iproute2 and an XDG portal; it detects the package manager (apt, dnf, pacman, zypper), shows the exact command and asks before changing the system. Optional flags: `--with-ocr`, `--with-mac`, `--with-llm`, `--with-all`, `--no-optional`, `--no-deps`, `--no-service`, `--no-tray`, `--prefix DIR`. `cloudflared` is not in most repositories: install it from cloudflare.com only if you prefer DoH; DoT works without it.
+
+You can run `./install.sh` or `sudo ./install.sh`: in both cases it installs for the user who invoked it (sudo is redirected to `$SUDO_USER`). Commands also work with or without sudo: `sudo vela …` drops back to the invoking user so data stays in your home and the GUI can use your session; privileged actions still use `pkexec`/`sudo`. Use `VELA_KEEP_ROOT=1 sudo vela …` if you really want to keep root.
+
+Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data).
 
 It also works without installing, with `python3 -m vela <command>`.
 
-Optional:
+Optional (the app detects what is missing and offers to install it with `vela deps install`):
 
 - `pip install geoip2`, with the GeoLite2-City/ASN `.mmdb` databases in `~/.local/share/GeoIP/`, for city and ASN;
-- `pip install sqlcipher3` for real database encryption.
+- `pip install sqlcipher3` for real database encryption;
+- `tesseract-ocr` (with the `spa`/`eng` language packs) and a screen-capture tool or XDG portal for OCR;
+- [Ollama](https://ollama.com) with a small model (`qwen2.5:1.5b`) for local translation;
+- `cloudflared` only if you prefer DoH over DoT;
+- `macchanger` is optional: VELA uses `ip link` when it is not present.
 
 To observe Tor you need to be able to read its control cookie:
 
@@ -223,6 +279,17 @@ vela tui               # interactive terminal
 | `vela profiles [activate X \| correlation \| generate [--write]]` | Profiles, correlation risk and profile generation tailored to the system |
 | `vela audit [--html f.html]` | Privacy Audit |
 | `vela stats --period day\|week\|month` | Statistics and anomalies |
+| `vela anomalies` | Network anomalies from the local baseline |
+| `vela logs [show\|clear] [--kind audit\|errors]` | Local audit and error logs |
+| `vela refresh [dns\|network\|leaks\|all…]` | Invalidate caches and recalculate alerts/recommendations now |
+| `vela translate [TEXT] --to es` | Translate with the local LLM (Ollama/llama.cpp) |
+| `vela ocr [--image f] --to es` | OCR a screen region or image and translate it |
+| `vela data info\|export\|import\|reset` | Backups, import and reset (history or all VELA data) |
+| `vela deps check\|install [--feature …]` | Detect and install optional dependencies |
+| `vela dns encrypt\|restore [--transport dot\|doh]` | Encrypt the system DNS or roll it back |
+| `vela tz list\|launch --app … --tz …` | Open an app or command with another timezone |
+| `vela mac list\|random\|set\|restore` | Change or restore an interface MAC |
+| `vela about [--sync]` | Version, credits and creator profile |
 | `vela export --format json\|csv\|html --out …` | Export the history |
 | `vela killswitch preview\|apply --yes\|release` | nftables kill-switch (own table) |
 | `vela panic` / `vela resume` | Emergency mode (deletes no data) |
@@ -276,15 +343,15 @@ Legend:
 | Interfaces, routes, effective route, IPv4/IPv6/CGNAT/ULA classification | ✅ | tests + real `vela network` |
 | Netlink events | ✅ | real daemon: "netlink: active events" |
 | Tor: SAFECOOKIE, circuits, guard/middle/exit, streams, guards | ✅ | fake server + 22 real circuits |
-| Tor: exit IP via check.torproject.org (IsTor) | ✅ | real: 185.220.101.140 confirmed |
+| Tor: exit IP via check.torproject.org (IsTor) | ✅ | real: 192.0.2.140 confirmed |
 | Tor: NEWNYM with rate limit and no exit repetition | ✅ / 🟡 | tested with mocks and real dry-run; real NEWNYM not run (no consent) |
 | Per-link DNS (systemd-resolved), split DNS, DoT | ✅ | tests + real `vela dns check` |
 | Effective and encrypted DNS: WARP DoH, cloudflared, dnscrypt/stubby, DoT, Firefox/Chromium DoH; DoH route | ✅ | tests + real: WARP DoH via `proton0` |
 | VPN client kill-switches (ProtonVPN, Mullvad, NordVPN) + route check «what if the tunnel drops?» | ✅ / 🟡 | real ProtonVPN verified (IPv4/IPv6); Mullvad/NordVPN not validated (not installed) |
-| Snap/flatpak VPN clients (ProtonVPN) and VPN server from the connection name | ✅ | real: `ProtonVPN CH-DE#2` |
+| Snap/flatpak VPN clients (ProtonVPN) and VPN server from the connection name | ✅ | real: `ProtonVPN XX-YY#2` |
 | Profile generation (daily, private, anonymous, high risk, lab) and `require_killswitch`/`dns_policy` policies | ✅ | tests + real profiles evaluated live |
 | Passive leaks: IPv6, tunnel, DNS, exposed proxy, time zone, MAC, kill-switch | ✅ | tests + real findings |
-| Monitoring of all networks: traffic, ARP neighbours (no scanning), network fingerprint, gateway MAC change (ARP spoofing), new devices, open Wi-Fi, libvirt network isolation | ✅ | tests + real: detected `pentest-isolated` with NAT |
+| Monitoring of all networks: traffic, ARP neighbours (no scanning), network fingerprint, gateway MAC change (ARP spoofing), new devices, open Wi-Fi, libvirt network isolation | ✅ | tests + real: detected `lab-isolated` with NAT |
 | Public IP only through the tunnel (`public_ip.require_tunnel`) | ✅ | tests + real: skipped when the VPN dropped |
 | Real-time public IP (every 60 s with tunnel + immediately on route change) and «the Internet sees your real IP» detection | ✅ / 🟡 | tests; real validation pending a VPN reconnection |
 | Real-time leak watcher (kernel sockets every 2 s, responsible program, DNS leaks, automatic kill-switch reaction) | ✅ | tests + real: 29 direct connections detected with the VPN down |
@@ -333,7 +400,7 @@ Legend:
 python3 -m unittest discover -s tests -t .
 ```
 
-171 tests with mocks and simulated backends (fake Tor control server with real SAFECOOKIE, rotation with
+255 tests with mocks and simulated backends (fake Tor control server with real SAFECOOKIE, rotation with
 failures and rollback, simulated leaks, IPC, GUI security, fake SOCKS5 proxy, OSM map, migration, git guard and
 translations). None touches real connectivity.
 
@@ -360,6 +427,10 @@ launcher. It never overwrites newer data and does nothing while the old daemon i
 
 ## Licence and credits
 
+- **Code, documentation, design and brand assets: proprietary, all rights reserved.** VELA is
+  **not open source**. No use, copying, modification, distribution, hosting, SaaS or commercial
+  exploitation is permitted without prior written permission. See [LICENSE](LICENSE),
+  [LICENSING.md](LICENSING.md) and [TRADEMARK.md](TRADEMARK.md).
 - Map data: © OpenStreetMap contributors, [ODbL 1.0](https://www.openstreetmap.org/copyright)
-  (see [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)).
-- Code licence: to be decided.
+  (see [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)). The ODbL data is not
+  covered by the proprietary licence.

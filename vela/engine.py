@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from .i18n import _
 
+import json
 import os
 import threading
 import time
 
-from . import analytics, config as config_mod, discovery, dns as dns_mod, leaks, network, protection, worldmap
+from . import (analytics, anomaly, config as config_mod, discovery, dns as dns_mod, leaks, network, profiles as profiles_mod,
+               protection, worldmap)
 from .geo import Geo
 from .killswitch import KillSwitch
 from .publicip import PublicIPChecker, router_wan_ip
@@ -69,6 +71,7 @@ class Engine:
         self.emergency = self.store.get("emergency", False)
         self.rot.paused = self.emergency
         self.started = now()
+        self.revision = 0            # sube con cada invalidación para que la UI detecte cambios
 
     # ── eventos ──
     def emit(self, kind: str, severity: str = "info", data: dict | None = None) -> dict:
@@ -92,6 +95,11 @@ class Engine:
             self.notes, rec_cfg = discovery.recommend(self.env)
             self.caps = discovery.capabilities(self.env)
             self._register_adapters()
+            # Perfiles automáticos adaptados a lo que hay en ESTE sistema (VPN/Tor/proxies/DNS).
+            profiles_mod.merge_adaptive(self.cfg, self.env)
+            stored = self.store.get("active_profile")
+            if stored in self.cfg["profiles"]:
+                self.cfg["active_profile"] = stored
             return {"environment": self.env, "capabilities": self.caps, "notes": self.notes, "suggested_config": rec_cfg}
 
     def _register_adapters(self):
@@ -269,7 +277,7 @@ class Engine:
             for name, info in providers.items():
                 if info.get("status") and name not in ("cloudflare-warp", "tailscale", "zerotier"):
                     vpn["label"] = f"{name}: {info['status']}"
-            # Conexión VPN activa de NetworkManager sobre la interfaz de salida (p. ej. "ProtonVPN CH-DE#2")
+            # Conexión VPN activa de NetworkManager sobre la interfaz de salida (p. ej. "ProtonVPN CH-XX#2")
             for c in (self.ks_ext or {}).get("clients", []):
                 for vc in c.get("vpn_connections", []):
                     if vc["active"] and vc["device"] == egress.get("dev"):
@@ -422,6 +430,10 @@ class Engine:
             self.update_sessions()
         if self._due("leaks", "leak_interval"):
             self.run_leaks()
+        try:                                   # línea base de anomalías (cada minuto)
+            anomaly.maybe_emit(self, interval=parse_duration(self.cfg["anomaly"].get("interval", "60s")))
+        except Exception as e:  # noqa: BLE001 — una anomalía no debe parar el daemon
+            self.emit("anomaly_error", "info", {"error": str(e)})
         # Redescubrimiento: cada 10 min o tras un cambio de red (nuevo túnel, Tor Browser abierto…)
         if "rediscover" in self.dirty or now() - self.timers.setdefault("rediscover", now()) >= 600:
             self.dirty.discard("rediscover")
@@ -437,6 +449,97 @@ class Engine:
 
     def mark_dirty(self, *names):
         self.dirty.update(names)
+
+    # ── invalidación inmediata del estado ──
+    # Las acciones que cambian el sistema (DNS, MAC, kill-switch, perfil, ajustes…) deben
+    # tirar las caches; si no, la UI sigue pintando el estado anterior hasta el siguiente
+    # temporizador (DNS 2m, fugas 5m…). `invalidate` refresca ya y vuelve a calcular fugas.
+    DOMAIN_CACHES = {
+        "network": ("net", "ks_ext", "obs", "findings"),
+        "networks": ("networks", "net_rates", "findings"),
+        "dns": ("dns", "obs", "findings"),
+        "tor": ("tor", "obs", "findings"),
+        "leaks": ("findings", "obs"),
+        "profiles": ("obs", "findings"),
+        "anomalies": (),
+        "public": ("findings",),
+        "all": ("net", "ks_ext", "networks", "net_rates", "dns", "tor", "findings", "obs"),
+    }
+
+    def invalidate(self, *domains, run_leaks: bool = True) -> dict:
+        """Olvida las caches de los dominios indicados y las reconstruye ahora."""
+        wanted = {str(d) for d in domains if d} or {"all"}
+        unknown = wanted - set(self.DOMAIN_CACHES)
+        if unknown:
+            raise ValueError(_("dominio de refresco desconocido: {names}", names=", ".join(sorted(unknown))))
+        if "all" in wanted:
+            wanted = {k for k in self.DOMAIN_CACHES if k != "all"}
+        refreshed: set[str] = set()
+        with self.lock:
+            for domain in wanted:
+                for attr in self.DOMAIN_CACHES.get(domain, ()):
+                    if attr == "net_rates":
+                        self.net_rates = {}
+                    elif attr == "findings":
+                        self.findings = []
+                    elif attr == "net":
+                        self.net = None
+                    elif attr == "networks":
+                        self.networks = None
+                    elif attr == "dns":
+                        self.dns = None
+                    elif attr == "tor":
+                        self.tor = None
+                    elif attr == "ks_ext":
+                        self.ks_ext = None
+                    elif attr == "obs":
+                        self.obs = None
+        # Orden importante: red → DNS/Tor → inventario de redes → fugas → sesión.
+        if wanted & {"network", "networks"}:
+            self.refresh_network()
+            refreshed.add("network")
+        if "dns" in wanted:
+            self.refresh_dns()
+            refreshed.add("dns")
+        if "tor" in wanted:
+            self.refresh_tor()
+            refreshed.add("tor")
+        if wanted & {"networks", "network", "dns"}:
+            self.refresh_networks()
+            refreshed.add("networks")
+        if "public" in wanted:
+            self.mark_dirty("public")
+            refreshed.add("public")
+        if "anomalies" in wanted:
+            try:
+                anomaly.maybe_emit(self, interval=0)
+                refreshed.add("anomalies")
+            except Exception as e:  # noqa: BLE001
+                self.emit("anomaly_error", "info", {"error": str(e)})
+        if run_leaks:
+            self.run_leaks()
+            refreshed.add("leaks")
+        if self.obs is None:
+            self.obs = self.build_obs()
+        self.update_sessions()
+        with self.lock:
+            self.revision += 1
+            revision = self.revision
+        self.emit("state_refresh", "info", {"domains": sorted(refreshed), "revision": revision})
+        return {"revision": revision, "domains": sorted(refreshed)}
+
+    def reload_config(self) -> dict:
+        """Recarga config.toml + app-settings.toml en caliente (tras importar o borrar datos)."""
+        new = config_mod.load()
+        with self.lock:
+            self.cfg.clear()
+            self.cfg.update(new)
+            if self.env is not None:
+                profiles_mod.merge_adaptive(self.cfg, self.env)
+            stored = self.store.get("active_profile")
+            if stored in self.cfg["profiles"]:
+                self.cfg["active_profile"] = stored
+        return {"profile": self.cfg["active_profile"], "revision": self.revision}
 
     # ── API (la misma para IPC, CLI local, TUI y GUI) ──
     def ensure_fresh(self):
@@ -463,7 +566,8 @@ class Engine:
                                               "proxy_active": bool(self.obs and self.obs.get("proxy")),
                                               "session_age": cur["duration"] if cur else 0})
             return {
-                "ts": now(), "profile": self.cfg["active_profile"], "emergency": self.emergency,
+                "ts": now(), "revision": self.revision,
+                "profile": self.cfg["active_profile"], "emergency": self.emergency,
                 "obs": self.obs, "session": cur, "live_counters": live,
                 "tor": _tor_summary(self.tor), "wan": self.wan, "public": self.public, "dns": self.dns,
                 "net": {"egress": self.net["egress"], "tunnels": self.net["tunnels"], "via_tunnel": self.net["via_tunnel"],
@@ -473,6 +577,11 @@ class Engine:
                 "findings": [f for f in findings if f["status"] in ("fail", "warn")],
                 "exposure": score, "uptime": now() - self.started, "consent": self.cfg["consent"],
             }
+
+    def api_refresh(self, domains: list[str] | None = None) -> dict:
+        """Fuerza la invalidación y devuelve estado + recomendaciones ya recalculados."""
+        self.invalidate(*(domains or ["all"]))
+        return {"revision": self.revision, "status": self.api_status(), "fixes": self.api_fixes()}
 
     def api_discover(self) -> dict:
         return self.discover()
@@ -575,6 +684,7 @@ class Engine:
 
     def api_dns_check(self, active: bool = False) -> dict:
         self.refresh_dns()
+        self.obs = None
         self.ensure_fresh()
         found = [f for f in self.run_leaks(active=active) if f["check"].startswith("dns")]
         return {"snapshot": self.dns, "findings": found}
@@ -611,6 +721,8 @@ class Engine:
         self.ensure_fresh()
         res = self.rotate(layer, reason="manual", dry_run=dry_run, force=force)
         self.store.audit(self.actor, f"rotate {layer}", {"dry_run": dry_run, "result": res["result"]})
+        if not dry_run:
+            self.invalidate("network", "tor", "leaks")
         return res
 
     def rotate(self, layer: str, reason: str, dry_run: bool = False, force: bool = False) -> dict:
@@ -627,9 +739,13 @@ class Engine:
                 "policies": {k: v for k, v in self.cfg["rotation"].items()}}
 
     def api_profiles(self) -> dict:
+        if self.env is None:
+            self.discover()
         return {"active": self.cfg["active_profile"], "profiles": self.cfg["profiles"]}
 
     def api_profile_activate(self, name: str) -> dict:
+        if self.env is None:
+            self.discover()
         if name not in self.cfg["profiles"]:
             raise ValueError(_("perfil desconocido: {name}", name=name))
         with self.lock:
@@ -639,6 +755,7 @@ class Engine:
             self.store.audit(self.actor, "profile_activate", {"from": old, "to": name})
             self.emit("profile_change", "info", {"from": old, "to": name})
             self.update_sessions()
+        self.invalidate("profiles", "leaks")
         return {"active": name}
 
     def api_profiles_generate(self, write: bool = False) -> dict:
@@ -647,23 +764,26 @@ class Engine:
         if self.env is None:
             self.discover()
         proposals = profiles_mod.generate(self.env)
-        res = {"profiles": proposals, "toml": profiles_mod.to_toml(proposals, set(self.cfg["profiles"])),
-               "existing": sorted(set(proposals) & set(self.cfg["profiles"]))}
+        explicit = {n for n, p in self.cfg["profiles"].items() if not p.get("_auto")}
+        res = {"profiles": proposals, "toml": profiles_mod.to_toml(proposals, explicit),
+               "existing": sorted(set(proposals) & explicit)}
         if write:
             w = profiles_mod.write(proposals, self.cfg)
             new_cfg = config_mod.load()
             with self.lock:
                 self.cfg["profiles"] = new_cfg["profiles"]
+            profiles_mod.merge_adaptive(self.cfg, self.env)
             self.store.audit(self.actor, "profiles_generate", w)
             self.emit("profiles_generated", "info", w)
             res["written"] = w
+            self.invalidate("profiles", "leaks")
         return res
 
     def api_fixes(self) -> list[dict]:
         """Pasos concretos (con comandos) para corregir lo detectado. No ejecuta nada."""
         from . import remediation
         self.ensure_fresh()
-        found = self.findings or self.run_leaks()
+        found = self.run_leaks()          # siempre desde el estado actual, nunca una lista vieja
         ctx = {"env": self.env, "net": self.net, "dns": self.dns, "ks_ext": self.ks_ext, "public": self.public,
                "wan": self.wan, "profile_name": self.cfg["active_profile"]}
         return remediation.plan(found, ctx)
@@ -761,12 +881,30 @@ class Engine:
                 config_mod.set_key(self.cfg, k, v)    # en el mismo dict: todos los módulos lo ven al momento
         self.store.audit(self.actor, "settings_set", clean)
         self.emit("settings_change", "info", {"changed": sorted(clean)})
+        domains: set[str] = set()
         if "ui.language" in clean:                    # los mensajes nuevos del daemon salen ya en ese idioma
             from . import i18n
             i18n.set_language(None if clean["ui.language"] == "auto" else clean["ui.language"])
             self.mark_dirty("leaks", "rediscover", "dns", "networks", "network")    # recalcular ya los avisos en el idioma nuevo
-        if "public_ip.require_tunnel" in clean or "consent.direct_ip_checks" in clean:
-            self.mark_dirty("public")
+            domains |= {"leaks", "network", "networks", "dns"}
+        for key in clean:
+            if key.startswith("dns."):
+                domains |= {"dns", "leaks"}
+            elif key.startswith("leakwatch."):
+                domains |= {"leaks", "networks"}
+            elif key.startswith("consent."):
+                domains |= {"leaks", "public"}
+                if key in ("consent.active_dns_leak_test", "consent.direct_ip_checks",
+                           "consent.allow_killswitch"):
+                    domains.add("dns")
+            elif key.startswith("public_ip."):
+                domains.add("public")
+            elif key.startswith("anomaly."):
+                domains.add("anomalies")
+            elif key.startswith("intel."):
+                domains.add("leaks")
+        if domains:
+            self.invalidate(*domains)
         return {"saved": str(path), "changed": clean}
 
     # ── ¿es de Tor? ──
@@ -847,6 +985,11 @@ class Engine:
         return analytics.stats(self.store, period, profile)
 
     def api_anomalies(self) -> list[dict]:
+        try:
+            if (self.cfg.get("anomaly") or {}).get("enabled", True):
+                anomaly.maybe_emit(self, interval=parse_duration(self.cfg["anomaly"].get("interval", "60s")))
+        except Exception:  # noqa: BLE001
+            pass
         return analytics.anomalies(self.store)
 
     def api_timeline(self, since: float | None = None, limit: int = 300) -> list[dict]:
@@ -900,6 +1043,8 @@ class Engine:
             self.cfg.update(new)
             self.store.audit(self.actor, "config_set", {"changed": changed})
             self.emit("config_change", "info", {"changed": changed})
+        self.discover()
+        self.invalidate("all")
         return {"saved": str(path), "changed": changed}
 
     def api_panic(self) -> dict:
@@ -915,6 +1060,7 @@ class Engine:
             self.emit("emergency", "critical", {"rotations": "detenidas", "killswitch": ks})
         _notify(_("VELA: modo de emergencia"), _("Rotaciones detenidas. Kill-switch: ") +
                 ("activo" if ks.get("ok") else _("NO aplicado ({v1})", v1=ks.get('error'))))
+        self.invalidate("network", "leaks")
         return {"emergency": True, "killswitch": ks}
 
     def api_resume(self) -> dict:
@@ -925,6 +1071,7 @@ class Engine:
             ks = self.ks.release() if self.ks.state["active"] else {"ok": True}
             self.store.audit(self.actor, "resume", {"killswitch": ks})
             self.emit("emergency_end", "warning", {"killswitch_release": ks})
+        self.invalidate("network", "leaks")
         return {"emergency": False, "killswitch": ks}
 
     def api_killswitch(self, action: str = "status") -> dict:
@@ -938,6 +1085,8 @@ class Engine:
             return self.ks.status()
         self.store.audit(self.actor, f"killswitch {action}", res)
         self.emit(f"killswitch_{action}", "warning", res)
+        if action in ("apply", "release"):
+            self.invalidate("network", "leaks")
         return res
 
     def api_audit(self) -> dict:
@@ -948,6 +1097,42 @@ class Engine:
     def api_audit_log(self, limit: int = 100) -> list[dict]:
         return self.store.audit_log(limit)
 
+    def api_logs(self, kind: str = "all", limit: int = 200) -> dict:
+        from . import logs
+        data = logs.read(kind, limit)
+        if kind in ("all", "audit"):
+            # El fichero solo tiene acciones desde que se activó el log; la base de datos
+            # conserva el histórico anterior. Se combinan sin duplicar.
+            seen = {(round(float(x.get("ts") or 0), 1), x.get("actor"), x.get("action"))
+                    for x in data.get("audit") or []}
+            rows = []
+            for row in self.store.audit_log(limit):
+                try:
+                    detail = json.loads(row.get("detail") or "null")
+                except (TypeError, ValueError):
+                    detail = row.get("detail")
+                rec = {"ts": row.get("ts"), "actor": row.get("actor"), "action": row.get("action"),
+                       "detail": detail}
+                key = (round(float(rec["ts"] or 0), 1), rec["actor"], rec["action"])
+                if key not in seen:
+                    rows.append(rec)
+            data["audit"] = sorted((data.get("audit") or []) + rows, key=lambda x: x.get("ts") or 0,
+                                   reverse=True)[:max(1, int(limit))]
+        return data
+
+    def api_logs_clear(self, kind: str = "all") -> dict:
+        from . import logs
+        res = logs.clear(kind)
+        if kind in ("audit", "all"):
+            res["audit_db_deleted"] = self.store.clear_audit()
+        return res
+
+    def api_log_action(self, action: str, detail=None) -> dict:
+        """Registra una acción de la UI que no pasa por el motor (DNS, MAC, dependencias…)."""
+        self.store.audit(self.actor, action, detail)
+        self.emit("audit_action", "info", {"action": action})
+        return {"ok": True, "action": action}
+
     def api_doctor(self) -> list[dict]:
         from . import report
         return report.doctor(self)
@@ -955,6 +1140,30 @@ class Engine:
     def api_purge(self, days: float) -> dict:
         res = self.store.purge(now() - days * 86400)
         self.store.audit(self.actor, "purge", {"days": days, **res})
+        return res
+
+    # ── exportar / importar / borrar datos ──
+    def api_data_info(self) -> dict:
+        from . import backup
+        return backup.info(self)
+
+    def api_data_export(self, path: str, include: dict | None = None) -> dict:
+        from . import backup
+        return backup.export_bundle(self, path, include)
+
+    def api_data_import(self, path: str, mode: str = "merge", include: dict | None = None) -> dict:
+        from . import backup
+        res = backup.import_bundle(self, path, mode=mode, include=include)
+        self.reload_config()
+        self.invalidate("all")
+        return res
+
+    def api_data_reset(self, scope: str = "history", keep_backup: bool = False,
+                       backup_path: str | None = None) -> dict:
+        from . import backup
+        res = backup.reset(self, scope=scope, keep_backup=keep_backup, backup_path=backup_path)
+        self.reload_config()
+        self.invalidate("all")
         return res
 
     def api_webrtc_report(self, candidates: list[str], used_stun: bool = False) -> dict:

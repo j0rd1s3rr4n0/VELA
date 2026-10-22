@@ -103,7 +103,7 @@ def _nm_connections() -> list[dict]:
 
 
 def proton_exit_country(name: str) -> str | None:
-    """'ProtonVPN CH-DE#2' → 'DE' (Secure Core: entrada CH/IS/SE, salida DE); 'ES#12' → 'ES';
+    """'ProtonVPN CH-XX#2' → 'XX' (Secure Core: entrada CH/IS/SE, salida XX); 'ES#12' → 'ES';
     'US-NY#5' → 'US' (la segunda parte es un estado/región, no un país)."""
     m = re.search(r"\b([A-Z]{2})(?:-([A-Z]{2,3}))?#\d+", name or "")
     if not m:

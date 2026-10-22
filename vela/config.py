@@ -31,6 +31,14 @@ DEFAULTS: dict = {
         "allow_killswitch": False,
         # Consultar IPs en GreyNoise/VirusTotal/Shodan/Censys (el servicio sabe que te interesan).
         "threat_intel_lookups": False,
+        # Cambiar el DNS del sistema a DoT/DoH (modifica /etc/systemd/resolved.conf.d).
+        "allow_dns_changes": False,
+        # Cambiar la MAC de una interfaz (corta la conexión y requiere pkexec/sudo).
+        "allow_mac_changes": False,
+        # Enviar texto a una API de traducción remota (por defecto solo se usa el LLM local).
+        "llm_remote": False,
+        # Consultar el perfil público de GitHub en el About (avatar y estadísticas).
+        "about_profile_lookup": False,
     },
     "intel": {
         "providers": ["greynoise", "virustotal", "shodan", "censys"],
@@ -79,7 +87,21 @@ DEFAULTS: dict = {
     },
     "router": {"upnp": True},          # consulta UPnP-IGD al router: tráfico solo dentro de la LAN
     "tor": {"control": "auto", "socks": "auto"},
-    "dns": {"leak_test_url": "https://bash.ws"},
+    "dns": {"leak_test_url": "https://bash.ws",
+            "fix_transport": "dot",    # dot (systemd-resolved) o doh (cloudflared)
+            "fix_provider": "cloudflare"},
+    "translate": {
+        "engine": "auto",              # auto, ollama, llamacpp, openai
+        "endpoint": "http://127.0.0.1:11434",
+        "llamacpp_endpoint": "http://127.0.0.1:8080",
+        "remote_endpoint": "",
+        "model": "qwen2.5:1.5b",
+        "target": "es",
+        "timeout": "120s",
+        "max_chars": 3000,
+    },
+    "ocr": {"languages": ["spa", "eng"], "capture": "auto"},   # captura: auto, portal, gnome, grim, spectacle, maim
+    "anomaly": {"enabled": True, "window_days": 14, "sensitivity": "media", "interval": "60s"},
     "storage": {
         "mode": "disk",                # "disk" o "memory" (sin persistencia)
         "path": "",                    # vacío = ~/.local/share/vela/vela.db
@@ -161,10 +183,17 @@ from . import themes as _themes  # noqa: E402
 SETTINGS_KEYS: dict[str, object] = {
     "consent.direct_ip_checks": bool, "consent.proxy_ip_checks": bool, "consent.tor_ip_checks": bool,
     "consent.active_dns_leak_test": bool, "consent.allow_rotation_changes": bool, "consent.allow_killswitch": bool,
-    "consent.threat_intel_lookups": bool, "public_ip.require_tunnel": bool, "intel.via_tor": bool,
+    "consent.threat_intel_lookups": bool, "consent.allow_dns_changes": bool, "consent.allow_mac_changes": bool,
+    "consent.llm_remote": bool, "consent.about_profile_lookup": bool,
+    "public_ip.require_tunnel": bool, "intel.via_tor": bool,
     "intel.allow_direct": bool, "leakwatch.enabled": bool, "leakwatch.on_leak": ("alert", "killswitch"),
     "storage.retention_days": int, "intel.auto_live": bool, "intel.live_daily_limit": int,
     "intel.live_notify": ("flagged", "all"), "monitor.public_ip_interval": "duration", "public_ip.realtime_interval": "duration",
+    "translate.engine": ("auto", "ollama", "llamacpp", "openai"),
+    "translate.model": str, "translate.target": str, "translate.remote_endpoint": str,
+    "ocr.languages": list, "anomaly.enabled": bool, "anomaly.sensitivity": ("baja", "media", "alta"),
+    "anomaly.window_days": int, "dns.fix_transport": ("dot", "doh"),
+    "dns.fix_provider": ("cloudflare", "quad9", "google", "mullvad"),
     "ui.language": ("auto", "es", "en", "ca", "pt", "fr", "de"),
     **_themes.PREF_KEYS,
 }
@@ -211,6 +240,11 @@ def coerce_setting(key: str, value):
     elif kind == "duration":
         parse_duration(value)
         value = str(value)
+    elif kind is str:
+        value = str(value)
+    elif kind is list:
+        if not isinstance(value, list) or not all(isinstance(x, str) for x in value):
+            raise ValueError(_("{key} debe ser una lista de textos", key=key))
     elif isinstance(kind, tuple) and value not in kind:
         raise ValueError(_("{key} debe ser uno de {kind}", key=key, kind=kind))
     return value

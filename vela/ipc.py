@@ -28,6 +28,7 @@ METHODS = {
     "sessions", "counters", "events", "leaks", "rotate", "rotation_status", "profiles", "profile_activate",
     "correlation", "stats", "anomalies", "timeline", "map", "worldmap", "capabilities", "config_get", "config_set",
     "panic", "resume", "killswitch", "audit", "audit_log", "doctor", "purge", "webrtc_report", "export",
+    "data_info", "data_export", "data_import", "data_reset", "refresh", "logs", "logs_clear", "log_action",
 }
 
 
@@ -80,6 +81,8 @@ class _Handler(socketserver.StreamRequestHandler):
                 result = srv.dispatch(method, params)
                 out = {"id": rid, "result": result}
             except Exception as e:  # noqa: BLE001
+                from . import logs
+                logs.error(_("error en IPC"), e, {"method": method})
                 out = {"id": rid, "error": f"{type(e).__name__}: {e}"}
             self.wfile.write((_jsonable(out) + "\n").encode())
             self.wfile.flush()

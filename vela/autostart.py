@@ -6,6 +6,7 @@ No requiere root: el servicio vive en ~/.config/systemd/user/.
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -14,8 +15,12 @@ from .util import run, which
 UNIT = "velad.service"
 
 
+def _config_home() -> Path:
+    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+
+
 def unit_path() -> Path:
-    return Path.home() / ".config/systemd/user" / UNIT
+    return _config_home() / "systemd/user" / UNIT
 
 
 def unit_text() -> str:
@@ -91,7 +96,7 @@ def tray_running() -> bool:
 
 
 def tray_autostart_path() -> Path:
-    return Path.home() / ".config/autostart/vela-tray.desktop"
+    return _config_home() / "autostart/vela-tray.desktop"
 
 
 def tray_autostart_enabled() -> bool:

@@ -12,6 +12,10 @@ tor_ip_checks = true            # IP de salida de Tor vía check.torproject.org 
 active_dns_leak_test = false    # test activo de fugas DNS contra un servicio externo
 allow_rotation_changes = false  # permitir que las rotaciones cambien conexiones reales
 allow_killswitch = false        # permitir aplicar el kill-switch nftables (sudo -n o pkexec)
+allow_dns_changes = false       # cifrar el DNS con DoT/DoH (escribe en /etc/systemd/resolved.conf.d)
+allow_mac_changes = false       # cambiar la MAC de una interfaz (corta la conexión; pkexec/sudo)
+llm_remote = false              # enviar texto a una API de traducción remota (por defecto solo LLM local)
+about_profile_lookup = false    # sincronizar el perfil público de GitHub en el About
 
 # ── Intervalos de monitorización (los cambios de red llegan además por eventos netlink) ──
 [monitor]
@@ -81,6 +85,9 @@ require_killswitch = true       # sin kill-switch aplicable la rotación se abor
 allow_lan = true
 
 # ── Perfiles OPSEC ──
+# VELA añade automáticamente perfiles adaptados al sistema (diario, privado, anonimo,
+# alto_riesgo y laboratorio según haya VPN/Tor/proxies/DNS cifrado). Los perfiles que
+# definas aquí con el mismo nombre tienen prioridad y no se sobrescriben.
 [profiles.default]
 description = "Perfil por defecto"
 use_tor = false
@@ -103,3 +110,29 @@ time_similarity_threshold = 0.85
 [gui]
 host = "127.0.0.1"              # solo loopback
 port = 0                        # 0 = puerto aleatorio
+
+# ── Traducción local (Ollama o llama.cpp) ──
+[translate]
+engine = "auto"                 # auto | ollama | llamacpp | openai
+endpoint = "http://127.0.0.1:11434"
+llamacpp_endpoint = "http://127.0.0.1:8080"
+remote_endpoint = ""            # solo si engine = "openai" y consent.llm_remote = true
+                                # clave: VELA_TRANSLATE_API_KEY, OPENAI_API_KEY o secrets.toml [intel] translate
+model = "qwen2.5:1.5b"
+target = "es"
+timeout = "120s"
+max_chars = 3000
+
+[ocr]
+languages = ["spa", "eng"]      # códigos de tesseract instalados
+
+[anomaly]
+enabled = true
+window_days = 14
+sensitivity = "media"           # baja | media | alta
+interval = "60s"
+
+[dns]
+leak_test_url = "https://bash.ws"
+fix_transport = "dot"           # dot | doh
+fix_provider = "cloudflare"     # cloudflare | quad9 | google | mullvad

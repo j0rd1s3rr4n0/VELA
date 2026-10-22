@@ -29,6 +29,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .autostart import tray_pid_path as pid_path, tray_running  # noqa: E402
 from .ipc import Client, IPCError, ping  # noqa: E402
+from . import logs  # noqa: E402
 from .util import private_dir, runtime_dir, which  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -170,6 +171,7 @@ class Tray:
                 if done:
                     GLib.idle_add(done, r)
             except (OSError, IPCError, ValueError) as e:
+                logs.error(_("error en la bandeja"), e)
                 GLib.idle_add(notify, "VELA", f"Error: {e}")
         threading.Thread(target=work, daemon=True).start()
 
@@ -341,6 +343,7 @@ class Tray:
 
 
 def run() -> int:
+    logs.setup()
     if tray_running():
         print(_("el icono de la bandeja ya está en marcha"))
         return 0

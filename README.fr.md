@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/brand/logo.svg" width="96" alt="VELA — Vigilant Egress &amp; Leak Analyst">
+</p>
+
+<p align="center">
   <picture>
     <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
     <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
@@ -21,7 +25,8 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Aucune dépendance" src="https://img.shields.io/badge/d%C3%A9pendances-aucune-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-171%20OK-0ca30c">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-255%20OK-0ca30c">
+  <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 langues" src="https://img.shields.io/badge/langues-FR%20·%20EN%20·%20ES%20·%20CA%20·%20PT%20·%20DE-3987e5">
   <img alt="Données de carte ODbL" src="https://img.shields.io/badge/carte-OpenStreetMap%20(ODbL)-d95926">
 </p>
@@ -46,8 +51,8 @@ et n'active que ce qui existe réellement.
 
 *Vela* est, en espagnol, la bougie qui reste allumée quand tout le monde dort : **estar en vela**, c'est veiller.
 
-> Les captures utilisent des données réelles **anonymisées** : IP dans les plages de documentation (RFC 5737/3849),
-> MAC, noms de Wi-Fi, réseaux et relais Tor inventés, et heures décalées.
+> Les captures utilisent des données **anonymisées** : adresses privées et de documentation, MAC, SSID, réseaux,
+> noms de processus et relais Tor inventés, et heures décalées.
 
 ---
 
@@ -112,6 +117,20 @@ ne sortent que via le VPN ou Tor ; les clés sont stockées dans `~/.config/vela
 Il inclut aussi une **icône dans la barre** (état, profil, Tor, urgence et notifications), une **TUI** en terminal,
 une **GUI web** locale (127.0.0.1 uniquement, avec jeton) et une **CLI** complète avec sortie `--json`.
 
+### Outils
+
+- **Traducteur + OCR** — un petit LLM local (Ollama ou llama.cpp) traduit n'importe quel texte ; sélectionnez une région de l'écran et tesseract la lit. Rien ne quitte la machine sauf si vous activez une API distante.
+- **Données** — exportez/importez des sauvegardes complètes (historique, réglages, configuration et éventuellement secrets) et effacez uniquement l'historique ou toutes les données de VELA, avec confirmation.
+- **Anomalies réseau** — ligne de base locale du volume, du fan-out des connexions, des nouveaux processus/pays/ports, des changements de route et de DNS.
+- **DNS chiffré** — un clic pour activer DoT (systemd-resolved) ou DoH (cloudflared) avec sauvegarde, vérification et retour arrière ; avertit avant d'écraser le DNS du VPN.
+- **Applications avec un autre fuseau horaire** — ouvrez n'importe quelle application `.desktop` ou commande avec `TZ=Asia/Tokyo` sans changer l'horloge du bureau.
+- **Changeur de MAC** — MAC aléatoire ou manuelle, avec l'originale sauvegardée et restauration en un clic.
+- **Dépendances optionnelles** — détecte et installe les paquets OCR, capture, MAC, DNS et LLM avec confirmation et la commande exacte affichée.
+- **About** — version, crédits et profil du créateur, hors ligne par défaut avec synchronisation GitHub optionnelle.
+- **Profils adaptatifs** — au démarrage, VELA crée les profils `diario`, `privado`, `anonimo`, `alto_riesgo` et
+  `laboratorio` selon ce que la machine possède réellement (VPN, kill-switch, Tor, proxys et DNS chiffré). Ils sont
+  recalculés quand le système change et peuvent être écrits dans `config.toml` avec `vela profiles generate --write`.
+
 ## Confidentialité dès la conception
 
 - **Observation seule par défaut.** Tout ce qui génère du trafic vers des tiers ou modifie le système exige un
@@ -172,7 +191,8 @@ système AyatanaAppIndicator3, déjà présents sous GNOME/Ubuntu.
 
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
-./install.sh          # installe l'app, le service velad, l'icône de la barre et le lanceur (sans pip ni root)
+./install.sh          # installe l'app, le service velad, l'icône de la barre et le lanceur (sans pip ; aussi avec sudo, installe pour votre utilisateur)
+./install.sh --with-all   # ajoute OCR, capture, MAC et Ollama + qwen2.5:1.5b (≈1 Go)
 ```
 
 Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
@@ -279,15 +299,15 @@ Légende :
 | Interfaces, routes, route effective, classification IPv4/IPv6/CGNAT/ULA | ✅ | tests + `vela network` réel |
 | Événements netlink | ✅ | daemon réel : « netlink : événements actifs » |
 | Tor : SAFECOOKIE, circuits, guard/middle/exit, flux, guards | ✅ | faux serveur + 22 circuits réels |
-| Tor : IP de sortie via check.torproject.org (IsTor) | ✅ | réel : 185.220.101.140 confirmé |
+| Tor : IP de sortie via check.torproject.org (IsTor) | ✅ | réel : 192.0.2.140 confirmé |
 | Tor : NEWNYM avec limite de fréquence et sans répéter l'exit | ✅ / 🟡 | testé avec des mocks et un dry-run réel ; NEWNYM réel non lancé (sans consentement) |
 | DNS par lien (systemd-resolved), DNS fractionné, DoT | ✅ | tests + `vela dns check` réel |
 | DNS effectif et chiffré : WARP DoH, cloudflared, dnscrypt/stubby, DoT, DoH de Firefox/Chromium ; route du DoH | ✅ | tests + réel : WARP DoH via `proton0` |
 | Kill-switch des clients (ProtonVPN, Mullvad, NordVPN) + vérification par les routes « et si le tunnel tombe ? » | ✅ / 🟡 | ProtonVPN réel vérifié (IPv4/IPv6) ; Mullvad/NordVPN non validés (non installés) |
-| Clients VPN snap/flatpak (ProtonVPN) et serveur VPN déduit du nom de la connexion | ✅ | réel : `ProtonVPN CH-DE#2` |
+| Clients VPN snap/flatpak (ProtonVPN) et serveur VPN déduit du nom de la connexion | ✅ | réel : `ProtonVPN XX-YY#2` |
 | Génération de profils (quotidien, privé, anonyme, haut risque, labo) et politiques `require_killswitch`/`dns_policy` | ✅ | tests + profils réels évalués en direct |
 | Fuites passives : IPv6, tunnel, DNS, proxy exposé, fuseau horaire, MAC, kill-switch | ✅ | tests + constats réels |
-| Surveillance de tous les réseaux : trafic, voisins ARP (sans scan), empreinte réseau, changement de MAC de la passerelle (ARP spoofing), nouveaux appareils, Wi-Fi ouvert, isolation des réseaux libvirt | ✅ | tests + réel : a détecté `pentest-isolated` avec NAT |
+| Surveillance de tous les réseaux : trafic, voisins ARP (sans scan), empreinte réseau, changement de MAC de la passerelle (ARP spoofing), nouveaux appareils, Wi-Fi ouvert, isolation des réseaux libvirt | ✅ | tests + réel : a détecté `lab-isolated` avec NAT |
 | IP publique uniquement via le tunnel (`public_ip.require_tunnel`) | ✅ | tests + réel : ignorée quand le VPN est tombé |
 | IP publique en temps réel (toutes les 60 s avec tunnel + immédiate au changement de route) et détection de « Internet voit votre IP réelle » | ✅ / 🟡 | tests ; validation réelle en attente d'une reconnexion du VPN |
 | Veilleur de fuites en temps réel (sockets du noyau toutes les 2 s, programme responsable, fuites DNS, réaction automatique avec kill-switch) | ✅ | tests + réel : 29 connexions directes détectées avec le VPN coupé |
@@ -336,7 +356,7 @@ Légende :
 python3 -m unittest discover -s tests -t .
 ```
 
-171 tests avec des mocks et des backends simulés (faux serveur de contrôle Tor avec un vrai SAFECOOKIE, rotation
+255 tests avec des mocks et des backends simulés (faux serveur de contrôle Tor avec un vrai SAFECOOKIE, rotation
 avec échecs et rollback, fuites simulées, IPC, sécurité de la GUI, faux proxy SOCKS5, carte OSM, migration,
 garde-fou git et traductions). Aucun ne touche à la connectivité réelle.
 
@@ -363,6 +383,11 @@ barre et le lanceur. Elle n'écrase jamais de données plus récentes et n'agit 
 
 ## Licence et crédits
 
+- **Code, documentation, design et éléments de marque : propriétaires, tous droits réservés.**
+  VELA **n'est pas open source**. Aucune utilisation, copie, modification, distribution,
+  hébergement, mise à disposition en SaaS ou exploitation commerciale n'est autorisée sans
+  autorisation écrite préalable. Voir [LICENSE](LICENSE), [LICENSING.md](LICENSING.md) et
+  [TRADEMARK.md](TRADEMARK.md).
 - Données de la carte : © OpenStreetMap contributors, [ODbL 1.0](https://www.openstreetmap.org/copyright)
-  (voir [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)).
-- Licence du code : à définir.
+  (voir [vela/data/OSM-ATTRIBUTION.txt](vela/data/OSM-ATTRIBUTION.txt)). Les données ODbL ne sont
+  pas couvertes par la licence propriétaire.

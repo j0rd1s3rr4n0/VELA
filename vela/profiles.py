@@ -11,6 +11,8 @@ from __future__ import annotations
 from .i18n import _
 
 import datetime as dt
+import hashlib
+import json
 
 from . import config as config_mod
 from .leaks import tz_country
@@ -100,6 +102,43 @@ def generate(env: dict, dns_effective: dict | None = None) -> dict:
     return out
 
 
+def _signature(profile: dict) -> str:
+    """Huella de los campos editables (ignora _why/_auto) para no pisar cambios del usuario."""
+    clean = {k: v for k, v in profile.items() if not str(k).startswith("_")}
+    raw = json.dumps(clean, sort_keys=True, default=str, ensure_ascii=False)
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def merge_adaptive(cfg: dict, env: dict, dns_effective: dict | None = None) -> list[str]:
+    """Añade/actualiza los perfiles automáticos que correspondan a este sistema.
+
+    Los perfiles generados llevan `_auto` y `_auto_sig`. Si el usuario editó uno, su firma
+    ya no coincide y no se sobrescribe. Si el sistema cambia (aparece Tor, una VPN o un
+    proxy), los perfiles automáticos intactos se recalculan.
+    """
+    generated = generate(env, dns_effective)
+    profiles = cfg.setdefault("profiles", {})
+    changed: list[str] = []
+    for name, profile in generated.items():
+        candidate = dict(profile)
+        candidate.pop("_why", None)
+        candidate["_auto"] = True
+        candidate["_auto_sig"] = _signature(candidate)
+        existing = profiles.get(name)
+        if existing is None:
+            profiles[name] = {**candidate, "_why": profile.get("_why", [])}
+            changed.append(name)
+            continue
+        if not existing.get("_auto"):
+            continue                       # perfil del usuario: no se toca
+        old_sig = existing.get("_auto_sig")
+        if old_sig and old_sig != _signature(existing):
+            continue                       # el usuario lo editó: se respeta
+        profiles[name] = {**candidate, "_why": profile.get("_why", [])}
+        changed.append(name)
+    return changed
+
+
 def to_toml(profiles: dict, existing: set[str] = frozenset()) -> str:
     lines = [f"# Perfiles generados por `vela profiles generate` el {dt.datetime.now():%Y-%m-%d %H:%M}",
              "# Recuerda: separan identidades de RED; usa además un navegador/contenedor distinto por perfil."]
@@ -120,7 +159,7 @@ def write(profiles: dict, current_cfg: dict) -> dict:
     """Añade al config.toml del usuario los perfiles que aún no existen (nunca sobrescribe)."""
     path = config_mod.config_path()
     text = path.read_text() if path.exists() else ""
-    existing = set(current_cfg.get("profiles", {}))
+    existing = {n for n, p in (current_cfg.get("profiles") or {}).items() if not p.get("_auto")}
     new = [n for n in profiles if n not in existing]
     if not new:
         return {"written": [], "skipped": sorted(profiles), "path": str(path)}

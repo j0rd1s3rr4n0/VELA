@@ -1,0 +1,14 @@
+VELA — Vigilant Egress & Leak Analyst
+Copyright (c) 2026 Jordi Serrano (j0rd1s3rr4n0)
+All rights reserved.
+
+This product is proprietary software. See LICENSE for the terms. No use, copying,
+modification, distribution, hosting or commercial exploitation is permitted without prior
+written permission. See LICENSING.md for how to request permission.
+
+Trademarks: "VELA", "Vigilant Egress & Leak Analyst", the VELA logo and visual identity are
+trademarks of the copyright holder. See TRADEMARK.md.
+
+Third-party material:
+- OpenStreetMap data: © OpenStreetMap contributors, ODbL 1.0.
+  See vela/data/OSM-ATTRIBUTION.txt.

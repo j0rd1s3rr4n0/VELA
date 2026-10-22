@@ -142,6 +142,7 @@ def export_data(engine, since: float | None = None) -> dict:
         "events": engine.store.events(limit=100000, since=since),
         "findings": engine.store.findings(limit=100000, since=since),
         "rotations": engine.store.rotations(limit=100000, since=since),
+        "metrics": engine.store.metrics(since=since, limit=100000),
     })
 
 

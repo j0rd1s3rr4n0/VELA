@@ -1,22 +1,52 @@
 #!/usr/bin/env bash
-# VELA — instalador para Linux (por usuario, sin pip ni root salvo para dependencias del sistema).
+# VELA — instalador para Linux (por usuario, sin pip; funciona con ./install.sh o con sudo ./install.sh).
 #
 #   ./install.sh               instala o actualiza: app, servicio velad, bandeja y lanzador
 #   ./install.sh --uninstall   desinstala (conserva tus datos)
 #   ./install.sh --uninstall --purge   desinstala y borra también historial, ajustes y claves
 #
 # Opciones: --yes (sin preguntas) · --no-service · --no-tray · --no-deps · --prefix DIR
+#           --with-ocr · --with-mac · --with-llm · --with-all · --no-optional
 #
 # Qué hace: copia el paquete a ~/.local/lib/vela, crea los comandos ~/.local/bin/vela y velad,
-# instala el lanzador y el icono, el servicio de usuario de systemd (velad) y el icono de bandeja.
+# instala el lanzador y el icono, el servicio de usuario de systemd (velad), el icono de bandeja
+# y las dependencias de las funciones nuevas: OCR + captura, PolicyKit (pkexec), DNS cifrado,
+# cambiador de MAC y, si se pide, Ollama con un modelo pequeño para traducir.
 # No usa pip: así funciona también en distribuciones con Python «externally managed» (PEP 668).
 set -euo pipefail
 
-PREFIX="${HOME}/.local/lib/vela"
-BIN="${HOME}/.local/bin"
+# Home del usuario real aunque el entorno no lo traiga (sudo -H, cron, contenedores…).
+if [ -z "${HOME:-}" ]; then
+  HOME="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
+fi
+if [ -z "${HOME:-}" ]; then
+  printf '\033[1;31m✖\033[0m no puedo determinar el home de %s; define HOME y vuelve a intentarlo\n' "$(id -un)" >&2
+  exit 1
+fi
+PREFIX="${VELA_PREFIX:-$HOME/.local/lib/vela}"
+BIN="${VELA_BIN:-${XDG_BIN_HOME:-$HOME/.local/bin}}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+STATE_HOME="${XDG_STATE_HOME:-$HOME/.local/state}"
+CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
+TARGET_USER="$(id -un)"
 APP_ID="io.github.j0rd1s3rr4n0.Vela"
 YES=0; SERVICE=1; TRAY=1; DEPS=1; MODE=install; PURGE=0
+WITH_OCR=0; WITH_MAC=0; WITH_LLM=0; WITH_ALL=0; OPTIONAL=1
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# `sudo ./install.sh` instala para el usuario que invocó sudo, no para root.
+if [ "$(id -u)" = 0 ] && [ -n "${SUDO_USER:-}" ] && [ "${VELA_INSTALL_AS_USER:-0}" != 1 ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    exec sudo -u "$SUDO_USER" -H env VELA_INSTALL_AS_USER=1 bash "$SRC/install.sh" "$@"
+  elif command -v runuser >/dev/null 2>&1; then
+    USER_HOME="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    exec runuser -u "$SUDO_USER" -- env HOME="$USER_HOME" VELA_INSTALL_AS_USER=1 bash "$SRC/install.sh" "$@"
+  else
+    printf '\033[1;31m✖\033[0m no puedo cambiar al usuario %s; ejecuta ./install.sh sin sudo\n' "$SUDO_USER" >&2
+    exit 1
+  fi
+fi
 
 case "${LANG:-}${LANGUAGE:-}" in es*|*:es*) L=es ;; *) L=en ;; esac
 t() { if [ "$L" = es ]; then printf '%s' "$1"; else printf '%s' "$2"; fi; }
@@ -34,12 +64,20 @@ while [ $# -gt 0 ]; do
     --no-service) SERVICE=0 ;;
     --no-tray) TRAY=0 ;;
     --no-deps) DEPS=0 ;;
+    --no-optional) OPTIONAL=0 ;;
+    --with-ocr) WITH_OCR=1 ;;
+    --with-mac) WITH_MAC=1 ;;
+    --with-llm) WITH_LLM=1 ;;
+    --with-all) WITH_ALL=1 ;;
     --prefix) shift; PREFIX="$1" ;;
-    -h|--help) sed -n '2,13p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "$(t "opción desconocida: $1" "unknown option: $1")" ;;
   esac
   shift
 done
+
+[ "$WITH_ALL" = 1 ] && { WITH_OCR=1; WITH_MAC=1; WITH_LLM=1; }
+if [ "$OPTIONAL" = 0 ]; then WITH_OCR=0; WITH_MAC=0; WITH_LLM=0; fi
 
 [ "$(uname -s)" = Linux ] || die "$(t "VELA solo funciona en Linux (las versiones para Windows están en las ramas windows-lite y windows)" "VELA only runs on Linux (Windows versions live in the windows-lite and windows branches)")"
 [ "$(id -u)" != 0 ] || die "$(t "no lo ejecutes como root: VELA se instala para tu usuario" "don't run it as root: VELA installs for your user")"
@@ -55,16 +93,15 @@ if [ "$MODE" = uninstall ]; then
     vela tray --remove >/dev/null 2>&1 || true
   fi
   systemctl --user disable --now velad.service >/dev/null 2>&1 || true
-  rm -f "$HOME/.config/systemd/user/velad.service" "$HOME/.config/autostart/vela-tray.desktop" \
-        "$HOME/.local/share/applications/$APP_ID.desktop" \
-        "$HOME/.local/share/icons/hicolor/scalable/apps/$APP_ID.svg" "$BIN/vela" "$BIN/velad"
-  for n in 16 24 32 48 64 128 256 512; do rm -f "$HOME/.local/share/icons/hicolor/${n}x${n}/apps/$APP_ID.png"; done
+  rm -f "$CONFIG_HOME/systemd/user/velad.service" "$CONFIG_HOME/autostart/vela-tray.desktop" \
+        "$DATA_HOME/applications/$APP_ID.desktop" \
+        "$DATA_HOME/icons/hicolor/scalable/apps/$APP_ID.svg" "$BIN/vela" "$BIN/velad"
+  for n in 16 24 32 48 64 128 256 512; do rm -f "$DATA_HOME/icons/hicolor/${n}x${n}/apps/$APP_ID.png"; done
   systemctl --user daemon-reload >/dev/null 2>&1 || true
   rm -rf "$PREFIX"
   ok "$(t "Programa, servicio, bandeja y lanzador eliminados." "Program, service, tray and launcher removed.")"
   if [ "$PURGE" = 1 ]; then
-    DATA=("${XDG_CONFIG_HOME:-$HOME/.config}/vela" "${XDG_DATA_HOME:-$HOME/.local/share}/vela"
-          "${XDG_STATE_HOME:-$HOME/.local/state}/vela" "${XDG_CACHE_HOME:-$HOME/.cache}/vela")
+    DATA=("$CONFIG_HOME/vela" "$DATA_HOME/vela" "$STATE_HOME/vela" "$CACHE_HOME/vela")
     warn "$(t "Se borrarán tu historial, ajustes y claves de API:" "This deletes your history, settings and API keys:") ${DATA[*]}"
     if ask "$(t "¿Borrar los datos?" "Delete the data?")"; then rm -rf "${DATA[@]}"; ok "$(t "Datos borrados." "Data deleted.")"; fi
   else
@@ -78,23 +115,31 @@ fi
 command -v python3 >/dev/null || die "$(t "falta python3 (≥ 3.10)" "python3 (≥ 3.10) is missing")"
 python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' || die "$(t "hace falta Python ≥ 3.10" "Python ≥ 3.10 is required")"
 VERSION="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$SRC/vela/__init__.py")"
-say "$(t "Instalando VELA $VERSION para $USER" "Installing VELA $VERSION for $USER")"
+say "$(t "Instalando VELA $VERSION para $TARGET_USER" "Installing VELA $VERSION for $TARGET_USER")"
 
-has_gui()  { python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1"); from gi.repository import Gtk, Adw' 2>/dev/null; }
+has_gui()  { python3 -c 'import gi; gi.require_version("Gtk","4.0"); gi.require_version("Adw","1"); from gi.repository import Gtk, Adw; import cairo' 2>/dev/null; }
 has_tray() { python3 -c 'import gi; gi.require_version("AyatanaAppIndicator3","0.1"); from gi.repository import AyatanaAppIndicator3' 2>/dev/null; }
+has_pkexec() { command -v pkexec >/dev/null 2>&1; }
+has_portal() { command -v xdg-desktop-portal >/dev/null 2>&1 || [ -x /usr/libexec/xdg-desktop-portal ] || [ -x /usr/lib/xdg-desktop-portal ]; }
+has_net() { command -v ip >/dev/null 2>&1; }
+has_resolved() { command -v resolvectl >/dev/null 2>&1; }
 
-if [ "$DEPS" = 1 ] && { ! has_gui || { [ "$TRAY" = 1 ] && ! has_tray; } || ! command -v notify-send >/dev/null; }; then
+if [ "$DEPS" = 1 ] && { ! has_gui || { [ "$TRAY" = 1 ] && ! has_tray; } || ! command -v notify-send >/dev/null \
+     || ! has_pkexec || ! has_portal || ! has_net || ! has_resolved; }; then
   PM=""; PKGS=""
-  if   command -v apt-get >/dev/null; then PM="sudo apt-get install -y"; PKGS="python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-ayatanaappindicator3-0.1 libnotify-bin"
-  elif command -v dnf     >/dev/null; then PM="sudo dnf install -y";     PKGS="python3-gobject gtk4 libadwaita libayatana-appindicator-gtk3 libnotify"
-  elif command -v pacman  >/dev/null; then PM="sudo pacman -S --needed --noconfirm"; PKGS="python-gobject gtk4 libadwaita libayatana-appindicator libnotify"
-  elif command -v zypper  >/dev/null; then PM="sudo zypper install -y"; PKGS="python3-gobject typelib-1_0-Gtk-4_0 typelib-1_0-Adw-1 typelib-1_0-AyatanaAppIndicator3-0_1 libnotify-tools"
+  if   command -v apt-get >/dev/null; then
+    PM="sudo apt-get install -y"
+    PKGS="python3-gi python3-cairo gir1.2-gtk-4.0 gir1.2-adw-1 gir1.2-ayatanaappindicator3-0.1 libnotify-bin systemd-resolved iproute2 xdg-desktop-portal xdg-desktop-portal-gnome"
+    if apt-cache show pkexec >/dev/null 2>&1; then PKGS="$PKGS pkexec"; else PKGS="$PKGS policykit-1"; fi
+  elif command -v dnf     >/dev/null; then PM="sudo dnf install -y";     PKGS="python3-gobject python3-cairo gtk4 libadwaita libayatana-appindicator-gtk3 libnotify polkit systemd-resolved iproute xdg-desktop-portal xdg-desktop-portal-gnome"
+  elif command -v pacman  >/dev/null; then PM="sudo pacman -S --needed --noconfirm"; PKGS="python-gobject python-cairo gtk4 libadwaita libayatana-appindicator libnotify polkit systemd iproute2 xdg-desktop-portal xdg-desktop-portal-gnome"
+  elif command -v zypper  >/dev/null; then PM="sudo zypper install -y"; PKGS="python3-gobject python3-cairo typelib-1_0-Gtk-4_0 typelib-1_0-Adw-1 typelib-1_0-AyatanaAppIndicator3-0_1 libnotify-tools polkit systemd systemd-resolved iproute2 xdg-desktop-portal xdg-desktop-portal-gnome"
   fi
   if [ -n "$PM" ]; then
-    warn "$(t "Faltan dependencias de la app de escritorio/bandeja:" "Desktop app/tray dependencies are missing:") $PKGS"
-    if ask "$(t "¿Instalarlas ahora con «$PM»?" "Install them now with «$PM»?")"; then $PM $PKGS || warn "$(t "no se pudieron instalar; la CLI funciona igual" "could not install them; the CLI still works")"; fi
+    warn "$(t "Faltan dependencias del sistema (app, bandeja, PolicyKit, portal, DNS, red):" "System dependencies are missing (app, tray, PolicyKit, portal, DNS, network):") $PKGS"
+    if ask "$(t "¿Instalarlas ahora con «$PM»?" "Install them now with «$PM»?")"; then $PM $PKGS || warn "$(t "no se pudieron instalar todas; la CLI funciona igual" "not all could be installed; the CLI still works")"; fi
   else
-    warn "$(t "No reconozco el gestor de paquetes: instala PyGObject, GTK 4, libadwaita y AyatanaAppIndicator3 para la app y la bandeja." "Unknown package manager: install PyGObject, GTK 4, libadwaita and AyatanaAppIndicator3 for the app and tray.")"
+    warn "$(t "No reconozco el gestor de paquetes: instala PyGObject, pycairo, GTK 4, libadwaita, AyatanaAppIndicator3, PolicyKit, systemd-resolved, iproute2 y un portal XDG." "Unknown package manager: install PyGObject, pycairo, GTK 4, libadwaita, AyatanaAppIndicator3, PolicyKit, systemd-resolved, iproute2 and an XDG portal.")"
   fi
 fi
 command -v tor >/dev/null || say "$(t "Opcional: instala «tor» para circuitos, comprobaciones por Tor y ExoneraTor." "Optional: install «tor» for circuits, Tor-based checks and ExoneraTor.")"
@@ -105,7 +150,10 @@ rm -rf "$PREFIX/vela.new"
 cp -r "$SRC/vela" "$PREFIX/vela.new"
 find "$PREFIX/vela.new" -name __pycache__ -type d -prune -exec rm -rf {} +
 rm -rf "$PREFIX/vela" && mv "$PREFIX/vela.new" "$PREFIX/vela"
-ok "$(t "Programa copiado a $PREFIX" "Program copied to $PREFIX")"
+for f in LICENSE NOTICE TRADEMARK.md LICENSING.md CONTRIBUTING.md; do
+  [ -f "$SRC/$f" ] && cp "$SRC/$f" "$PREFIX/$f"
+done
+ok "$(t "Programa y licencia copiados a $PREFIX" "Program and licence copied to $PREFIX")"
 # de dónde y qué versión se instaló: lo usa «vela update» (Ajustes → Actualizaciones)
 env PYTHONPATH="$PREFIX" python3 -m vela.updater write-manifest "$PREFIX" "$SRC" 2>/dev/null || true
 
@@ -129,6 +177,39 @@ else
   warn "$(t "Sin GTK 4/libadwaita: la app de escritorio no estará disponible (CLI, TUI y GUI web sí)" "No GTK 4/libadwaita: the desktop app won't be available (CLI, TUI and web GUI will)")"
 fi
 
+# dependencias opcionales: OCR/captura, MAC y LLM local (se pueden omitir)
+if [ "$DEPS" = 1 ] && [ "$OPTIONAL" = 1 ]; then
+  OCR_NEEDED=0
+  if ! command -v tesseract >/dev/null; then OCR_NEEDED=1; fi
+  if command -v tesseract >/dev/null; then
+    LANGS="$(tesseract --list-langs 2>/dev/null || true)"
+    printf '%s\n' "$LANGS" | grep -qx spa || OCR_NEEDED=1
+    printf '%s\n' "$LANGS" | grep -qx eng || OCR_NEEDED=1
+  fi
+  if [ "$OCR_NEEDED" = 1 ] || [ "$WITH_OCR" = 1 ]; then
+    say "$(t "OCR para escanear y traducir la pantalla (tesseract + idiomas spa/eng)." "OCR to scan and translate the screen (tesseract + spa/eng languages).")"
+    if [ "$WITH_OCR" = 1 ] || ask "$(t "¿Instalar tesseract, sus idiomas y una herramienta de captura?" "Install tesseract, its languages and a screenshot tool?")"; then
+      vela deps install --feature ocr --yes || warn "$(t "no se pudo instalar todo el OCR; puedes hacerlo luego con «vela deps install --feature ocr»" "OCR could not be fully installed; run «vela deps install --feature ocr» later")"
+      vela deps install --feature capture --yes >/dev/null 2>&1 || true
+    fi
+  fi
+  if ! command -v macchanger >/dev/null || [ "$WITH_MAC" = 1 ]; then
+    say "$(t "Cambiador de MAC: se usa iproute2 y, si está, macchanger." "MAC changer: uses iproute2 and, when available, macchanger.")"
+    if [ "$WITH_MAC" = 1 ] || ask "$(t "¿Instalar macchanger (opcional)?" "Install macchanger (optional)?")"; then
+      vela deps install --feature mac --yes >/dev/null 2>&1 || true
+    fi
+  fi
+  if [ "$WITH_LLM" = 1 ]; then
+    say "$(t "Instalando Ollama y el modelo qwen2.5:1.5b (≈1 GB)…" "Installing Ollama and the qwen2.5:1.5b model (≈1 GB)…")"
+    vela deps ollama --yes || warn "$(t "no se pudo instalar Ollama; instálalo luego con «vela deps ollama»" "Ollama could not be installed; run «vela deps ollama» later")"
+  else
+    say "$(t "Traducción local opcional: «./install.sh --with-llm» instala Ollama + qwen2.5:1.5b (≈1 GB)." "Optional local translation: «./install.sh --with-llm» installs Ollama + qwen2.5:1.5b (≈1 GB).")"
+  fi
+  if ! command -v cloudflared >/dev/null; then
+    say "$(t "DoH opcional: instala cloudflared desde cloudflare.com; DoT ya funciona con systemd-resolved." "Optional DoH: install cloudflared from cloudflare.com; DoT already works with systemd-resolved.")"
+  fi
+fi
+
 if [ "$SERVICE" = 1 ]; then
   if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
     vela daemon enable >/dev/null
@@ -147,7 +228,7 @@ if [ "$TRAY" = 1 ] && has_tray; then
 fi
 
 if ! id -nG | tr ' ' '\n' | grep -qx debian-tor && getent group debian-tor >/dev/null; then
-  say "$(t "Para observar Tor: sudo usermod -aG debian-tor $USER (y vuelve a iniciar sesión)" "To observe Tor: sudo usermod -aG debian-tor $USER (then log in again)")"
+  say "$(t "Para observar Tor: sudo usermod -aG debian-tor $TARGET_USER (y vuelve a iniciar sesión)" "To observe Tor: sudo usermod -aG debian-tor $TARGET_USER (then log in again)")"
 fi
 
 echo
