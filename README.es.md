@@ -158,6 +158,10 @@ Por defecto la herramienta solo observa. Estas acciones se activan en `[consent]
 | `active_dns_leak_test` | Un servicio externo ve tu IP y tus resolvers |
 | `allow_rotation_changes` | Cambia conexiones reales |
 | `allow_killswitch` | Aplica reglas nftables (con `sudo -n` o pkexec) |
+| `allow_dns_changes` | Modifica `/etc/systemd/resolved.conf.d` para cifrar el DNS |
+| `allow_mac_changes` | Cambia la MAC de una interfaz (corta la conexión unos segundos) |
+| `llm_remote` | Envía texto a una API de traducción remota |
+| `about_profile_lookup` | Consulta api.github.com y descarga el avatar público |
 </details>
 
 ## Temas
@@ -215,6 +219,8 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh --with-all   # añade OCR, captura, MAC y Ollama + qwen2.5:1.5b (≈1 GB)
 ```
 
+`install.sh` instala PyGObject, pycairo, GTK 4, libadwaita, AyatanaAppIndicator3, PolicyKit (`pkexec`), systemd-resolved, iproute2 y un portal XDG; detecta el gestor de paquetes (apt, dnf, pacman, zypper), muestra el comando exacto y pregunta antes de cambiar el sistema. Opciones: `--with-ocr`, `--with-mac`, `--with-llm`, `--with-all`, `--no-optional`, `--no-deps`, `--no-service`, `--no-tray`, `--prefix DIR`. `cloudflared` no suele estar en los repositorios: instálalo desde cloudflare.com solo si prefieres DoH; DoT funciona sin él.
+
 Puedes ejecutar `./install.sh` o `sudo ./install.sh`: en ambos casos instala para el usuario que lo invocó (con sudo se redirige a `$SUDO_USER`). Los comandos también funcionan con o sin sudo: `sudo vela …` vuelve a ejecutarse como tu usuario para que los datos sigan en tu home y la app pueda usar tu sesión gráfica; las acciones privilegiadas siguen usando `pkexec`/`sudo`. Usa `VELA_KEEP_ROOT=1 sudo vela …` si de verdad quieres conservar root. Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
 
 Actualizar: **Ajustes → Actualizaciones** en la app o `vela update` (consulta el remoto de tu clon por Tor o por la VPN, nunca por su cuenta, enseña los commits nuevos y solo avanza; `vela update --check` no cambia nada) · Desinstalar: `./install.sh --uninstall` (`--purge` borra también tus datos).
@@ -226,6 +232,10 @@ Opcionales:
 - `pip install geoip2`, junto con las bases GeoLite2-City/ASN `.mmdb` en `~/.local/share/GeoIP/`, para
   obtener ciudad y ASN;
 - `pip install sqlcipher3` para cifrado real de la base de datos.
+- `tesseract-ocr` (con los idiomas `spa`/`eng`) y una herramienta de captura o portal XDG para OCR;
+- [Ollama](https://ollama.com) con un modelo pequeño (`qwen2.5:1.5b`) para traducir en local;
+- `cloudflared` solo si prefieres DoH en lugar de DoT;
+- `macchanger` es opcional: VELA usa `ip link` si no está.
 
 Para observar Tor hace falta poder leer su cookie de control:
 
@@ -269,6 +279,18 @@ vela tui               # terminal interactiva
 | `vela profiles [activate X \| correlation \| generate [--write]]` | Perfiles, riesgo de correlación y generación de perfiles adaptados al sistema |
 | `vela audit [--html f.html]` | Privacy Audit |
 | `vela stats --period day\|week\|month` | Estadísticas y anomalías |
+| `vela anomalies` | Anomalías de red de la línea base local |
+| `vela logs [show\|clear] [--kind audit\|errors]` | Log de auditoría y log de errores |
+| `vela notify [status\|on\|off\|mute --for 1h]` | Activar, silenciar temporal/indefinidamente o consultar notificaciones |
+| `vela refresh [dns\|network\|leaks\|all…]` | Invalidar caches y recalcular alertas/recomendaciones ahora |
+| `vela translate [TEXTO] --to es` | Traducir con el LLM local (Ollama/llama.cpp) |
+| `vela ocr [--image f] --to es` | OCR de una región o imagen y traducción |
+| `vela data info\|export\|import\|reset` | Backups, importación y reset (historial o todos los datos) |
+| `vela deps check\|install [--feature …]` | Detectar e instalar dependencias opcionales |
+| `vela dns encrypt\|restore [--transport dot\|doh]` | Cifrar el DNS del sistema o revertirlo |
+| `vela tz list\|launch --app … --tz …` | Abrir una app o comando con otra zona horaria |
+| `vela mac list\|random\|set\|restore` | Cambiar o restaurar la MAC de una interfaz |
+| `vela about [--sync]` | Versión, créditos y perfil del creador |
 | `vela export --format json\|csv\|html --out …` | Exportar el histórico |
 | `vela killswitch preview\|apply --yes\|release` | Kill-switch nftables (tabla propia) |
 | `vela panic` / `vela resume` | Modo de emergencia (no borra datos) |

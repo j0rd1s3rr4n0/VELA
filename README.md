@@ -163,6 +163,10 @@ By default the tool only observes. These actions are enabled under `[consent]`; 
 | `active_dns_leak_test` | An external service sees your IP and your resolvers |
 | `allow_rotation_changes` | Changes real connections |
 | `allow_killswitch` | Applies nftables rules (with `sudo -n` or pkexec) |
+| `allow_dns_changes` | Modifies `/etc/systemd/resolved.conf.d` to encrypt DNS |
+| `allow_mac_changes` | Changes an interface MAC (cuts the connection briefly) |
+| `llm_remote` | Sends text to a remote translation API |
+| `about_profile_lookup` | Contacts api.github.com and downloads the public avatar |
 </details>
 
 ## Themes

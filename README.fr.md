@@ -126,6 +126,10 @@ une **GUI web** locale (127.0.0.1 uniquement, avec jeton) et une **CLI** complè
 - **Applications avec un autre fuseau horaire** — ouvrez n'importe quelle application `.desktop` ou commande avec `TZ=Asia/Tokyo` sans changer l'horloge du bureau.
 - **Changeur de MAC** — MAC aléatoire ou manuelle, avec l'originale sauvegardée et restauration en un clic.
 - **Dépendances optionnelles** — détecte et installe les paquets OCR, capture, MAC, DNS et LLM avec confirmation et la commande exacte affichée.
+- **Journaux** — onglet **Erreurs** avec deux fichiers persistants : `audit.log` (actions de l'utilisateur ou du
+  daemon) et `errors.log` (exceptions non gérées et échecs de l'UI/CLI), avec rotation, copie et effacement.
+- **Contrôle des notifications** — activez ou coupez les notifications de bureau 15 min, 1 h, 8 h, 24 h ou
+  indéfiniment depuis les Réglages, la barre système ou `vela notify`. Les coupures temporaires expirent seules.
 - **About** — version, crédits et profil du créateur, hors ligne par défaut avec synchronisation GitHub optionnelle.
 - **Profils adaptatifs** — au démarrage, VELA crée les profils `diario`, `privado`, `anonimo`, `alto_riesgo` et
   `laboratorio` selon ce que la machine possède réellement (VPN, kill-switch, Tor, proxys et DNS chiffré). Ils sont
@@ -155,6 +159,10 @@ Par défaut, l'outil se contente d'observer. Ces actions s'activent dans `[conse
 | `active_dns_leak_test` | Un service externe voit votre IP et vos résolveurs |
 | `allow_rotation_changes` | Modifie des connexions réelles |
 | `allow_killswitch` | Applique des règles nftables (avec `sudo -n` ou pkexec) |
+| `allow_dns_changes` | Modifie `/etc/systemd/resolved.conf.d` pour chiffrer le DNS |
+| `allow_mac_changes` | Change la MAC d'une interface (coupe brièvement la connexion) |
+| `llm_remote` | Envoie du texte à une API de traduction distante |
+| `about_profile_lookup` | Interroge api.github.com et télécharge l'avatar public |
 </details>
 
 ## Thèmes
@@ -189,11 +197,34 @@ carte.
 Prérequis : **Linux** et **Python ≥ 3.10**. L'app de bureau utilise GTK 4 + libadwaita (PyGObject) et la barre
 système AyatanaAppIndicator3, déjà présents sous GNOME/Ubuntu.
 
+**Auto-installation en une ligne** (télécharge le script, installe git/curl si nécessaire, clone ou met à jour
+VELA et exécute `install.sh`) :
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash
+```
+
+Utilisez l'URL **raw**, pas la page `/blob/` de GitHub. Les options se placent après `bash -s --` :
+
+```bash
+# ajoute OCR, capture, MAC et Ollama + qwen2.5:1.5b
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash -s -- --with-all
+
+# installe dans un autre dossier et ne démarre ni service ni barre système
+curl -fsSL https://raw.githubusercontent.com/j0rd1s3rr4n0/VELA/master/autoinstall.sh | bash -s -- --dir ~/src/VELA --no-service --no-tray
+```
+
+Depuis un clone :
+
 ```bash
 git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 ./install.sh          # installe l'app, le service velad, l'icône de la barre et le lanceur (sans pip ; aussi avec sudo, installe pour votre utilisateur)
 ./install.sh --with-all   # ajoute OCR, capture, MAC et Ollama + qwen2.5:1.5b (≈1 Go)
 ```
+
+`install.sh` installe PyGObject, pycairo, GTK 4, libadwaita, AyatanaAppIndicator3, PolicyKit (`pkexec`), systemd-resolved, iproute2 et un portail XDG ; il détecte le gestionnaire de paquets (apt, dnf, pacman, zypper), affiche la commande exacte et demande avant de modifier le système. Options : `--with-ocr`, `--with-mac`, `--with-llm`, `--with-all`, `--no-optional`, `--no-deps`, `--no-service`, `--no-tray`, `--prefix DIR`. `cloudflared` n'est généralement pas dans les dépôts : installez-le depuis cloudflare.com uniquement si vous préférez DoH ; DoT fonctionne sans lui.
+
+Vous pouvez exécuter `./install.sh` ou `sudo ./install.sh` : dans les deux cas, il installe pour l'utilisateur qui l'a invoqué (sudo est redirigé vers `$SUDO_USER`). Les commandes fonctionnent aussi avec ou sans sudo : `sudo vela …` se réexécute en tant que votre utilisateur pour que les données restent dans votre home et que l'app puisse utiliser votre session graphique ; les actions privilégiées utilisent toujours `pkexec`/`sudo`. Utilisez `VELA_KEEP_ROOT=1 sudo vela …` si vous voulez vraiment conserver root.
 
 Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
 
@@ -203,6 +234,10 @@ Facultatif :
 
 - `pip install geoip2`, avec les bases GeoLite2-City/ASN `.mmdb` dans `~/.local/share/GeoIP/`, pour la ville et l'ASN ;
 - `pip install sqlcipher3` pour un vrai chiffrement de la base de données.
+- `tesseract-ocr` (avec les langues `spa`/`eng`) et un outil de capture ou un portail XDG pour l'OCR ;
+- [Ollama](https://ollama.com) avec un petit modèle (`qwen2.5:1.5b`) pour traduire en local ;
+- `cloudflared` uniquement si vous préférez DoH à DoT ;
+- `macchanger` est facultatif : VELA utilise `ip link` s'il n'est pas présent.
 
 Pour observer Tor, il faut pouvoir lire son cookie de contrôle :
 
@@ -246,6 +281,18 @@ vela tui               # terminal interactif
 | `vela profiles [activate X \| correlation \| generate [--write]]` | Profils, risque de corrélation et génération de profils adaptés au système |
 | `vela audit [--html f.html]` | Audit de confidentialité |
 | `vela stats --period day\|week\|month` | Statistiques et anomalies |
+| `vela anomalies` | Anomalies réseau de la ligne de base locale |
+| `vela logs [show\|clear] [--kind audit\|errors]` | Journal d'audit et journal d'erreurs |
+| `vela notify [status\|on\|off\|mute --for 1h]` | Activer, couper temporairement/indéfiniment ou consulter les notifications |
+| `vela refresh [dns\|network\|leaks\|all…]` | Invalider les caches et recalculer alertes/recommandations maintenant |
+| `vela translate [TEXTE] --to es` | Traduire avec le LLM local (Ollama/llama.cpp) |
+| `vela ocr [--image f] --to es` | OCR d'une région ou image et traduction |
+| `vela data info\|export\|import\|reset` | Sauvegardes, import et reset (historique ou toutes les données) |
+| `vela deps check\|install [--feature …]` | Détecter et installer les dépendances optionnelles |
+| `vela dns encrypt\|restore [--transport dot\|doh]` | Chiffrer le DNS système ou revenir en arrière |
+| `vela tz list\|launch --app … --tz …` | Ouvrir une app ou commande avec un autre fuseau horaire |
+| `vela mac list\|random\|set\|restore` | Changer ou restaurer la MAC d'une interface |
+| `vela about [--sync]` | Version, crédits et profil du créateur |
 | `vela export --format json\|csv\|html --out …` | Exporter l'historique |
 | `vela killswitch preview\|apply --yes\|release` | Kill-switch nftables (table propre) |
 | `vela panic` / `vela resume` | Mode urgence (ne supprime aucune donnée) |
