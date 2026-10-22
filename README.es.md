@@ -25,7 +25,7 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Sin dependencias" src="https://img.shields.io/badge/dependencias-ninguna-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-255%20OK-0ca30c">
+  <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-259%20OK-0ca30c">
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 idiomas" src="https://img.shields.io/badge/idiomas-ES%20·%20EN%20·%20CA%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Datos del mapa ODbL" src="https://img.shields.io/badge/mapa-OpenStreetMap%20(ODbL)-d95926">
@@ -127,6 +127,8 @@ terminal, **GUI web** local (solo 127.0.0.1, con token) y una **CLI** completa c
 - **Dependencias opcionales** — detecta e instala paquetes de OCR, captura, MAC, DNS y LLM con confirmación y el comando exacto a la vista.
 - **Registros** — pestaña **Errores** con dos ficheros persistentes: `audit.log` (acciones tuyas o del daemon) y
   `errors.log` (excepciones no controladas y fallos de la UI/CLI), con rotación, copia y borrado.
+- **Control de notificaciones** — activa o silencia los avisos de escritorio 15 min, 1 h, 8 h, 24 h o
+  indefinidamente desde Ajustes, la bandeja o `vela notify`. Los silencios temporales caducan solos.
 - **About** — versión, créditos y perfil del creador, offline por defecto con sincronización opcional de GitHub.
 - **Perfiles adaptables** — al arrancar, VELA crea los perfiles `diario`, `privado`, `anonimo`, `alto_riesgo` y
   `laboratorio` según lo que tenga el equipo (VPN, kill-switch, Tor, proxies y DNS cifrado). Se recalculan cuando
@@ -377,7 +379,7 @@ Leyenda:
 python3 -m unittest discover -s tests -t .
 ```
 
-255 pruebas con mocks y backends simulados (servidor de control de Tor falso con SAFECOOKIE real,
+259 pruebas con mocks y backends simulados (servidor de control de Tor falso con SAFECOOKIE real,
 rotación con fallos y rollback, fugas simuladas, IPC, seguridad de la GUI, proxy SOCKS5 falso, mapa OSM,
 migración, guardián de git y traducciones). Ninguna toca la conectividad real.
 

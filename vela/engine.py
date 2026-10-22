@@ -1215,5 +1215,8 @@ def _diff_keys(a, b, prefix="") -> list[str]:
 
 
 def _notify(title: str, body: str):
+    from . import notifications
+    if not notifications.allowed():
+        return
     from .util import run
     run(["notify-send", "-u", "critical", title, body], timeout=3)

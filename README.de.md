@@ -25,7 +25,7 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Keine Abhängigkeiten" src="https://img.shields.io/badge/Abh%C3%A4ngigkeiten-keine-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Tests" src="https://img.shields.io/badge/Tests-255%20OK-0ca30c">
+  <img alt="Tests" src="https://img.shields.io/badge/Tests-259%20OK-0ca30c">
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 Sprachen" src="https://img.shields.io/badge/Sprachen-DE%20·%20EN%20·%20ES%20·%20CA%20·%20PT%20·%20FR-3987e5">
   <img alt="Kartendaten ODbL" src="https://img.shields.io/badge/Karte-OpenStreetMap%20(ODbL)-d95926">
@@ -356,7 +356,7 @@ Legende:
 python3 -m unittest discover -s tests -t .
 ```
 
-255 Tests mit Mocks und simulierten Backends (falscher Tor-Steuerserver mit echtem SAFECOOKIE, Rotation mit Fehlern
+259 Tests mit Mocks und simulierten Backends (falscher Tor-Steuerserver mit echtem SAFECOOKIE, Rotation mit Fehlern
 und Rollback, simulierte Lecks, IPC, GUI-Sicherheit, falscher SOCKS5-Proxy, OSM-Karte, Migration, Git-Wächter und
 Übersetzungen). Keiner berührt die echte Konnektivität.
 

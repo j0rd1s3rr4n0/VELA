@@ -1258,6 +1258,9 @@ class Window(Adw.ApplicationWindow):
             logs.error(_("error en el flujo de eventos"), e)
 
     def _notify(self, ev):
+        from .. import notifications
+        if not notifications.allowed():
+            return False
         from ..autostart import tray_running
         if tray_running():                   # la bandeja ya notifica: evita avisos duplicados
             self.toast(f"{ev['kind']}: {json.dumps(ev['data'], ensure_ascii=False)[:110]}")
@@ -2760,6 +2763,7 @@ class Window(Adw.ApplicationWindow):
 
         box.append(self.appearance_group())
         box.append(self.language_group(v))
+        box.append(self.notifications_group())
 
         def switch(group, key, title, subtitle, invert=False):
             r = Adw.SwitchRow(title=GLib.markup_escape_text(title), subtitle=GLib.markup_escape_text(subtitle))
@@ -3344,6 +3348,59 @@ class Window(Adw.ApplicationWindow):
         row.connect("notify::selected", changed)
         g.add(row)
         return g
+
+    def notifications_group(self):
+        from .. import notifications
+        st = notifications.status()
+        g = Adw.PreferencesGroup(
+            title=_("Notificaciones"),
+            description=_("Avisos de escritorio de VELA. Puedes silenciarlos temporalmente o hasta que los reactives."))
+        self._notif_status = Adw.ActionRow(title=_("Estado"), subtitle=notifications.describe(st))
+        g.add(self._notif_status)
+        self._notif_switch = Adw.SwitchRow(title=_("Notificaciones activas"),
+                                           subtitle=_("Desactivado = silencio indefinido"))
+        self._notif_switch.set_active(bool(st["enabled"]))
+        self._notif_handler = self._notif_switch.connect("notify::active", self.on_notifications_switch)
+        g.add(self._notif_switch)
+        row = Adw.ActionRow(title=_("Silenciar temporalmente"),
+                            subtitle=_("El silencio termina solo; «Reactivar» lo cancela antes"))
+        for label, secs in ((_("15 min"), 900), (_("1 h"), 3600), (_("8 h"), 8 * 3600), (_("24 h"), 24 * 3600)):
+            b = Gtk.Button(label=label, valign=Gtk.Align.CENTER)
+            b.add_css_class("flat")
+            b.connect("clicked", lambda _b, s=secs: self.set_notifications(s))
+            row.add_suffix(b)
+        off = Gtk.Button(label=_("Indefinidamente"), valign=Gtk.Align.CENTER)
+        off.add_css_class("flat")
+        off.connect("clicked", lambda *_ign: self.set_notifications(None))
+        row.add_suffix(off)
+        on = Gtk.Button(label=_("Reactivar"), valign=Gtk.Align.CENTER)
+        on.add_css_class("suggested-action")
+        on.connect("clicked", lambda *_ign: self.set_notifications("on"))
+        row.add_suffix(on)
+        g.add(row)
+        return g
+
+    def _refresh_notifications_group(self):
+        from .. import notifications
+        st = notifications.status()
+        if hasattr(self, "_notif_status"):
+            self._notif_status.set_subtitle(notifications.describe(st))
+        if hasattr(self, "_notif_switch"):
+            self._notif_switch.handler_block(self._notif_handler)
+            self._notif_switch.set_active(bool(st["enabled"]))
+            self._notif_switch.handler_unblock(self._notif_handler)
+
+    def on_notifications_switch(self, row, _p):
+        from .. import notifications
+        st = notifications.enable() if row.get_active() else notifications.disable()
+        self._refresh_notifications_group()
+        self.toast(_("Notificaciones: {v1}", v1=notifications.describe(st)))
+
+    def set_notifications(self, seconds):
+        from .. import notifications
+        st = notifications.enable() if seconds == "on" else notifications.mute(seconds)
+        self._refresh_notifications_group()
+        self.toast(_("Notificaciones: {v1}", v1=notifications.describe(st)))
 
     def ask_restart(self, heading=None, body=None):
         d = Adw.AlertDialog(heading=heading or _("Idioma cambiado"),

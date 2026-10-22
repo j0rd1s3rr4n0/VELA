@@ -785,6 +785,25 @@ def cmd_mac(b, a):
     return None
 
 
+def cmd_notify(b, a):
+    from . import notifications
+    if a.action == "on":
+        st = notifications.enable()
+    elif a.action == "off":
+        st = notifications.disable()
+    elif a.action == "mute":
+        seconds = parse_duration(a.for_) if a.for_ else None
+        st = notifications.mute(seconds)
+    else:
+        st = notifications.status()
+    if a.json:
+        return st
+    print(_("Notificaciones: {v1}", v1=notifications.describe(st)))
+    if st.get("path"):
+        print(_("  estado: {v1}", v1=tilde(st["path"])))
+    return None
+
+
 def cmd_logs(b, a):
     if a.action == "clear":
         r = b.call("logs_clear", kind=a.kind)
@@ -1429,6 +1448,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("action", nargs="?", default="show", choices=["show", "clear"])
     sp.add_argument("--kind", default="all", choices=["all", "audit", "errors"])
     sp.add_argument("--limit", type=int, default=100)
+    sp = add("notify", cmd_notify, _("activar, silenciar o consultar las notificaciones"))
+    sp.add_argument("action", nargs="?", default="status", choices=["status", "on", "off", "mute"])
+    sp.add_argument("--for", dest="for_", help=_("duración del silencio (p. ej. 15m, 8h); sin ella, indefinido"))
     sp = add("refresh", cmd_refresh, _("invalidar caches y recalcular alertas y recomendaciones ahora"))
     sp.add_argument("domains", nargs="*", choices=["network", "networks", "dns", "tor", "leaks", "profiles",
                                                    "anomalies", "public", "all"])

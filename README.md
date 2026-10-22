@@ -25,7 +25,7 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="No dependencies" src="https://img.shields.io/badge/dependencies-none-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Tests" src="https://img.shields.io/badge/tests-255%20OK-0ca30c">
+  <img alt="Tests" src="https://img.shields.io/badge/tests-259%20OK-0ca30c">
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 languages" src="https://img.shields.io/badge/languages-EN%20·%20ES%20·%20CA%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Map data ODbL" src="https://img.shields.io/badge/map-OpenStreetMap%20(ODbL)-d95926">
@@ -133,6 +133,8 @@ local **web GUI** (127.0.0.1 only, with a token) and a complete **CLI** with `--
   the exact command shown first.
 - **Logs** — a local **Errors** tab with two persistent files: `audit.log` (actions taken by you or the daemon) and
   `errors.log` (uncaught exceptions and UI/CLI failures), with rotation, copy and clear actions.
+- **Notification control** — enable or mute desktop notifications for 15 min, 1 h, 8 h, 24 h or indefinitely
+  from Settings, the tray menu or `vela notify`. Temporary mutes expire by themselves.
 - **About** — version, credits and the creator profile, offline by default with an optional GitHub sync.
 - **Adaptive profiles** — on startup VELA creates `diario`, `privado`, `anonimo`, `alto_riesgo` and
   `laboratorio` profiles from what the machine actually has (VPN, kill-switch, Tor, proxies, encrypted DNS).
@@ -281,6 +283,7 @@ vela tui               # interactive terminal
 | `vela stats --period day\|week\|month` | Statistics and anomalies |
 | `vela anomalies` | Network anomalies from the local baseline |
 | `vela logs [show\|clear] [--kind audit\|errors]` | Local audit and error logs |
+| `vela notify [status\|on\|off\|mute --for 1h]` | Enable, mute temporarily/indefinitely or check notifications |
 | `vela refresh [dns\|network\|leaks\|all…]` | Invalidate caches and recalculate alerts/recommendations now |
 | `vela translate [TEXT] --to es` | Translate with the local LLM (Ollama/llama.cpp) |
 | `vela ocr [--image f] --to es` | OCR a screen region or image and translate it |
@@ -400,7 +403,7 @@ Legend:
 python3 -m unittest discover -s tests -t .
 ```
 
-255 tests with mocks and simulated backends (fake Tor control server with real SAFECOOKIE, rotation with
+259 tests with mocks and simulated backends (fake Tor control server with real SAFECOOKIE, rotation with
 failures and rollback, simulated leaks, IPC, GUI security, fake SOCKS5 proxy, OSM map, migration, git guard and
 translations). None touches real connectivity.
 

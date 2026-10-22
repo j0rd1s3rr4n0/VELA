@@ -41,6 +41,9 @@ NOTIFY_KINDS = {"ip_leak", "dns_leak_live", "public_ip_is_real", "direct_exposur
 
 
 def notify(title: str, body: str, urgency: str = "normal"):
+    from . import notifications
+    if not notifications.allowed():
+        return
     if which("notify-send"):
         icon = ROOT / "vela" / "data" / "brand" / "vela-app-64.png"      # icono de la app (Brand Kit)
         subprocess.Popen(["notify-send", "-a", "VELA", "-i", str(icon) if icon.exists() else ICONS["alert"],
@@ -144,6 +147,24 @@ class Tray:
             self.quick[key] = (ck, invert, on_value)
         quick.set_submenu(self.quick_menu)
         self.menu.append(quick)
+        # notificaciones: silencio temporal o indefinido
+        notif_item = Gtk.MenuItem(label=_("Notificaciones"))
+        self.notif_menu = Gtk.Menu()
+        self.notif_status = Gtk.MenuItem(label="")
+        self.notif_status.set_sensitive(False)
+        self.notif_menu.append(self.notif_status)
+        for label, secs in ((_("Silenciar 15 minutos"), 15 * 60), (_("Silenciar 1 hora"), 3600),
+                            (_("Silenciar 8 horas"), 8 * 3600), (_("Silenciar 24 horas"), 24 * 3600),
+                            (_("Silenciar indefinidamente"), None)):
+            it = Gtk.MenuItem(label=label)
+            it.connect("activate", lambda _i, s=secs: self.set_notifications(s))
+            self.notif_menu.append(it)
+        on = Gtk.MenuItem(label=_("Reactivar notificaciones"))
+        on.connect("activate", lambda *_ign: self.set_notifications("on"))
+        self.notif_menu.append(Gtk.SeparatorMenuItem())
+        self.notif_menu.append(on)
+        notif_item.set_submenu(self.notif_menu)
+        self.menu.append(notif_item)
         self.menu.append(Gtk.SeparatorMenuItem())
         self.emerg = Gtk.MenuItem(label=_("Modo de emergencia"))
         self.emerg.connect("activate", lambda *_ign: self.toggle_emergency())
@@ -198,6 +219,8 @@ class Tray:
     def apply(self, d):
         self.status, self.leak = d.get("status"), d.get("leak")
         self.settings, self.profiles = d.get("settings"), d.get("profiles")
+        from . import notifications
+        self.notif_status.set_label(_("Notificaciones: {v1}", v1=notifications.describe()))
         st = self.status
         self.daemon_item.set_visible(st is None)
         if not st:
@@ -302,6 +325,12 @@ class Tray:
             return
         self.bg(lambda: self.client.call("profile_activate", name=name),
                 lambda r: (notify(_("Perfil"), f"Activo: {name}"), self.poll()))
+
+    def set_notifications(self, seconds):
+        from . import notifications
+        st = notifications.enable() if seconds == "on" else notifications.mute(seconds)
+        self.notif_status.set_label(_("Notificaciones: {v1}", v1=notifications.describe(st)))
+        self.poll()
 
     def on_quick(self, ck, key, invert, on_value):
         if self._updating:

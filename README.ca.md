@@ -25,7 +25,7 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Sense dependències" src="https://img.shields.io/badge/depend%C3%A8ncies-cap-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Proves" src="https://img.shields.io/badge/proves-255%20OK-0ca30c">
+  <img alt="Proves" src="https://img.shields.io/badge/proves-259%20OK-0ca30c">
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 idiomes" src="https://img.shields.io/badge/idiomes-CA%20·%20EN%20·%20ES%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Dades del mapa ODbL" src="https://img.shields.io/badge/mapa-OpenStreetMap%20(ODbL)-d95926">
@@ -353,7 +353,7 @@ Llegenda:
 python3 -m unittest discover -s tests -t .
 ```
 
-255 proves amb mocks i backends simulats (servidor de control de Tor fals amb SAFECOOKIE real, rotació amb errors
+259 proves amb mocks i backends simulats (servidor de control de Tor fals amb SAFECOOKIE real, rotació amb errors
 i rollback, fuites simulades, IPC, seguretat de la GUI, proxy SOCKS5 fals, mapa OSM, migració, guardià de git i
 traduccions). Cap no toca la connectivitat real.
 
