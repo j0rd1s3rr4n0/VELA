@@ -2110,5 +2110,19 @@
  "esperando a que arranque la versión nueva": "attente du démarrage de la nouvelle version",
  "El kill-switch SIGUE ACTIVO porque la versión nueva no respondió: revisa «vela doctor» y quítalo con «vela killswitch release» cuando quieras.": "Le kill switch EST TOUJOURS ACTIF car la nouvelle version n'a pas répondu : vérifiez « vela doctor » et retirez-le avec « vela killswitch release » quand vous voulez.",
  "No se puede aplicar el kill-switch: {why}. No se ha instalado nada; puedes elegir «cerrar y reabrir» o activar el permiso en Ajustes → Consentimientos.": "Impossible d'appliquer le kill switch : {why}. Rien n'a été installé ; vous pouvez choisir « fermer et rouvrir » ou activer l'autorisation dans Réglages → Consentements.",
- "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Impossible d'appliquer le kill switch ({e}). Rien n'a été installé."
+ "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Impossible d'appliquer le kill switch ({e}). Rien n'a été installé.",
+ "cerrar la app si está abierta (también oculta en la bandeja)": "fermer l'app si elle est ouverte (même cachée dans la zone de notification)",
+ "Mantener en la bandeja": "Garder dans la zone de notification",
+ "Salir de VELA": "Quitter VELA",
+ "¿Cerrar VELA?": "Fermer VELA ?",
+ "Puedes dejar VELA en la bandeja del sistema (la ventana se vuelve a abrir al instante desde el icono) o salir de la app. El servicio velad sigue vigilando en los dos casos.": "Vous pouvez garder VELA dans la zone de notification (la fenêtre se rouvre instantanément depuis l'icône) ou quitter l'app. Le service velad continue de surveiller dans les deux cas.",
+ "Recordar mi elección (puedes cambiarla en Ajustes → Ventana)": "Mémoriser mon choix (modifiable dans Réglages → Fenêtre)",
+ "VELA sigue en la bandeja": "VELA reste dans la zone de notification",
+ "Ábrela desde el icono de la bandeja o desde el menú de aplicaciones. Para salir del todo: icono de la bandeja → Salir de VELA.": "Ouvrez-la depuis l'icône de notification ou le menu des applications. Pour quitter complètement : icône de notification → Quitter VELA.",
+ "Ventana": "Fenêtre",
+ "Al cerrar la ventana": "À la fermeture de la fenêtre",
+ "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Rester dans la zone de notification garde VELA ouvert en arrière-plan ; le service velad surveille même si vous quittez",
+ "Preguntar": "Demander",
+ "Cerrar la app VELA": "Fermer l'app VELA",
+ "Salir de VELA (app y bandeja)": "Quitter VELA (app et zone de notification)"
 }

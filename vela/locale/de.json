@@ -2110,5 +2110,19 @@
  "esperando a que arranque la versión nueva": "warte, bis die neue Version startet",
  "El kill-switch SIGUE ACTIVO porque la versión nueva no respondió: revisa «vela doctor» y quítalo con «vela killswitch release» cuando quieras.": "Der Kill-Switch IST NOCH AKTIV, weil die neue Version nicht geantwortet hat: prüfe „vela doctor“ und entferne ihn mit „vela killswitch release“, wann du willst.",
  "No se puede aplicar el kill-switch: {why}. No se ha instalado nada; puedes elegir «cerrar y reabrir» o activar el permiso en Ajustes → Consentimientos.": "Der Kill-Switch kann nicht angewendet werden: {why}. Nichts wurde installiert; wähle „schließen und neu öffnen“ oder aktiviere die Berechtigung unter Einstellungen → Einwilligungen.",
- "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Kill-Switch konnte nicht angewendet werden ({e}). Nichts wurde installiert."
+ "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Kill-Switch konnte nicht angewendet werden ({e}). Nichts wurde installiert.",
+ "cerrar la app si está abierta (también oculta en la bandeja)": "App schließen, falls offen (auch wenn im Tray versteckt)",
+ "Mantener en la bandeja": "Im Tray behalten",
+ "Salir de VELA": "VELA beenden",
+ "¿Cerrar VELA?": "VELA schließen?",
+ "Puedes dejar VELA en la bandeja del sistema (la ventana se vuelve a abrir al instante desde el icono) o salir de la app. El servicio velad sigue vigilando en los dos casos.": "Du kannst VELA im System-Tray lassen (das Fenster öffnet sich sofort wieder über das Symbol) oder die App beenden. Der Dienst velad überwacht in beiden Fällen weiter.",
+ "Recordar mi elección (puedes cambiarla en Ajustes → Ventana)": "Meine Wahl merken (änderbar unter Einstellungen → Fenster)",
+ "VELA sigue en la bandeja": "VELA läuft im Tray weiter",
+ "Ábrela desde el icono de la bandeja o desde el menú de aplicaciones. Para salir del todo: icono de la bandeja → Salir de VELA.": "Öffne es über das Tray-Symbol oder das Anwendungsmenü. Ganz beenden: Tray-Symbol → VELA beenden.",
+ "Ventana": "Fenster",
+ "Al cerrar la ventana": "Beim Schließen des Fensters",
+ "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Im Tray bleiben hält VELA im Hintergrund offen; der Dienst velad überwacht auch, wenn du beendest",
+ "Preguntar": "Fragen",
+ "Cerrar la app VELA": "VELA-App schließen",
+ "Salir de VELA (app y bandeja)": "VELA beenden (App und Tray)"
 }

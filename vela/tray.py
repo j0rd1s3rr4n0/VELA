@@ -12,6 +12,7 @@ muestra la extensión AppIndicator de Ubuntu/GNOME, KDE, XFCE…). Habla con `ve
 from __future__ import annotations
 
 from .i18n import _
+from . import APP_ID
 
 import os
 import subprocess
@@ -173,10 +174,65 @@ class Tray:
         self.daemon_item.connect("activate", lambda *_ign: spawn("daemon", "start"))
         self.menu.append(self.daemon_item)
         self.menu.append(Gtk.SeparatorMenuItem())
+        # qué hace la ventana al cerrarla (misma preferencia que Ajustes → Ventana)
+        close_item = Gtk.MenuItem(label=_("Al cerrar la ventana"))
+        close_menu = Gtk.Menu()
+        self.close_radios = {}
+        group = None
+        for key, label in (("ask", _("Preguntar")), ("tray", _("Mantener en la bandeja")), ("quit", _("Salir de VELA"))):
+            r = Gtk.RadioMenuItem.new_with_label_from_widget(group, label)
+            group = r
+            r.connect("toggled", self.on_close_action, key)
+            close_menu.append(r)
+            self.close_radios[key] = r
+        close_item.set_submenu(close_menu)
+        self.menu.append(close_item)
+        self.app_quit = Gtk.MenuItem(label=_("Cerrar la app VELA"))
+        self.app_quit.connect("activate", lambda *_ign: spawn("app", "--quit"))
+        self.menu.append(self.app_quit)
+        allq = Gtk.MenuItem(label=_("Salir de VELA (app y bandeja)"))
+        allq.connect("activate", lambda *_ign: self.quit_all())
+        self.menu.append(allq)
         q = Gtk.MenuItem(label=_("Cerrar el icono de la bandeja"))
         q.connect("activate", lambda *_ign: Gtk.main_quit())
         self.menu.append(q)
+        self.sync_close()
         self.menu.show_all()
+
+    # ── cerrar la app / la bandeja ──
+    def app_running(self) -> bool:
+        """¿Hay una ventana de VELA (visible u oculta en la bandeja)? Su nombre en el bus de sesión lo dice."""
+        try:
+            from gi.repository import Gio
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            r = bus.call_sync("org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus", "NameHasOwner",
+                              GLib.Variant("(s)", (APP_ID,)), GLib.VariantType("(b)"), 0, 1000, None)
+            return bool(r.unpack()[0])
+        except Exception:  # noqa: BLE001
+            return True                       # si no se puede saber, que la opción siga disponible
+
+    def sync_close(self):
+        from . import config as config_mod
+        cur = config_mod.ui_pref("close_action", "ask")
+        self._syncing = True
+        for key, r in self.close_radios.items():
+            r.set_active(key == cur)
+        self._syncing = False
+        self.app_quit.set_sensitive(self.app_running())
+
+    def on_close_action(self, item, key):
+        if getattr(self, "_syncing", False) or not item.get_active():
+            return
+        from . import config as config_mod
+        try:
+            config_mod.set_ui_pref("close_action", key)
+        except (OSError, ValueError) as e:
+            notify("VELA", f"Error: {e}")
+
+    def quit_all(self):
+        if self.app_running():
+            spawn("app", "--quit")
+        Gtk.main_quit()
 
     def info_item(self):
         it = Gtk.MenuItem(label="…")
@@ -197,6 +253,8 @@ class Tray:
         threading.Thread(target=work, daemon=True).start()
 
     def poll(self):
+        if hasattr(self, "close_radios"):
+            self.sync_close()                   # la preferencia puede cambiar desde la app; y la app abrirse o cerrarse
         if getattr(self, "_polling", False):   # no lanzar otra consulta si la anterior sigue en curso
             return True
         self._polling = True

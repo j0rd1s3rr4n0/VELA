@@ -1138,7 +1138,7 @@ def cmd_app(b, a):
     if a.install:
         print(_("lanzador instalado en {v1} (búscalo como «VELA»)", v1=native.install_desktop()))
         return None
-    native.run(b, uninstall=getattr(a, "uninstall", False))
+    native.run(b, uninstall=getattr(a, "uninstall", False), quit_=getattr(a, "quit", False))
     return None
 
 
@@ -1525,6 +1525,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("app", cmd_app, _("aplicación nativa de escritorio (GTK 4 + libadwaita)"))
     sp.add_argument("--install", action="store_true", help=_("instalar el lanzador en el menú de aplicaciones"))
     sp.add_argument("--uninstall", action="store_true", help=_("abrir la app y preguntar si desinstalar VELA"))
+    sp.add_argument("--quit", action="store_true", help=_("cerrar la app si está abierta (también oculta en la bandeja)"))
     sp = add("gui", cmd_gui, _("interfaz gráfica (web local)"))
     sp.add_argument("--no-browser", action="store_true")
     sp.add_argument("--port", type=int, default=0)
@@ -1617,6 +1618,9 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_update(None, a)
     if a.cmd == "uninstall":
         return cmd_uninstall(None, a)
+    if a.cmd == "app" and getattr(a, "quit", False):      # cerrar la app abierta sin arrancar el motor
+        from .native import app as native
+        return native.run(None, quit_=True)
     from .ipc import IPCError, LocalBackend, connect
     try:
         b = LocalBackend() if a.local else connect()

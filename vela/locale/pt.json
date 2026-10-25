@@ -2110,5 +2110,19 @@
  "esperando a que arranque la versión nueva": "à espera de que a nova versão arranque",
  "El kill-switch SIGUE ACTIVO porque la versión nueva no respondió: revisa «vela doctor» y quítalo con «vela killswitch release» cuando quieras.": "O kill switch CONTINUA ATIVO porque a nova versão não respondeu: verifique «vela doctor» e remova-o com «vela killswitch release» quando quiser.",
  "No se puede aplicar el kill-switch: {why}. No se ha instalado nada; puedes elegir «cerrar y reabrir» o activar el permiso en Ajustes → Consentimientos.": "Não é possível aplicar o kill switch: {why}. Nada foi instalado; pode escolher «fechar e reabrir» ou ativar a permissão em Definições → Consentimentos.",
- "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Não foi possível aplicar o kill switch ({e}). Nada foi instalado."
+ "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Não foi possível aplicar o kill switch ({e}). Nada foi instalado.",
+ "cerrar la app si está abierta (también oculta en la bandeja)": "fechar a app se estiver aberta (também oculta na bandeja)",
+ "Mantener en la bandeja": "Manter na bandeja",
+ "Salir de VELA": "Sair do VELA",
+ "¿Cerrar VELA?": "Fechar o VELA?",
+ "Puedes dejar VELA en la bandeja del sistema (la ventana se vuelve a abrir al instante desde el icono) o salir de la app. El servicio velad sigue vigilando en los dos casos.": "Pode deixar o VELA na bandeja do sistema (a janela volta a abrir de imediato a partir do ícone) ou sair da app. O serviço velad continua a vigiar em ambos os casos.",
+ "Recordar mi elección (puedes cambiarla en Ajustes → Ventana)": "Lembrar a minha escolha (pode alterá-la em Definições → Janela)",
+ "VELA sigue en la bandeja": "O VELA continua na bandeja",
+ "Ábrela desde el icono de la bandeja o desde el menú de aplicaciones. Para salir del todo: icono de la bandeja → Salir de VELA.": "Abra-a a partir do ícone da bandeja ou do menu de aplicações. Para sair de vez: ícone da bandeja → Sair do VELA.",
+ "Ventana": "Janela",
+ "Al cerrar la ventana": "Ao fechar a janela",
+ "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Ficar na bandeja mantém o VELA aberto em segundo plano; o serviço velad vigia na mesma mesmo que saia",
+ "Preguntar": "Perguntar",
+ "Cerrar la app VELA": "Fechar a app VELA",
+ "Salir de VELA (app y bandeja)": "Sair do VELA (app e bandeja)"
 }

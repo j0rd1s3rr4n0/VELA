@@ -2110,5 +2110,19 @@
  "esperando a que arranque la versión nueva": "waiting for the new version to start",
  "El kill-switch SIGUE ACTIVO porque la versión nueva no respondió: revisa «vela doctor» y quítalo con «vela killswitch release» cuando quieras.": "The kill switch IS STILL ACTIVE because the new version did not respond: check “vela doctor” and remove it with “vela killswitch release” whenever you want.",
  "No se puede aplicar el kill-switch: {why}. No se ha instalado nada; puedes elegir «cerrar y reabrir» o activar el permiso en Ajustes → Consentimientos.": "The kill switch cannot be applied: {why}. Nothing was installed; you can choose “close and reopen” or enable the permission in Settings → Consents.",
- "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Could not apply the kill switch ({e}). Nothing was installed."
+ "No se pudo aplicar el kill-switch ({e}). No se ha instalado nada.": "Could not apply the kill switch ({e}). Nothing was installed.",
+ "cerrar la app si está abierta (también oculta en la bandeja)": "close the app if it is open (also when hidden in the tray)",
+ "Mantener en la bandeja": "Keep in the tray",
+ "Salir de VELA": "Quit VELA",
+ "¿Cerrar VELA?": "Close VELA?",
+ "Puedes dejar VELA en la bandeja del sistema (la ventana se vuelve a abrir al instante desde el icono) o salir de la app. El servicio velad sigue vigilando en los dos casos.": "You can keep VELA in the system tray (the window reopens instantly from the icon) or quit the app. The velad service keeps watching either way.",
+ "Recordar mi elección (puedes cambiarla en Ajustes → Ventana)": "Remember my choice (you can change it in Settings → Window)",
+ "VELA sigue en la bandeja": "VELA is still in the tray",
+ "Ábrela desde el icono de la bandeja o desde el menú de aplicaciones. Para salir del todo: icono de la bandeja → Salir de VELA.": "Open it from the tray icon or the applications menu. To quit completely: tray icon → Quit VELA.",
+ "Ventana": "Window",
+ "Al cerrar la ventana": "When closing the window",
+ "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Staying in the tray keeps VELA open in the background; the velad service keeps watching even if you quit",
+ "Preguntar": "Ask",
+ "Cerrar la app VELA": "Close the VELA app",
+ "Salir de VELA (app y bandeja)": "Quit VELA (app and tray)"
 }

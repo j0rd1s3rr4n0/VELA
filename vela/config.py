@@ -131,7 +131,8 @@ DEFAULTS: dict = {
            "theme": "signature",         # signature, obsidian, glacier, sentinel, contrast (vela/themes.py)
            "appearance": "system",       # system (sigue al escritorio), light, dark
            "density": "comfortable",     # comfortable, compact
-           "motion": "system"},          # system, reduced, full
+           "motion": "system",           # system, reduced, full
+           "close_action": "ask"},       # al cerrar la ventana: ask (preguntar), tray (seguir en la bandeja), quit
 }
 
 DURATION_KEYS = {"network_interval", "tor_interval", "dns_interval", "public_ip_interval",
@@ -195,6 +196,7 @@ SETTINGS_KEYS: dict[str, object] = {
     "anomaly.window_days": int, "dns.fix_transport": ("dot", "doh"),
     "dns.fix_provider": ("cloudflare", "quad9", "google", "mullvad"),
     "ui.language": ("auto", "es", "en", "ca", "pt", "fr", "de"),
+    "ui.close_action": ("ask", "tray", "quit"),
     **_themes.PREF_KEYS,
 }
 
@@ -256,6 +258,24 @@ def _toml_scalar(v) -> str:
     if isinstance(v, (int, float)):
         return str(v)
     return '"' + str(v).replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def ui_pref(key: str, default=None):
+    """Preferencia de interfaz leída en el momento del fichero de ajustes (la app y la bandeja la comparten
+    aunque el daemon no esté en marcha). Un valor no válido devuelve `default`."""
+    try:
+        v = (load_overlay().get("ui") or {}).get(key)
+        return coerce_setting(f"ui.{key}", v) if v is not None else default
+    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        return default
+
+
+def set_ui_pref(key: str, value) -> Path:
+    """Guarda una preferencia de interfaz en app-settings.toml (validada como cualquier ajuste de la app)."""
+    value = coerce_setting(f"ui.{key}", value)
+    overlay = load_overlay()
+    overlay.setdefault("ui", {})[key] = value
+    return save_overlay(overlay)
 
 
 def save_overlay(overlay: dict) -> Path:
