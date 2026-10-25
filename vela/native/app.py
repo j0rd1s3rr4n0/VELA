@@ -942,18 +942,6 @@ def save_state(st: dict):
         json.dump(st, f)
 
 
-def ensure_tray() -> None:
-    """Arranca el icono de la bandeja si no está en marcha (para poder volver a la ventana oculta)."""
-    import os
-    import subprocess
-    root = Path(__file__).resolve().parents[2]
-    try:
-        subprocess.Popen([sys.executable, "-m", "vela", "tray"], env={**os.environ, "PYTHONPATH": str(root)},
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-    except OSError:
-        pass                                    # sin bandeja: la ventana se reabre desde el lanzador
-
-
 def ensure_daemon(timeout: float = 10) -> bool:
     """Si velad no está en marcha lo arranca: sin daemon no se guarda historial."""
     import os
@@ -981,7 +969,7 @@ class Window(Adw.ApplicationWindow):
         self.set_default_size(self.state.get("width", 1360), self.state.get("height", 880))
         if self.state.get("maximized"):
             self.maximize()
-        self.connect("close-request", self._on_close_request)
+        self.connect("close-request", self._save_state)
         self.b = backend
         self.data: dict = {}
         self.busy = False
@@ -1102,75 +1090,6 @@ class Window(Adw.ApplicationWindow):
         """Tema aplicado (al arrancar, al elegirlo en Ajustes o al cambiar el escritorio de claro a oscuro)."""
         theme_mod.redraw_tree(self)           # los widgets ya cambian con la CSS; cairo necesita redibujar
 
-    # ── cerrar la ventana: preguntar, seguir en la bandeja o salir (ui.close_action) ──
-    def _on_close_request(self, *_ign):
-        self._save_state()
-        if getattr(self, "_really_quit", False):
-            return False
-        from .. import config as config_mod
-        action = config_mod.ui_pref("close_action", "ask")
-        if action == "tray":
-            self.hide_to_tray()
-            return True
-        if action == "ask":
-            self._ask_close()
-            return True
-        self.quit_app()
-        return True
-
-    def _ask_close(self):
-        d = Adw.AlertDialog(heading=_("¿Cerrar VELA?"),
-                            body=_("Puedes dejar VELA en la bandeja del sistema (la ventana se vuelve a abrir al instante "
-                                   "desde el icono) o salir de la app. El servicio velad sigue vigilando en los dos casos."))
-        remember = Gtk.CheckButton(label=_("Recordar mi elección (puedes cambiarla en Ajustes → Ventana)"))
-        d.set_extra_child(remember)
-        d.add_response("cancel", _("Cancelar"))
-        d.add_response("tray", _("Mantener en la bandeja"))
-        d.add_response("quit", _("Salir de VELA"))
-        d.set_response_appearance("tray", Adw.ResponseAppearance.SUGGESTED)
-        d.set_default_response("tray")
-        d.set_close_response("cancel")
-
-        def done(_d, r):
-            if r == "cancel":
-                return
-            if remember.get_active():
-                self.set_close_action(r)
-            (self.hide_to_tray if r == "tray" else self.quit_app)()
-        d.connect("response", done)
-        d.present(self)
-
-    def set_close_action(self, value):
-        from .. import config as config_mod
-        try:
-            config_mod.set_ui_pref("close_action", value)
-        except (OSError, ValueError) as e:
-            self.toast(_("No se pudo guardar: {e}", e=e))
-            return
-        row = getattr(self, "_close_row", None)
-        if row is not None and row.get_selected() != self.CLOSE_KEYS.index(value):
-            row.handler_block(self._close_row_h)
-            row.set_selected(self.CLOSE_KEYS.index(value))
-            row.handler_unblock(self._close_row_h)
-
-    def hide_to_tray(self):
-        """Oculta la ventana sin salir: la app sigue viva y el icono de la bandeja (o el lanzador) la reabre."""
-        from .. import autostart
-        if not autostart.tray_running():
-            ensure_tray()
-        if not getattr(self, "_told_tray", False):
-            self._told_tray = True
-            n = Gio.Notification.new(_("VELA sigue en la bandeja"))
-            n.set_body(_("Ábrela desde el icono de la bandeja o desde el menú de aplicaciones. Para salir del todo: "
-                         "icono de la bandeja → Salir de VELA."))
-            self.get_application().send_notification("vela-tray", n)
-        self.set_visible(False)
-
-    def quit_app(self):
-        self._really_quit = True
-        self._save_state()
-        self.get_application().quit()
-
     def _save_state(self, *_ign):
         w, h = self.get_default_size()
         save_state({"width": w, "height": h, "maximized": self.is_maximized(), "page": self.current()})
@@ -1202,7 +1121,7 @@ class Window(Adw.ApplicationWindow):
         threading.Thread(target=work, daemon=True).start()
 
     def refresh(self, full=False, force_slow=False):
-        if self.busy or not self.get_visible():       # oculta en la bandeja: no consultar a lo tonto
+        if self.busy:
             return
         if force_slow:
             self.data["_slow"] = 0
@@ -1290,8 +1209,6 @@ class Window(Adw.ApplicationWindow):
 
     def _fast(self):
         """Tráfico en vivo desde los contadores del kernel de la interfaz de salida (cada 2 s)."""
-        if not self.get_visible():
-            return True
         st = self.data.get("status") or {}
         dev = (((st.get("net") or {}).get("egress") or {}).get("ipv4") or {}).get("dev")
         if dev:
@@ -2849,7 +2766,6 @@ class Window(Adw.ApplicationWindow):
         auto = s.get("autostart") or {}
 
         box.append(self.appearance_group())
-        box.append(self.window_group())
         box.append(self.language_group(v))
         box.append(self.notifications_group())
 
@@ -3326,10 +3242,11 @@ class Window(Adw.ApplicationWindow):
         self._upd_row.set_subtitle(f"VELA {st['installed_version']}{cm}{src}" + (f"\n{st['hint']}" if st.get("hint") else ""))
         self._upd_check.set_sensitive(bool(st.get("git")))
 
-    def update_run(self, check):
+    def update_run(self, check, protect="restart"):
         import subprocess
         via = self.UPD_VIA[self._upd_via.get_selected()][0]
-        cmd = [sys.executable, "-m", "vela", "update", "--via", via, "--progress"] + (["--check"] if check else ["--yes"])
+        cmd = [sys.executable, "-m", "vela", "update", "--via", via, "--progress"] + (
+            ["--check"] if check else ["--yes", "--protect", protect])
         root = Path(__file__).resolve().parents[2]
         self._upd_check.set_sensitive(False)
         self._upd_apply.set_sensitive(False)
@@ -3377,8 +3294,11 @@ class Window(Adw.ApplicationWindow):
         if not check:
             self._upd_res.set_subtitle(res.get("message") or "")
             if res.get("updated"):
-                self.ask_restart(_("VELA actualizado"), _("La versión nueva ya está instalada y el servicio reiniciado. "
-                                                          "Reinicia la app para usarla."))
+                if res.get("killswitch_left_on"):
+                    self.toast(res.get("message") or "")
+                    return False
+                self.toast(_("VELA actualizado: se vuelve a abrir con la versión nueva…"))
+                GLib.timeout_add(1500, self._relaunch)           # «cerrar y que posteriormente se abra»
             return False
         if not res.get("available"):
             self._upd_res.set_subtitle(_("Ya tienes la última versión (consultado por {route})", route=res.get("route")))
@@ -3403,23 +3323,6 @@ class Window(Adw.ApplicationWindow):
         self._upd_res.set_expanded(bool(self._upd_rows))
         self._upd_apply.set_sensitive(not blockers)
         return False
-
-    # ── ventana ──
-    CLOSE_KEYS = ["ask", "tray", "quit"]
-
-    def window_group(self):
-        from .. import config as config_mod
-        g = Adw.PreferencesGroup(title=_("Ventana"))
-        row = Adw.ComboRow(title=_("Al cerrar la ventana"),
-                           subtitle=_("Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad "
-                                      "vigila igualmente aunque salgas"))
-        row.set_model(Gtk.StringList.new([_("Preguntar"), _("Mantener en la bandeja"), _("Salir de VELA")]))
-        cur = config_mod.ui_pref("close_action", "ask")
-        row.set_selected(self.CLOSE_KEYS.index(cur) if cur in self.CLOSE_KEYS else 0)
-        self._close_row = row
-        self._close_row_h = row.connect("notify::selected", lambda r, _p: self.set_close_action(self.CLOSE_KEYS[r.get_selected()]))
-        g.add(row)
-        return g
 
     # ── desinstalar ──
     def uninstall_group(self):
@@ -3481,14 +3384,38 @@ class Window(Adw.ApplicationWindow):
         return False
 
     def update_confirm(self):
-        d = Adw.AlertDialog(heading=_("¿Instalar la actualización?"),
-                            body=_("Se avanzará tu clon de VELA a la versión del remoto y se reinstalará. El servicio velad "
-                                   "se reinicia unos segundos (no corta tu conexión). Tus datos y ajustes se conservan."))
-        d.add_response("cancel", _("Cancelar"))
-        d.add_response("go", _("Actualizar"))
-        d.set_response_appearance("go", Adw.ResponseAppearance.SUGGESTED)
-        d.connect("response", lambda _d, r: r == "go" and self.update_run(check=False))
+        """La descarga ya se ha hecho (con VELA en marcha). Antes de parar VELA para cambiar de versión, el usuario
+        elige: kill-switch hasta que arranque la versión nueva, o cerrar y reabrir sin protección."""
+        from .. import updater
+        opts = updater.protection_options()
+        body = _("Para terminar hay que parar VELA unos segundos, instalar la versión nueva y arrancarla. Mientras "
+                 "está parado no vigila tus conexiones ni puede activar el kill-switch automático si hay una fuga.\n\n"
+                 "• Con kill-switch: se bloquea todo lo que no vaya por la VPN, Tor o la red local hasta que la versión "
+                 "nueva responde (permiso solo para esta actualización; puede pedirte la contraseña).\n"
+                 "• Sin protección: VELA se cierra y se vuelve a abrir; durante esos segundos tu IP real podría quedar "
+                 "expuesta si algo sale fuera del túnel.\n\nTus datos y ajustes se conservan.")
+        if opts.get("killswitch_already"):
+            body += "\n" + _("El kill-switch ya está activo: se mantiene durante el cambio.")
+        elif not opts.get("killswitch"):
+            body += "\n" + _("Kill-switch no disponible ahora: {why}", why=opts.get("killswitch_reason") or "—")
+        d = Adw.AlertDialog(heading=_("¿Cómo cambiar a la versión nueva?"), body=body)
+        d.add_response("cancel", _("Ahora no"))
+        d.add_response("restart", _("Sin protección"))
+        d.add_response("killswitch", _("Con kill-switch"))
+        d.set_response_appearance("restart", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_response_appearance("killswitch", Adw.ResponseAppearance.SUGGESTED)
+        d.set_response_enabled("killswitch", bool(opts.get("killswitch")))
+        d.set_default_response("killswitch" if opts.get("killswitch") else "cancel")
+        d.connect("response", lambda _d, r: r in ("killswitch", "restart") and self.update_run(check=False, protect=r))
         d.present(self)
+
+    def _relaunch(self):
+        """Vuelve a abrir la app con el código recién instalado."""
+        import os
+        os.environ.pop("VELA_LANG", None)
+        root = str(Path(__file__).resolve().parents[2])
+        os.environ["PYTHONPATH"] = root + (":" + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else "")
+        os.execv(sys.executable, [sys.executable, "-m", "vela", "app"])
 
     # ── idioma ──
     LANG_CODES = ["auto", "es", "en", "ca", "pt", "fr", "de"]
@@ -3686,10 +3613,6 @@ class App(Adw.Application):
         act = Gio.SimpleAction.new("uninstall", None)
         act.connect("activate", lambda *_a: (setattr(self, "pending_uninstall", True), self.activate()))
         self.add_action(act)
-        # acción «app.quit»: «Salir de VELA» desde la bandeja (sale aunque la ventana esté oculta)
-        act = Gio.SimpleAction.new("quit", None)
-        act.connect("activate", lambda *_a: self.win.quit_app() if self.win else self.quit())
-        self.add_action(act)
 
     def do_activate(self):
         logs.setup()
@@ -3767,13 +3690,8 @@ def install_desktop() -> str:
     return str(p)
 
 
-def run(backend=None, uninstall=False, quit_=False) -> int:
+def run(backend=None, uninstall=False) -> int:
     app = App(backend)
-    if quit_:                                   # «vela app --quit»: cierra la app si está abierta; si no, nada
-        app.register(None)
-        if app.get_is_remote():
-            app.activate_action("quit", None)
-        return 0
     if uninstall:
         app.register(None)
         if app.get_is_remote():                 # ya abierta: que la ventana existente pregunte

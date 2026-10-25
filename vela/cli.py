@@ -1138,7 +1138,7 @@ def cmd_app(b, a):
     if a.install:
         print(_("lanzador instalado en {v1} (búscalo como «VELA»)", v1=native.install_desktop()))
         return None
-    native.run(b, uninstall=getattr(a, "uninstall", False), quit_=getattr(a, "quit", False))
+    native.run(b, uninstall=getattr(a, "uninstall", False))
     return None
 
 
@@ -1238,16 +1238,20 @@ def cmd_update(b, a):
         return 0
     if not a.progress and not as_json:
         _print_update(res)
-        if not a.yes:
-            if not sys.stdin.isatty():
-                return fail(_("sin terminal para confirmar: usa --yes"))
-            if input(_("¿Instalar ahora? Se reiniciará el servicio velad unos segundos [s/N] ")).strip().lower() not in ("s", "si", "sí", "y", "yes", "o", "oui", "j", "ja"):
-                print(_("Cancelado: no se ha cambiado nada."))
-                return 0
+        if not a.protect:
+            if a.yes:
+                a.protect = "restart"
+            elif not sys.stdin.isatty():
+                return fail(_("sin terminal para confirmar: usa --yes o --protect"))
+            else:
+                a.protect = _ask_protect()
+                if a.protect == "cancel":
+                    print(_("Cancelado: no se ha cambiado nada."))
+                    return 0
     say = (lambda f, m: print(f"progress {f:.2f} {m}", flush=True)) if a.progress else \
         (lambda f, m: None if as_json else print(f"  [{f * 100:3.0f}%] {m}", flush=True))
     try:
-        res = updater.apply(a.via, progress=say)
+        res = updater.apply(a.via, progress=say, protect=a.protect or "restart")
     except (updater.UpdateError, OSError, ValueError) as e:
         return fail(e)
     if as_json or a.progress:
@@ -1256,6 +1260,24 @@ def cmd_update(b, a):
     if res.get("updated"):
         print(_("Volver atrás: {cmd}", cmd=res["rollback"]))
     return 0
+
+
+def _ask_protect() -> str:
+    """Lo descargado ya está; antes de parar VELA para cambiar de versión, cómo protegerse mientras está parado."""
+    from . import updater
+    opts = updater.protection_options()
+    print()
+    print(_("Mientras se cambia de versión VELA no vigila tus conexiones. ¿Cómo quieres hacerlo?"))
+    ks = _("Con kill-switch hasta que arranque la versión nueva (recomendado; solo VPN, Tor y LAN)")
+    if not opts.get("killswitch"):
+        ks += " · " + _("no disponible: {why}", why=opts.get("killswitch_reason") or "—")
+    print(f"  1) {ks}")
+    print("  2) " + _("Cerrar y volver a abrir sin protección (posible fuga de IP unos segundos)"))
+    print("  3) " + _("Ahora no"))
+    r = input("> ").strip()
+    if r == "1" and opts.get("killswitch"):
+        return "killswitch"
+    return {"2": "restart"}.get(r, "cancel")
 
 
 def _print_update(res):
@@ -1380,6 +1402,9 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--via", default="auto", choices=["auto", "tor", "vpn", "direct"],
                     help=_("por dónde contactar con el servidor git (auto: Tor si hay, si no la VPN; nunca directo salvo que lo pidas)"))
     sp.add_argument("--yes", "-y", action="store_true", help=_("no pedir confirmación antes de instalar"))
+    sp.add_argument("--protect", choices=["killswitch", "restart"],
+                    help=_("mientras VELA está parado para cambiar de versión: kill-switch hasta que arranque la nueva, "
+                           "o cerrar y reabrir sin protección (por defecto se pregunta; con --yes, restart)"))
     sp.add_argument("--progress", action="store_true", help=argparse.SUPPRESS)
     sp = add("uninstall", cmd_uninstall, _("desinstalar VELA: servicio, bandeja, lanzador, comandos y programa (tus datos se conservan salvo con --purge)"))
     sp.add_argument("--purge", action="store_true", help=_("borrar también historial, ajustes y claves de API"))
@@ -1525,7 +1550,6 @@ def build_parser() -> argparse.ArgumentParser:
     sp = add("app", cmd_app, _("aplicación nativa de escritorio (GTK 4 + libadwaita)"))
     sp.add_argument("--install", action="store_true", help=_("instalar el lanzador en el menú de aplicaciones"))
     sp.add_argument("--uninstall", action="store_true", help=_("abrir la app y preguntar si desinstalar VELA"))
-    sp.add_argument("--quit", action="store_true", help=_("cerrar la app si está abierta (también oculta en la bandeja)"))
     sp = add("gui", cmd_gui, _("interfaz gráfica (web local)"))
     sp.add_argument("--no-browser", action="store_true")
     sp.add_argument("--port", type=int, default=0)
@@ -1618,9 +1642,6 @@ def main(argv: list[str] | None = None) -> int:
         return cmd_update(None, a)
     if a.cmd == "uninstall":
         return cmd_uninstall(None, a)
-    if a.cmd == "app" and getattr(a, "quit", False):      # cerrar la app abierta sin arrancar el motor
-        from .native import app as native
-        return native.run(None, quit_=True)
     from .ipc import IPCError, LocalBackend, connect
     try:
         b = LocalBackend() if a.local else connect()

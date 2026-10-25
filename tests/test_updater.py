@@ -6,6 +6,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from vela import updater
@@ -78,7 +79,7 @@ class UpdaterGitTests(unittest.TestCase):
 
     def test_apply_fast_forwards_and_reinstalls(self):
         self.push_change()
-        res = updater.apply("auto", root=self.prefix, installer=self.installer)
+        res = updater.apply("auto", root=self.prefix, installer=self.installer, expect_daemon=False)
         self.assertTrue(res["updated"])
         self.assertEqual(self.installs, [self.src])
         self.assertIn('"1.1.0"', (self.src / "vela" / "__init__.py").read_text())
@@ -86,7 +87,7 @@ class UpdaterGitTests(unittest.TestCase):
         self.assertEqual(updater.read_manifest(self.prefix)["version"], "1.1.0")
 
     def test_up_to_date(self):
-        res = updater.apply("auto", root=self.prefix, installer=self.installer)
+        res = updater.apply("auto", root=self.prefix, installer=self.installer, expect_daemon=False)
         self.assertFalse(res["updated"])
         self.assertEqual(self.installs, [])
 
@@ -94,7 +95,7 @@ class UpdaterGitTests(unittest.TestCase):
         self.push_change()
         (self.src / "vela" / "__init__.py").write_text('__version__ = "mio"\n')
         with self.assertRaises(updater.UpdateError):
-            updater.apply("auto", root=self.prefix, installer=self.installer)
+            updater.apply("auto", root=self.prefix, installer=self.installer, expect_daemon=False)
         self.assertEqual((self.src / "vela" / "__init__.py").read_text(), '__version__ = "mio"\n')
         self.assertEqual(self.installs, [])
 
@@ -104,7 +105,7 @@ class UpdaterGitTests(unittest.TestCase):
         git(self.src, "add", "nota.txt")
         git(self.src, "commit", "-qm", "local")
         with self.assertRaises(updater.UpdateError):
-            updater.apply("auto", root=self.prefix, installer=self.installer)
+            updater.apply("auto", root=self.prefix, installer=self.installer, expect_daemon=False)
         self.assertTrue((self.src / "nota.txt").exists())
 
     def test_pending_install_after_manual_pull(self):
@@ -112,7 +113,7 @@ class UpdaterGitTests(unittest.TestCase):
         git(self.src, "pull", "-q", "--ff-only")
         st = updater.status(self.prefix)
         self.assertTrue(st["pending_install"])
-        res = updater.apply("auto", root=self.prefix, installer=self.installer)
+        res = updater.apply("auto", root=self.prefix, installer=self.installer, expect_daemon=False)
         self.assertTrue(res["updated"])
         self.assertEqual(self.installs, [self.src])
 
@@ -125,6 +126,94 @@ class UpdaterGitTests(unittest.TestCase):
         self.assertTrue(st["hint"])
         with self.assertRaises(updater.UpdateError):
             updater.check("auto", root=self.prefix)
+
+
+class FakeGuard:
+    """Sustituye al kill-switch real: registra el orden de las operaciones."""
+
+    def __init__(self, log, fail_engage=False, was_active=False):
+        self.log, self.fail_engage, self.was_active, self.engaged = log, fail_engage, was_active, False
+
+    def engage(self):
+        if self.fail_engage:
+            raise updater.UpdateError("sin privilegios")
+        if not self.was_active:
+            self.engaged = True
+        self.log.append("engage")
+
+    def release(self):
+        self.log.append("release")
+        self.engaged = False
+        return {"ok": True}
+
+
+class SwapTests(unittest.TestCase):
+    """Cambio de versión: el kill-switch se pone ANTES de tocar la instalación y se quita cuando la nueva responde."""
+
+    def setUp(self):
+        self.log = []
+        self.installer = lambda src: self.log.append("install")
+
+    def test_killswitch_wraps_install(self):
+        g = FakeGuard(self.log)
+        with mock.patch.object(updater, "wait_daemon", lambda timeout=0: self.log.append("wait") or True):
+            out = updater.swap(Path("/x"), "killswitch", self.installer, guard=g, expect_daemon=True)
+        self.assertEqual(self.log, ["engage", "install", "wait", "release"])
+        self.assertFalse(out["killswitch_left_on"])
+
+    def test_engage_failure_installs_nothing(self):
+        g = FakeGuard(self.log, fail_engage=True)
+        with self.assertRaises(updater.UpdateError):
+            updater.swap(Path("/x"), "killswitch", self.installer, guard=g, expect_daemon=True)
+        self.assertEqual(self.log, [])
+
+    def test_install_failure_releases(self):
+        def boom(src):
+            raise updater.UpdateError("install.sh falló")
+        g = FakeGuard(self.log)
+        with self.assertRaises(updater.UpdateError):
+            updater.swap(Path("/x"), "killswitch", boom, guard=g, expect_daemon=True)
+        self.assertEqual(self.log, ["engage", "release"])
+
+    def test_new_version_not_responding_keeps_killswitch(self):
+        g = FakeGuard(self.log)
+        with mock.patch.object(updater, "wait_daemon", lambda timeout=0: False):
+            out = updater.swap(Path("/x"), "killswitch", self.installer, guard=g, expect_daemon=True)
+        self.assertTrue(out["killswitch_left_on"])
+        self.assertNotIn("release", self.log)
+
+    def test_restart_has_no_killswitch(self):
+        out = updater.swap(Path("/x"), "restart", self.installer, expect_daemon=False)
+        self.assertEqual(self.log, ["install"])
+        self.assertEqual(out["protect"], "restart")
+
+    def test_unknown_protection(self):
+        with self.assertRaises(updater.UpdateError):
+            updater.swap(Path("/x"), "nada", self.installer, expect_daemon=False)
+
+
+class KillSwitchStateTests(unittest.TestCase):
+    """El estado del kill-switch sobrevive al reinicio del daemon (las reglas siguen en el kernel)."""
+
+    def test_state_persists_and_force_release(self):
+        from vela import killswitch
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp)
+        cfg = {"consent": {"allow_killswitch": True}, "killswitch": {"allow_lan": True}}
+        calls = []
+        with mock.patch.dict(os.environ, {"XDG_STATE_HOME": str(tmp)}), \
+                mock.patch.object(killswitch, "run", lambda cmd, **kw: (calls.append(cmd), (0, "", ""))[1]), \
+                mock.patch.object(killswitch, "which", lambda n: "/usr/sbin/nft"), \
+                mock.patch.object(killswitch.KillSwitch, "_priv_cmd", lambda self: []):
+            a = killswitch.KillSwitch(cfg)
+            self.assertTrue(a.engage(reason="update")["ok"])
+            b = killswitch.KillSwitch(cfg)                    # «daemon nuevo»
+            self.assertTrue(b.state["active"])
+            self.assertEqual(b.state["reason"], "update")
+            self.assertTrue(b.release()["ok"])
+            self.assertFalse(killswitch.KillSwitch(cfg).state["active"])
+            self.assertTrue(killswitch.KillSwitch(cfg).release(force=True)["ok"])   # quita la tabla aunque no conste
+        self.assertTrue(any("delete" in c for c in calls))
 
 
 class RouteTests(unittest.TestCase):

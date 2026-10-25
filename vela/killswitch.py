@@ -61,11 +61,42 @@ def build_ruleset(tunnel_ifaces: list[str], endpoints: list[str], allow_lan: boo
     return "\n".join(lines) + "\n"
 
 
+def state_path():
+    from .util import xdg_dir
+    return xdg_dir("state") / "killswitch.json"
+
+
 class KillSwitch:
+    """Las reglas nftables viven en el kernel y sobreviven a que VELA se cierre o se actualice; por eso el estado
+    también se guarda en disco: un daemon recién arrancado sabe que la tabla sigue puesta y puede retirarla."""
+
     def __init__(self, cfg: dict, tunnels_fn=lambda: []):
         self.cfg = cfg
         self.tunnels_fn = tunnels_fn
         self.state = {"active": False, "since": None, "reason": None, "backend": "nftables"}
+        self._load_state()
+
+    def _load_state(self):
+        import json
+        try:
+            saved = json.loads(state_path().read_text())
+            if saved.get("active"):
+                self.state.update(active=True, since=saved.get("since"), reason=saved.get("reason"))
+        except (OSError, ValueError):
+            pass
+
+    def _save_state(self):
+        import json
+        from .util import private_dir
+        try:
+            p = state_path()
+            private_dir(p.parent)
+            if self.state["active"]:
+                p.write_text(json.dumps({k: self.state[k] for k in ("active", "since", "reason")}))
+            else:
+                p.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     def _priv_cmd(self) -> list[str] | None:
         if os.geteuid() == 0:
@@ -102,10 +133,11 @@ class KillSwitch:
         if code:
             return {"ok": False, "error": f"nft: {err.strip()}"}
         self.state.update(active=True, since=now(), reason=reason)
+        self._save_state()
         return {"ok": True}
 
-    def release(self) -> dict:
-        if not self.state["active"]:
+    def release(self, force: bool = False) -> dict:
+        if not self.state["active"] and not force:
             return {"ok": True, "detail": _("no estaba activo")}
         priv = self._priv_cmd()
         if priv is None:
@@ -116,6 +148,7 @@ class KillSwitch:
         if code and "No such file" not in err:
             return {"ok": False, "error": f"nft: {err.strip()}"}
         self.state.update(active=False, since=None, reason=None)
+        self._save_state()
         return {"ok": True}
 
     def status(self) -> dict:

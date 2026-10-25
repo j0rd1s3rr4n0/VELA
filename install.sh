@@ -149,6 +149,91 @@ if [ "$DEPS" = 1 ] && { ! has_gui || { [ "$TRAY" = 1 ] && ! has_tray; } || ! com
 fi
 command -v tor >/dev/null || say "$(t "Opcional: instala «tor» para circuitos, comprobaciones por Tor y ExoneraTor." "Optional: install «tor» for circuits, Tor-based checks and ExoneraTor.")"
 
+vela_py_release() { env PYTHONPATH="$PREFIX" python3 -m vela.updater guard-release; }
+vsrc() { env PYTHONPATH="$SRC" python3 -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from vela.cli import main; sys.exit(main())' "$SRC" "$@"; }
+
+# dependencias opcionales: OCR/captura, MAC y LLM local (se pueden omitir). Se descargan ANTES de tocar la
+# instalación, con el código nuevo ($SRC) y con el VELA anterior todavía en marcha vigilando.
+if [ "$DEPS" = 1 ] && [ "$OPTIONAL" = 1 ]; then
+  OCR_NEEDED=0
+  if ! command -v tesseract >/dev/null; then OCR_NEEDED=1; fi
+  if command -v tesseract >/dev/null; then
+    LANGS="$(tesseract --list-langs 2>/dev/null || true)"
+    printf '%s\n' "$LANGS" | grep -qx spa || OCR_NEEDED=1
+    printf '%s\n' "$LANGS" | grep -qx eng || OCR_NEEDED=1
+  fi
+  if [ "$OCR_NEEDED" = 1 ] || [ "$WITH_OCR" = 1 ]; then
+    say "$(t "OCR para escanear y traducir la pantalla (tesseract + idiomas spa/eng)." "OCR to scan and translate the screen (tesseract + spa/eng languages).")"
+    if [ "$WITH_OCR" = 1 ] || ask "$(t "¿Instalar tesseract, sus idiomas y una herramienta de captura?" "Install tesseract, its languages and a screenshot tool?")"; then
+      vsrc deps install --feature ocr --yes || warn "$(t "no se pudo instalar todo el OCR; puedes hacerlo luego con «vsrc deps install --feature ocr»" "OCR could not be fully installed; run «vsrc deps install --feature ocr» later")"
+      vsrc deps install --feature capture --yes >/dev/null 2>&1 || true
+    fi
+  fi
+  if ! command -v macchanger >/dev/null || [ "$WITH_MAC" = 1 ]; then
+    say "$(t "Cambiador de MAC: se usa iproute2 y, si está, macchanger." "MAC changer: uses iproute2 and, when available, macchanger.")"
+    if [ "$WITH_MAC" = 1 ] || ask "$(t "¿Instalar macchanger (opcional)?" "Install macchanger (optional)?")"; then
+      vsrc deps install --feature mac --yes >/dev/null 2>&1 || true
+    fi
+  fi
+  if [ "$WITH_LLM" = 1 ]; then
+    say "$(t "Instalando Ollama y el modelo qwen2.5:1.5b (≈1 GB)…" "Installing Ollama and the qwen2.5:1.5b model (≈1 GB)…")"
+    vsrc deps ollama --yes || warn "$(t "no se pudo instalar Ollama; instálalo luego con «vsrc deps ollama»" "Ollama could not be installed; run «vsrc deps ollama» later")"
+  else
+    say "$(t "Traducción local opcional: «./install.sh --with-llm» instala Ollama + qwen2.5:1.5b (≈1 GB)." "Optional local translation: «./install.sh --with-llm» installs Ollama + qwen2.5:1.5b (≈1 GB).")"
+  fi
+  if ! command -v cloudflared >/dev/null; then
+    say "$(t "DoH opcional: instala cloudflared desde cloudflare.com; DoT ya funciona con systemd-resolved." "Optional DoH: install cloudflared from cloudflare.com; DoT already works with systemd-resolved.")"
+  fi
+fi
+
+# ── ¿instalar encima de un VELA existente? Es una actualización ─────────────
+# Todo lo que había que descargar ya está aquí. Falta parar la versión vieja, copiar la nueva y arrancarla; en ese
+# hueco VELA no vigila. El usuario elige: kill-switch hasta que arranque la nueva, o cerrar y reabrir sin protección.
+# VELA_UPDATE_PROTECT=handled lo pone «vela update», que ya gestiona la protección por su cuenta.
+UPGRADE=0; [ -d "$PREFIX/vela" ] && UPGRADE=1
+PROTECT="${VELA_UPDATE_PROTECT:-}"
+APP_WAS_OPEN=0; TRAY_WAS_OPEN=0
+if [ "$UPGRADE" = 1 ] && [ "$PROTECT" != handled ]; then
+  OLDV="$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$PREFIX/vela/__init__.py" 2>/dev/null)"
+  say "$(t "Ya hay un VELA instalado (${OLDV:-?}): se actualizará a $VERSION." "VELA is already installed (${OLDV:-?}): it will be updated to $VERSION.")"
+  if [ -z "$PROTECT" ]; then
+    if [ "$YES" = 1 ]; then
+      PROTECT=restart
+      say "$(t "Con --yes se cierra y reabre sin kill-switch (usa VELA_UPDATE_PROTECT=killswitch para protegerlo)." "With --yes VELA is closed and reopened without kill switch (use VELA_UPDATE_PROTECT=killswitch to protect it).")"
+    elif has_gui && { [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; }; then
+      PROTECT="$(env PYTHONPATH="$SRC" python3 -m vela.native.update_prompt --current "${OLDV:-?}" --new "$VERSION" 2>/dev/null | tail -n1)"
+    else
+      echo
+      say "$(t "Mientras se cambia de versión VELA no vigila tus conexiones. ¿Cómo quieres hacerlo?" "While switching versions VELA does not watch your connections. How do you want to do it?")"
+      echo "  1) $(t "Con kill-switch hasta que arranque la versión nueva (recomendado; solo VPN, Tor y LAN)" "With kill switch until the new version starts (recommended; only VPN, Tor and LAN)")"
+      echo "  2) $(t "Cerrar y volver a abrir sin protección (posible fuga de IP unos segundos)" "Close and reopen without protection (possible IP leak for a few seconds)")"
+      echo "  3) $(t "Ahora no" "Not now")"
+      read -r -p "> " r || r=3
+      case "$r" in 1) PROTECT=killswitch ;; 2) PROTECT=restart ;; *) PROTECT=cancel ;; esac
+    fi
+  fi
+  case "$PROTECT" in
+    killswitch|restart) ;;
+    *) say "$(t "Actualización cancelada: no se ha cambiado nada." "Update cancelled: nothing was changed.")"; exit 0 ;;
+  esac
+  if [ "$PROTECT" = killswitch ]; then
+    env PYTHONPATH="$SRC" python3 -m vela.updater guard-engage || { warn "$(t "No se ha instalado nada." "Nothing was installed.")"; exit 1; }
+    ok "$(t "Kill-switch activo durante el cambio de versión" "Kill switch active while switching versions")"
+  else
+    warn "$(t "Sin protección mientras VELA está parado (unos segundos)." "No protection while VELA is stopped (a few seconds).")"
+  fi
+  # cerrar la versión vieja: servicio, app y bandeja (se vuelven a abrir al final)
+  if pgrep -u "$(id -u)" -f '[-]m vela app' >/dev/null 2>&1; then APP_WAS_OPEN=1; pkill -u "$(id -u)" -f '[-]m vela app' || true; fi
+  if pgrep -u "$(id -u)" -f '[-]m vela tray' >/dev/null 2>&1; then TRAY_WAS_OPEN=1; pkill -u "$(id -u)" -f '[-]m vela tray' || true; fi
+  DAEMON_MANUAL=0
+  if systemctl --user is-active --quiet velad.service 2>/dev/null; then
+    systemctl --user stop velad.service >/dev/null 2>&1 || true
+  elif pgrep -u "$(id -u)" -f -- "$PREFIX daemon (start|run)" >/dev/null 2>&1; then
+    # arrancado a mano (sin systemd) DESDE ESTA instalación: solo se para ese, nunca otro VELA del usuario
+    DAEMON_MANUAL=1; vela daemon stop >/dev/null 2>&1 || true
+  fi
+fi
+
 # ── copiar el programa ──────────────────────────────────────────────────────
 mkdir -p "$PREFIX" "$BIN"
 rm -rf "$PREFIX/vela.new"
@@ -182,39 +267,6 @@ else
   warn "$(t "Sin GTK 4/libadwaita: la app de escritorio no estará disponible (CLI, TUI y GUI web sí)" "No GTK 4/libadwaita: the desktop app won't be available (CLI, TUI and web GUI will)")"
 fi
 
-# dependencias opcionales: OCR/captura, MAC y LLM local (se pueden omitir)
-if [ "$DEPS" = 1 ] && [ "$OPTIONAL" = 1 ]; then
-  OCR_NEEDED=0
-  if ! command -v tesseract >/dev/null; then OCR_NEEDED=1; fi
-  if command -v tesseract >/dev/null; then
-    LANGS="$(tesseract --list-langs 2>/dev/null || true)"
-    printf '%s\n' "$LANGS" | grep -qx spa || OCR_NEEDED=1
-    printf '%s\n' "$LANGS" | grep -qx eng || OCR_NEEDED=1
-  fi
-  if [ "$OCR_NEEDED" = 1 ] || [ "$WITH_OCR" = 1 ]; then
-    say "$(t "OCR para escanear y traducir la pantalla (tesseract + idiomas spa/eng)." "OCR to scan and translate the screen (tesseract + spa/eng languages).")"
-    if [ "$WITH_OCR" = 1 ] || ask "$(t "¿Instalar tesseract, sus idiomas y una herramienta de captura?" "Install tesseract, its languages and a screenshot tool?")"; then
-      vela deps install --feature ocr --yes || warn "$(t "no se pudo instalar todo el OCR; puedes hacerlo luego con «vela deps install --feature ocr»" "OCR could not be fully installed; run «vela deps install --feature ocr» later")"
-      vela deps install --feature capture --yes >/dev/null 2>&1 || true
-    fi
-  fi
-  if ! command -v macchanger >/dev/null || [ "$WITH_MAC" = 1 ]; then
-    say "$(t "Cambiador de MAC: se usa iproute2 y, si está, macchanger." "MAC changer: uses iproute2 and, when available, macchanger.")"
-    if [ "$WITH_MAC" = 1 ] || ask "$(t "¿Instalar macchanger (opcional)?" "Install macchanger (optional)?")"; then
-      vela deps install --feature mac --yes >/dev/null 2>&1 || true
-    fi
-  fi
-  if [ "$WITH_LLM" = 1 ]; then
-    say "$(t "Instalando Ollama y el modelo qwen2.5:1.5b (≈1 GB)…" "Installing Ollama and the qwen2.5:1.5b model (≈1 GB)…")"
-    vela deps ollama --yes || warn "$(t "no se pudo instalar Ollama; instálalo luego con «vela deps ollama»" "Ollama could not be installed; run «vela deps ollama» later")"
-  else
-    say "$(t "Traducción local opcional: «./install.sh --with-llm» instala Ollama + qwen2.5:1.5b (≈1 GB)." "Optional local translation: «./install.sh --with-llm» installs Ollama + qwen2.5:1.5b (≈1 GB).")"
-  fi
-  if ! command -v cloudflared >/dev/null; then
-    say "$(t "DoH opcional: instala cloudflared desde cloudflare.com; DoT ya funciona con systemd-resolved." "Optional DoH: install cloudflared from cloudflare.com; DoT already works with systemd-resolved.")"
-  fi
-fi
-
 if [ "$SERVICE" = 1 ]; then
   if command -v systemctl >/dev/null && systemctl --user show-environment >/dev/null 2>&1; then
     vela daemon enable >/dev/null
@@ -234,6 +286,16 @@ fi
 
 if ! id -nG | tr ' ' '\n' | grep -qx debian-tor && getent group debian-tor >/dev/null; then
   say "$(t "Para observar Tor: sudo usermod -aG debian-tor $TARGET_USER (y vuelve a iniciar sesión)" "To observe Tor: sudo usermod -aG debian-tor $TARGET_USER (then log in again)")"
+fi
+
+if [ "$UPGRADE" = 1 ] && [ "${DAEMON_MANUAL:-0}" = 1 ]; then vela daemon start >/dev/null 2>&1 || true; fi
+if [ "$UPGRADE" = 1 ] && [ "$PROTECT" = killswitch ]; then
+  if vela_out="$(vela_py_release 2>&1)"; then ok "$vela_out"; else warn "$vela_out"; fi
+fi
+if [ "$TRAY_WAS_OPEN" = 1 ] && has_tray; then setsid -f env PYTHONPATH="$PREFIX" python3 -m vela tray >/dev/null 2>&1 || true; fi
+if [ "$APP_WAS_OPEN" = 1 ] && has_gui; then
+  setsid -f env PYTHONPATH="$PREFIX" python3 -m vela app >/dev/null 2>&1 || true
+  ok "$(t "VELA se ha vuelto a abrir con la versión nueva" "VELA was reopened with the new version")"
 fi
 
 echo
