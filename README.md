@@ -228,7 +228,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 
 You can run `./install.sh` or `sudo ./install.sh`: in both cases it installs for the user who invoked it (sudo is redirected to `$SUDO_USER`). Commands also work with or without sudo: `sudo vela …` drops back to the invoking user so data stays in your home and the GUI can use your session; privileged actions still use `pkexec`/`sudo`. Use `VELA_KEEP_ROOT=1 sudo vela …` if you really want to keep root.
 
-Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: `./install.sh --uninstall` (`--purge` also deletes your data).
+Update: **Settings → Updates** in the app or `vela update` (checks your clone's remote over Tor or the VPN, never on its own, shows the new commits and only fast-forwards; `vela update --check` changes nothing) · Uninstall: **Settings → Uninstall**, right-click VELA in the applications menu → *Uninstall VELA*, or `vela uninstall` (`--dry-run` shows what it would remove; `--purge` also deletes your data; your git repository is not touched).
 
 It also works without installing, with `python3 -m vela <command>`.
 

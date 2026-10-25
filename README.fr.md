@@ -226,7 +226,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 
 Vous pouvez exécuter `./install.sh` ou `sudo ./install.sh` : dans les deux cas, il installe pour l'utilisateur qui l'a invoqué (sudo est redirigé vers `$SUDO_USER`). Les commandes fonctionnent aussi avec ou sans sudo : `sudo vela …` se réexécute en tant que votre utilisateur pour que les données restent dans votre home et que l'app puisse utiliser votre session graphique ; les actions privilégiées utilisent toujours `pkexec`/`sudo`. Utilisez `VELA_KEEP_ROOT=1 sudo vela …` si vous voulez vraiment conserver root.
 
-Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : `./install.sh --uninstall` (`--purge` supprime aussi vos données). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
+Mettre à jour : **Réglages → Mises à jour** dans l'app ou `vela update` (interroge le dépôt distant de votre clone via Tor ou le VPN, jamais de lui-même, montre les nouveaux commits et n'avance qu'en fast-forward ; `vela update --check` ne change rien) · Désinstaller : **Réglages → Désinstaller**, clic droit sur VELA dans le menu des applications → *Désinstaller VELA*, ou `vela uninstall` (`--dry-run` montre ce qui serait supprimé ; `--purge` supprime aussi vos données ; votre dépôt git n'est pas touché). Il détecte les paquets système manquants (apt, dnf, pacman, zypper) et demande avant de les installer ; voir `./install.sh --help`.
 
 Fonctionne aussi sans installation, avec `python3 -m vela <commande>`.
 

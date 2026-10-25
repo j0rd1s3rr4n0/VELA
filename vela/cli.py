@@ -1138,7 +1138,7 @@ def cmd_app(b, a):
     if a.install:
         print(_("lanzador instalado en {v1} (búscalo como «VELA»)", v1=native.install_desktop()))
         return None
-    native.run(b)
+    native.run(b, uninstall=getattr(a, "uninstall", False))
     return None
 
 
@@ -1157,6 +1157,40 @@ def cmd_tray(b, a):
         print(c(_("bandeja no disponible ({e}). Necesita gir1.2-ayatanaappindicator3-0.1 y la extensión AppIndicator.", e=e), "31"))
         return None
     sys.exit(tray.run())
+
+
+def cmd_uninstall(b, a):
+    """Desinstalación fácil: no necesita el repositorio; enseña la lista y pide confirmación."""
+    from . import uninstall
+    p = uninstall.plan(a.purge)
+    if a.json and a.dry_run:
+        print(json.dumps({k: [str(x) if not isinstance(x, tuple) else [str(x[0]), x[1]] for x in v]
+                          if isinstance(v, list) else v for k, v in p.items()}, indent=2, ensure_ascii=False))
+        return 0
+    for line in uninstall.describe(p):
+        print(line)
+    if not (p["files"] or p["dirs"] or p["data"]):
+        print(c(_("No hay nada de VELA instalado para este usuario."), "32"))
+        return 0
+    if a.dry_run:
+        print(_("(simulación: no se ha cambiado nada)"))
+        return 0
+    if not a.yes:
+        if not sys.stdin.isatty():
+            print(c(_("sin terminal para confirmar: usa --yes"), "31"), file=sys.stderr)
+            return 1
+        q = _("¿Desinstalar VELA y BORRAR tus datos? [s/N] ") if a.purge else _("¿Desinstalar VELA? [s/N] ")
+        if input(q).strip().lower() not in ("s", "si", "sí", "y", "yes", "o", "oui", "j", "ja"):
+            print(_("Cancelado: no se ha cambiado nada."))
+            return 0
+    res = uninstall.run(a.purge, progress=lambda m: print(f"  · {m}", flush=True))
+    for e in res["errors"]:
+        print(c(f"⚠ {e}", "33"), file=sys.stderr)
+    print(c(_("VELA desinstalado."), "32"))
+    if not a.purge and any(d.exists() for d in uninstall.data_dirs()):
+        print(_("Tus datos se conservan por si reinstalas; para borrarlos: rm -rf {dirs}",
+                dirs=" ".join(tilde(d) for d in uninstall.data_dirs() if d.exists())))
+    return 0 if not res["errors"] else 1
 
 
 def cmd_update(b, a):
@@ -1347,6 +1381,10 @@ def build_parser() -> argparse.ArgumentParser:
                     help=_("por dónde contactar con el servidor git (auto: Tor si hay, si no la VPN; nunca directo salvo que lo pidas)"))
     sp.add_argument("--yes", "-y", action="store_true", help=_("no pedir confirmación antes de instalar"))
     sp.add_argument("--progress", action="store_true", help=argparse.SUPPRESS)
+    sp = add("uninstall", cmd_uninstall, _("desinstalar VELA: servicio, bandeja, lanzador, comandos y programa (tus datos se conservan salvo con --purge)"))
+    sp.add_argument("--purge", action="store_true", help=_("borrar también historial, ajustes y claves de API"))
+    sp.add_argument("--dry-run", action="store_true", help=_("solo mostrar qué se quitaría"))
+    sp.add_argument("--yes", "-y", action="store_true", help=_("no pedir confirmación"))
     add("routes", cmd_routes, _("cómo viaja tu tráfico: programa → directo/proxy/Tor → VPN → lo que ve el destino"))
     sp = add("leakwatch", cmd_leakwatch, _("IP pública y fugas de IP en tiempo real (conexiones fuera del túnel)"))
     sp.add_argument("--once", action="store_true", help=_("una sola pasada"))
@@ -1486,6 +1524,7 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--remove", action="store_true", help=_("quitarlo del inicio de sesión y cerrarlo"))
     sp = add("app", cmd_app, _("aplicación nativa de escritorio (GTK 4 + libadwaita)"))
     sp.add_argument("--install", action="store_true", help=_("instalar el lanzador en el menú de aplicaciones"))
+    sp.add_argument("--uninstall", action="store_true", help=_("abrir la app y preguntar si desinstalar VELA"))
     sp = add("gui", cmd_gui, _("interfaz gráfica (web local)"))
     sp.add_argument("--no-browser", action="store_true")
     sp.add_argument("--port", type=int, default=0)
@@ -1576,6 +1615,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.cmd == "update":
         return cmd_update(None, a)
+    if a.cmd == "uninstall":
+        return cmd_uninstall(None, a)
     from .ipc import IPCError, LocalBackend, connect
     try:
         b = LocalBackend() if a.local else connect()

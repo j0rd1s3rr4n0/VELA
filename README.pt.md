@@ -223,7 +223,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 
 Podes executar `./install.sh` ou `sudo ./install.sh`: em ambos os casos instala para o utilizador que o invocou (com sudo é redirecionado para `$SUDO_USER`). Os comandos também funcionam com ou sem sudo: `sudo vela …` volta a executar-se como o teu utilizador para que os dados fiquem na tua home e a app possa usar a tua sessão gráfica; as ações privilegiadas continuam a usar `pkexec`/`sudo`. Usa `VELA_KEEP_ROOT=1 sudo vela …` se quiseres mesmo manter root.
 
-Atualizar: **Definições → Atualizações** na app ou `vela update` (consulta o remoto do seu clone por Tor ou pela VPN, nunca por iniciativa própria, mostra os commits novos e só avança; `vela update --check` não altera nada) · Desinstalar: `./install.sh --uninstall` (`--purge` apaga também os seus dados). Deteta os pacotes do sistema em falta (apt, dnf, pacman, zypper) e pergunta antes de os instalar; veja `./install.sh --help`.
+Atualizar: **Definições → Atualizações** na app ou `vela update` (consulta o remoto do seu clone por Tor ou pela VPN, nunca por iniciativa própria, mostra os commits novos e só avança; `vela update --check` não altera nada) · Desinstalar: **Definições → Desinstalar**, clique direito em VELA no menu de aplicações → *Desinstalar o VELA*, ou `vela uninstall` (`--dry-run` mostra o que removeria; `--purge` apaga também os seus dados; o seu repositório git não é tocado). Deteta os pacotes do sistema em falta (apt, dnf, pacman, zypper) e pergunta antes de os instalar; veja `./install.sh --help`.
 
 Também funciona sem instalar, com `python3 -m vela <comando>`.
 

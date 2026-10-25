@@ -2,7 +2,7 @@
 # VELA — instalador para Linux (por usuario, sin pip; funciona con ./install.sh o con sudo ./install.sh).
 #
 #   ./install.sh               instala o actualiza: app, servicio velad, bandeja y lanzador
-#   ./install.sh --uninstall   desinstala (conserva tus datos)
+#   ./install.sh --uninstall   desinstala (conserva tus datos); también «vela uninstall» o Ajustes → Desinstalar
 #   ./install.sh --uninstall --purge   desinstala y borra también historial, ajustes y claves
 #
 # Opciones: --yes (sin preguntas) · --no-service · --no-tray · --no-deps · --prefix DIR
@@ -87,6 +87,11 @@ vela() { env PYTHONPATH="$PREFIX" python3 -c 'import sys; sys.path.insert(0, sys
 
 # ── desinstalar ─────────────────────────────────────────────────────────────
 if [ "$MODE" = uninstall ]; then
+  # misma desinstalación que «vela uninstall» y Ajustes → Desinstalar (vela/uninstall.py)
+  if [ -f "$PREFIX/vela/uninstall.py" ]; then
+    ARGS=(uninstall); [ "$PURGE" = 1 ] && ARGS+=(--purge); [ "$YES" = 1 ] && ARGS+=(--yes)
+    vela "${ARGS[@]}"; exit $?
+  fi
   say "$(t "Desinstalando VELA…" "Uninstalling VELA…")"
   if [ -d "$PREFIX/vela" ]; then
     vela daemon disable >/dev/null 2>&1 || true
@@ -233,4 +238,4 @@ fi
 
 echo
 ok "$(t "VELA $VERSION instalado. Ábrelo desde el menú o con «vela app»; en la terminal: «vela status»." "VELA $VERSION installed. Open it from the menu or with «vela app»; in a terminal: «vela status».")"
-say "$(t "Actualizar: Ajustes → Actualizaciones en la app o «vela update» · Desinstalar: ./install.sh --uninstall" "Update: Settings → Updates in the app or «vela update» · Uninstall: ./install.sh --uninstall")"
+say "$(t "Actualizar: Ajustes → Actualizaciones en la app o «vela update» · Desinstalar: «vela uninstall» o Ajustes → Desinstalar" "Update: Settings → Updates in the app or «vela update» · Uninstall: «vela uninstall» or Settings → Uninstall")"

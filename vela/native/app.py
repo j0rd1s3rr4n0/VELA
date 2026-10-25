@@ -2867,6 +2867,7 @@ class Window(Adw.ApplicationWindow):
         box.append(g)
         box.append(self.map_group())
         box.append(self.update_group())
+        box.append(self.uninstall_group())
         box.append(self.data_group())
         box.append(lbl(_("Guardado en {v1} (no se modifica tu config.toml)", v1=tilde(s['path'])), "kpi-sub"))
 
@@ -3319,6 +3320,65 @@ class Window(Adw.ApplicationWindow):
         self._upd_apply.set_sensitive(not blockers)
         return False
 
+    # ── desinstalar ──
+    def uninstall_group(self):
+        g = Adw.PreferencesGroup(title=_("Desinstalar"),
+                                 description=_("Quita el servicio, la bandeja, el lanzador, los comandos y el programa. Tus "
+                                               "datos se conservan salvo que pidas borrarlos. Tu repositorio git no se toca."))
+        row = Adw.ActionRow(title=_("Desinstalar VELA"),
+                            subtitle=_("También desde el menú de aplicaciones (clic derecho en VELA) o con «vela uninstall»"))
+        b = Gtk.Button(label=_("Desinstalar…"), valign=Gtk.Align.CENTER, css_classes=["destructive-action"])
+        b.connect("clicked", lambda _b: self.uninstall_dialog())
+        row.add_suffix(b)
+        g.add(row)
+        return g
+
+    def uninstall_dialog(self):
+        from .. import uninstall
+        from ..util import tilde
+        p = uninstall.plan(False)
+        d = Adw.AlertDialog(heading=_("¿Desinstalar VELA?"),
+                            body=_("Se quitarán el servicio velad, la bandeja, el lanzador, los comandos «vela» y «velad» y "
+                                   "la copia instalada ({n} elementos). La app se cerrará al terminar.",
+                                   n=len(p["files"]) + len(p["dirs"])))
+        purge = Gtk.CheckButton(label=_("Borrar también mis datos: historial, ajustes y claves de API (no se puede deshacer)"))
+        extra = vbox(6)
+        extra.append(purge)
+        data = [tilde(x) for x in uninstall.data_dirs() if x.exists()]
+        if data:
+            extra.append(lbl(", ".join(data), "kpi-hint", wrap=True))
+        d.set_extra_child(extra)
+        d.add_response("cancel", _("Cancelar"))
+        d.add_response("go", _("Desinstalar"))
+        d.set_response_appearance("go", Adw.ResponseAppearance.DESTRUCTIVE)
+        d.set_default_response("cancel")
+        d.set_close_response("cancel")
+        d.connect("response", lambda _d, r: r == "go" and self._uninstall_run(purge.get_active()))
+        d.present(self)
+        return False
+
+    def _uninstall_run(self, purge):
+        from .. import uninstall
+        self.toast(_("Desinstalando VELA…"))
+
+        def work():
+            try:
+                res = uninstall.run(purge)
+                err = res["errors"]
+            except Exception as e:  # noqa: BLE001
+                err = [str(e)]
+            GLib.idle_add(self._uninstall_done, err)
+        threading.Thread(target=work, daemon=True).start()
+
+    def _uninstall_done(self, errors):
+        d = Adw.AlertDialog(heading=_("VELA desinstalado") if not errors else _("Desinstalado con avisos"),
+                            body=("\n".join(errors) if errors else
+                                  _("Gracias por usar VELA. Para volver a instalarlo: ./install.sh desde el repositorio.")))
+        d.add_response("close", _("Cerrar VELA"))
+        d.connect("response", lambda *_a: self.get_application().quit())
+        d.present(self)
+        return False
+
     def update_confirm(self):
         d = Adw.AlertDialog(heading=_("¿Instalar la actualización?"),
                             body=_("Se avanzará tu clon de VELA a la versión del remoto y se reinstalará. El servicio velad "
@@ -3520,6 +3580,11 @@ class App(Adw.Application):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self.backend = backend
         self.win = None
+        self.pending_uninstall = False
+        # acción «app.uninstall»: la usa el lanzador (clic derecho → Desinstalar VELA), también si la app ya está abierta
+        act = Gio.SimpleAction.new("uninstall", None)
+        act.connect("activate", lambda *_a: (setattr(self, "pending_uninstall", True), self.activate()))
+        self.add_action(act)
 
     def do_activate(self):
         logs.setup()
@@ -3534,6 +3599,9 @@ class App(Adw.Application):
                 ensure_daemon()
             self.win = Window(self, self.backend or connect())
         self.win.present()
+        if self.pending_uninstall:
+            self.pending_uninstall = False
+            GLib.timeout_add(600, self.win.uninstall_dialog)
 
 
 def _icon_dir() -> Path:
@@ -3562,6 +3630,16 @@ Icon={icon}
 Terminal=false
 Categories=Network;Security;System;
 StartupWMClass=io.github.j0rd1s3rr4n0.Vela
+Actions=uninstall;
+
+[Desktop Action uninstall]
+Name=Desinstalar VELA
+Name[en]=Uninstall VELA
+Name[ca]=Desinstal·la VELA
+Name[pt]=Desinstalar o VELA
+Name[fr]=Désinstaller VELA
+Name[de]=VELA deinstallieren
+Exec={exe} -m vela app --uninstall
 """
 
 
@@ -3584,5 +3662,12 @@ def install_desktop() -> str:
     return str(p)
 
 
-def run(backend=None) -> int:
-    return App(backend).run([sys.argv[0]])
+def run(backend=None, uninstall=False) -> int:
+    app = App(backend)
+    if uninstall:
+        app.register(None)
+        if app.get_is_remote():                 # ya abierta: que la ventana existente pregunte
+            app.activate_action("uninstall", None)
+            return 0
+        app.pending_uninstall = True
+    return app.run([sys.argv[0]])
