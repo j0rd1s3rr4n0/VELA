@@ -2149,5 +2149,15 @@
  "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Staying in the tray keeps VELA open in the background; the velad service keeps watching even if you quit",
  "Preguntar": "Ask",
  "Cerrar la app VELA": "Close the VELA app",
- "Salir de VELA (app y bandeja)": "Quit VELA (app and tray)"
+ "Salir de VELA (app y bandeja)": "Quit VELA (app and tray)",
+ "Icono de la bandeja": "Tray icon",
+ "El emblema de VELA con una insignia de estado (✔ ▲ ✖), solo el emblema o los símbolos genéricos del sistema. Se aplica en unos segundos.": "The VELA emblem with a status badge (✔ ▲ ✖), the emblem alone or the system's generic symbols. Applied within a few seconds.",
+ "Icono de la bandeja cambiado": "Tray icon changed",
+ "Guardado: se verá cuando actives el icono de la bandeja": "Saved: you will see it when you turn on the tray icon",
+ "VELA con estado": "VELA with status",
+ "Solo el emblema de VELA": "VELA emblem only",
+ "Símbolos de estado": "Status symbols",
+ "VELA: daemon detenido": "VELA: daemon stopped",
+ "protegido": "protected",
+ "alerta": "alert"
 }

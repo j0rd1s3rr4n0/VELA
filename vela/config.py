@@ -132,7 +132,8 @@ DEFAULTS: dict = {
            "appearance": "system",       # system (sigue al escritorio), light, dark
            "density": "comfortable",     # comfortable, compact
            "motion": "system",           # system, reduced, full
-           "close_action": "ask"},       # al cerrar la ventana: ask (preguntar), tray (seguir en la bandeja), quit
+           "close_action": "ask",        # al cerrar la ventana: ask (preguntar), tray (seguir en la bandeja), quit
+           "tray_icon": "vela"},         # icono de la bandeja: vela (emblema + estado), vela_plain (emblema), status
 }
 
 DURATION_KEYS = {"network_interval", "tor_interval", "dns_interval", "public_ip_interval",
@@ -197,6 +198,7 @@ SETTINGS_KEYS: dict[str, object] = {
     "dns.fix_provider": ("cloudflare", "quad9", "google", "mullvad"),
     "ui.language": ("auto", "es", "en", "ca", "pt", "fr", "de"),
     "ui.close_action": ("ask", "tray", "quit"),
+    "ui.tray_icon": ("vela", "vela_plain", "status"),
     **_themes.PREF_KEYS,
 }
 

@@ -2149,5 +2149,15 @@
  "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Ficar na bandeja mantém o VELA aberto em segundo plano; o serviço velad vigia na mesma mesmo que saia",
  "Preguntar": "Perguntar",
  "Cerrar la app VELA": "Fechar a app VELA",
- "Salir de VELA (app y bandeja)": "Sair do VELA (app e bandeja)"
+ "Salir de VELA (app y bandeja)": "Sair do VELA (app e bandeja)",
+ "Icono de la bandeja": "Ícone da bandeja",
+ "El emblema de VELA con una insignia de estado (✔ ▲ ✖), solo el emblema o los símbolos genéricos del sistema. Se aplica en unos segundos.": "O emblema do VELA com uma insígnia de estado (✔ ▲ ✖), só o emblema ou os símbolos genéricos do sistema. Aplica-se em poucos segundos.",
+ "Icono de la bandeja cambiado": "Ícone da bandeja alterado",
+ "Guardado: se verá cuando actives el icono de la bandeja": "Guardado: verá-se quando ativar o ícone da bandeja",
+ "VELA con estado": "VELA com estado",
+ "Solo el emblema de VELA": "Só o emblema do VELA",
+ "Símbolos de estado": "Símbolos de estado",
+ "VELA: daemon detenido": "VELA: daemon parado",
+ "protegido": "protegido",
+ "alerta": "alerta"
 }

@@ -30,7 +30,7 @@ from gi.repository import GLib, Gtk  # noqa: E402
 
 from .autostart import tray_pid_path as pid_path, tray_running  # noqa: E402
 from .ipc import Client, IPCError, ping  # noqa: E402
-from . import logs  # noqa: E402
+from . import logs, trayicons  # noqa: E402
 from .util import private_dir, runtime_dir, which  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -84,7 +84,7 @@ EVENT_TEXT = {
 class Tray:
     def __init__(self):
         self.client = Client(timeout=30)
-        self.ind = AppIndicator.Indicator.new("vela-command-center", ICONS["off"],
+        self.ind = AppIndicator.Indicator.new("vela-command-center", trayicons.icon_for("off", trayicons.current_style()),
                                               AppIndicator.IndicatorCategory.APPLICATION_STATUS)
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         self.ind.set_title("VELA")
@@ -282,7 +282,7 @@ class Tray:
         st = self.status
         self.daemon_item.set_visible(st is None)
         if not st:
-            self.ind.set_icon_full(ICONS["off"], "daemon detenido")
+            self.ind.set_icon_full(trayicons.icon_for("off", trayicons.current_style()), _("VELA: daemon detenido"))
             self.info["vpn"].set_label(_("Daemon detenido: sin monitorización"))
             for k in ("ip", "exp", "conn", "ks", "dns"):
                 self.info[k].set_label("—")
@@ -297,8 +297,9 @@ class Tray:
             state = "warn" if tunnel else "alert"
         else:
             state = "ok" if ex["level"] == "baja" else "warn"
-        desc = {"ok": "protegido", "warn": _("exposición media"), "alert": "alerta"}[state]
-        self.ind.set_icon_full(ICONS[state], f"VELA: {desc}")
+        desc = {"ok": _("protegido"), "warn": _("exposición media"), "alert": _("alerta")}[state]
+        # estilo elegido en Ajustes → Ventana → Icono de la bandeja (se lee en cada sondeo: cambia en caliente)
+        self.ind.set_icon_full(trayicons.icon_for(state, trayicons.current_style()), f"VELA: {desc}")
         vpn = (obs.get("vpn") or {}).get("label")
         self.info["vpn"].set_label(f"{'🟢' if tunnel else '🔴'} VPN: {vpn if tunnel else 'desconectada'}")
         pub = (st.get("public") or {}).get("default") or {}

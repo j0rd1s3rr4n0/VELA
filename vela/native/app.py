@@ -3423,7 +3423,45 @@ class Window(Adw.ApplicationWindow):
         self._close_row = row
         self._close_row_h = row.connect("notify::selected", lambda r, _p: self.set_close_action(self.CLOSE_KEYS[r.get_selected()]))
         g.add(row)
+        g.add(self._tray_icon_row())
         return g
+
+    # icono de la bandeja: emblema de VELA (con o sin insignia de estado) o los símbolos genéricos del sistema
+    TRAY_ICON_KEYS = ["vela", "vela_plain", "status"]
+
+    def _tray_icon_row(self):
+        from .. import config as config_mod, trayicons
+        row = Adw.ComboRow(title=_("Icono de la bandeja"),
+                           subtitle=_("El emblema de VELA con una insignia de estado (✔ ▲ ✖), solo el emblema o los "
+                                      "símbolos genéricos del sistema. Se aplica en unos segundos."))
+        row.set_model(Gtk.StringList.new([_("VELA con estado"), _("Solo el emblema de VELA"), _("Símbolos de estado")]))
+        cur = config_mod.ui_pref("tray_icon", trayicons.DEFAULT_STYLE)
+        row.set_selected(self.TRAY_ICON_KEYS.index(cur) if cur in self.TRAY_ICON_KEYS else 0)
+        self._tray_preview = Gtk.Image(pixel_size=24, valign=Gtk.Align.CENTER)
+        row.add_suffix(self._tray_preview)
+        self._tray_preview_set(cur)
+        row.connect("notify::selected", lambda r, _p: self.set_tray_icon(self.TRAY_ICON_KEYS[r.get_selected()]))
+        return row
+
+    def _tray_preview_set(self, style):
+        from .. import trayicons
+        icon = trayicons.icon_for("ok", style)
+        if icon.startswith("/"):
+            self._tray_preview.set_from_file(icon)
+        else:
+            self._tray_preview.set_from_icon_name(icon)
+
+    def set_tray_icon(self, value):
+        from .. import config as config_mod
+        from ..autostart import tray_running
+        try:
+            config_mod.set_ui_pref("tray_icon", value)
+        except (OSError, ValueError) as e:
+            self.toast(_("No se pudo guardar: {e}", e=e))
+            return
+        self._tray_preview_set(value)
+        self.toast(_("Icono de la bandeja cambiado") if tray_running() else
+                   _("Guardado: se verá cuando actives el icono de la bandeja"))
 
     # ── desinstalar ──
     def uninstall_group(self):

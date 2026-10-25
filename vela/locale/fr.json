@@ -2149,5 +2149,15 @@
  "Seguir en la bandeja mantiene VELA abierta en segundo plano; el servicio velad vigila igualmente aunque salgas": "Rester dans la zone de notification garde VELA ouvert en arrière-plan ; le service velad surveille même si vous quittez",
  "Preguntar": "Demander",
  "Cerrar la app VELA": "Fermer l'app VELA",
- "Salir de VELA (app y bandeja)": "Quitter VELA (app et zone de notification)"
+ "Salir de VELA (app y bandeja)": "Quitter VELA (app et zone de notification)",
+ "Icono de la bandeja": "Icône de la zone de notification",
+ "El emblema de VELA con una insignia de estado (✔ ▲ ✖), solo el emblema o los símbolos genéricos del sistema. Se aplica en unos segundos.": "L'emblème de VELA avec un badge d'état (✔ ▲ ✖), l'emblème seul ou les symboles génériques du système. S'applique en quelques secondes.",
+ "Icono de la bandeja cambiado": "Icône de la zone de notification modifiée",
+ "Guardado: se verá cuando actives el icono de la bandeja": "Enregistré : visible quand vous activerez l'icône de la zone de notification",
+ "VELA con estado": "VELA avec état",
+ "Solo el emblema de VELA": "Emblème VELA seul",
+ "Símbolos de estado": "Symboles d'état",
+ "VELA: daemon detenido": "VELA : daemon arrêté",
+ "protegido": "protégé",
+ "alerta": "alerte"
 }
