@@ -36,12 +36,12 @@ For testing, `VELA_THEME=glacier VELA_APPEARANCE=light vela app` overrides the s
 
 ## Architecture
 
-```
-vela/themes.py          ← single source of truth (no GTK): tokens, registry, preferences,
-                          WCAG contrast math, checks, web CSS
-vela/native/theme.py    ← ThemeManager: Adw.StyleManager + one Gtk.CssProvider generated from tokens
-vela/native/charts.py   ← P: the active palette, updated in place; charts paint by token name
-vela/gui/server.py      ← GET /theme.css: same tokens as browser CSS variables
+```mermaid
+flowchart LR
+    T["vela/themes.py<br/>single source of truth (no GTK)<br/>tokens · registry · preferences<br/>WCAG contrast math · checks · web CSS"]
+    T --> M["vela/native/theme.py<br/>ThemeManager<br/>Adw.StyleManager + one Gtk.CssProvider<br/>generated from tokens"]
+    M -- "set_palette()" --> C["vela/native/charts.py<br/>P: the active palette, updated in place<br/>charts paint by token name"]
+    T --> W["vela/gui/server.py<br/>GET /theme.css<br/>same tokens as browser CSS variables"]
 ```
 
 * `ThemeManager.apply(theme=…, appearance=…, density=…, motion=…)` normalizes the preferences and sets

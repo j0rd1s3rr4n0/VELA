@@ -14,21 +14,22 @@ demasiado tiempo en uso, sin repetir combinaciones recientes.
 
 ## 1. Arquitectura
 
-```
-                    ┌──────────────────────────────────────────┐
-                    │              velad (daemon)             │
-                    │                                          │
-  Collectors ──────▶│  Event bus ─▶ State engine ─▶ SQLite DB  │
-  (sondas)          │                  │                       │
-                    │            Rotation engine ─▶ Drivers    │
-                    │            Leak/alert engine             │
-                    │                  │                       │
-                    │           API local (unix socket)        │
-                    └──────────────────┬───────────────────────┘
-                     ┌─────────────────┼─────────────────┐
-                    CLI              TUI               GUI
-                  (Typer)         (Textual)    (web local: FastAPI + Leaflet,
-                                                o Tauri/pywebview como app)
+```mermaid
+flowchart TB
+    COL["Collectors<br/>(sondas)"] --> BUS
+
+    subgraph D["velad (daemon)"]
+        BUS["Event bus"] --> STATE["State engine"]
+        STATE --> DB[("SQLite DB")]
+        STATE --> ROT["Rotation engine"]
+        ROT --> DRV["Drivers"]
+        STATE --> LEAK["Leak/alert engine"]
+        STATE --> API["API local<br/>(unix socket)"]
+    end
+
+    API --> CLI["CLI<br/>(Typer)"]
+    API --> TUI["TUI<br/>(Textual)"]
+    API --> GUI["GUI<br/>web local: FastAPI + Leaflet,<br/>o Tauri/pywebview como app"]
 ```
 
 - **Un solo núcleo (daemon)** y tres interfaces delgadas: así CLI, TUI y GUI ven

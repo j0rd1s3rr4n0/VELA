@@ -38,12 +38,12 @@ Para probar sin cambiar lo guardado: `VELA_THEME=glacier VELA_APPEARANCE=light v
 
 ## Arquitectura
 
-```
-vela/themes.py          ← fuente única (sin GTK): tokens, registro, preferencias, cálculo de
-                          contraste WCAG, comprobaciones y CSS web
-vela/native/theme.py    ← ThemeManager: Adw.StyleManager + un único Gtk.CssProvider generado de los tokens
-vela/native/charts.py   ← P: la paleta activa, actualizada en sitio; los gráficos pintan por nombre de token
-vela/gui/server.py      ← GET /theme.css: los mismos tokens como variables CSS del navegador
+```mermaid
+flowchart LR
+    T["vela/themes.py<br/>fuente única (sin GTK)<br/>tokens · registro · preferencias<br/>cálculo de contraste WCAG · comprobaciones · CSS web"]
+    T --> M["vela/native/theme.py<br/>ThemeManager<br/>Adw.StyleManager + un único Gtk.CssProvider<br/>generado de los tokens"]
+    M -- "set_palette()" --> C["vela/native/charts.py<br/>P: la paleta activa, actualizada en sitio<br/>los gráficos pintan por nombre de token"]
+    T --> W["vela/gui/server.py<br/>GET /theme.css<br/>los mismos tokens como variables CSS del navegador"]
 ```
 
 * `ThemeManager.apply(theme=…, appearance=…, density=…, motion=…)` normaliza las preferencias y fija el

@@ -14,32 +14,39 @@
 
 ## Componentes
 
-```
-                ┌──────────────────────── velad (daemon.py) ─────────────────────────┐
- netlink ──────▶│ NetlinkWatcher ─┐                                                   │
- Tor CIRC/STREAM▶│ TorObserver ────┤                                                   │
-                │                 ▼                                                   │
-                │   Engine (engine.py) ── tick() cada 1 s, sondeos de respaldo         │
-                │     ├─ discovery   capacidades del sistema                           │
-                │     ├─ network     interfaces, rutas, policy routing, ruta efectiva   │
-                │     ├─ dns         resolvers por enlace, split DNS, DoT, test activo  │
-                │     ├─ torctl      cliente propio del protocolo de control            │
-                │     ├─ publicip    IP pública (directa/Tor/proxy) + WAN por UPnP      │
-                │     ├─ geo         GeoIP local (base de Tor / .mmdb)                  │
-                │     ├─ sessions    sesiones e intervalos por capa                     │
-                │     ├─ leaks       diagnósticos con evidencia                         │
-                │     ├─ rotation    políticas, selector, adaptadores, ciclo seguro     │
-                │     ├─ killswitch  tabla nftables propia                              │
-                │     ├─ forwarder   proxy local para rotar upstreams                   │
-                │     ├─ analytics   stats, exposure score, correlación, anomalías      │
-                │     └─ store       SQLite (0600) — history                            │
-                │                 │                                                   │
-                │   IPCServer (ipc.py) — socket UNIX 0600, SO_PEERCRED, lista blanca    │
-                └─────────────────┬───────────────────────────────────────────────────┘
-          ┌───────────────────────┼─────────────────────────┐
-     vela (cli.py)          vela tui (tui.py)        vela gui (gui/server.py)
-     argparse                curses                    HTTP 127.0.0.1 + token + CSP
-                                                       SVG/JS propios, sin CDN
+```mermaid
+flowchart TB
+    NL["netlink<br/>eventos de red del kernel"] --> NW
+    TORV["Tor<br/>eventos CIRC / STREAM"] --> TO
+
+    subgraph VELAD["velad · daemon.py"]
+        NW["NetlinkWatcher"] --> ENG
+        TO["TorObserver"] --> ENG
+        ENG["Engine · engine.py<br/>tick() cada 1 s + sondeos de respaldo"]
+
+        subgraph OBS["Observar"]
+            OBSM["discovery · capacidades del sistema<br/>network · interfaces, rutas, policy routing, ruta efectiva<br/>dns · resolvers por enlace, split DNS, DoT, test activo<br/>torctl · cliente propio del protocolo de control<br/>publicip · IP pública (directa/Tor/proxy) + WAN por UPnP<br/>geo · GeoIP local (base de Tor / .mmdb)"]
+        end
+        subgraph ANA["Analizar"]
+            ANAM["sessions · sesiones e intervalos por capa<br/>leaks · diagnósticos con evidencia<br/>analytics · stats, exposure score, correlación, anomalías"]
+        end
+        subgraph ACT["Actuar · con consentimiento"]
+            ACTM["rotation · políticas, selector, adaptadores, ciclo seguro<br/>killswitch · tabla nftables propia<br/>forwarder · proxy local para rotar upstreams"]
+        end
+        subgraph PER["Guardar"]
+            STORE[("store · SQLite 0600<br/>history")]
+        end
+
+        ENG --> OBS
+        ENG --> ANA
+        ENG --> ACT
+        ENG --> PER
+        ENG --> IPC["IPCServer · ipc.py<br/>socket UNIX 0600 · SO_PEERCRED · lista blanca"]
+    end
+
+    IPC --> CLI["vela · cli.py<br/>argparse"]
+    IPC --> TUI["vela tui · tui.py<br/>curses"]
+    IPC --> GUI["vela gui · gui/server.py<br/>HTTP 127.0.0.1 + token + CSP<br/>SVG/JS propios, sin CDN"]
 ```
 
 Si el daemon no está en marcha, la CLI, la TUI y la GUI crean el mismo `Engine` en su proceso
