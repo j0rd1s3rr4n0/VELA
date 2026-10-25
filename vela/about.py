@@ -119,7 +119,7 @@ def app_info() -> dict:
         "gtk": gtk,
         "libadwaita": adw,
         "repo": "https://github.com/j0rd1s3rr4n0/VELA",
-        "license": _("Propietaria — todos los derechos reservados; uso con permiso escrito. "
+        "license": _("Propietaria · todos los derechos reservados; uso con permiso escrito. "
                      "Datos de OpenStreetMap bajo ODbL."),
         "credits": [
             _("Mapa: © colaboradores de OpenStreetMap, ODbL 1.0"),

@@ -775,7 +775,7 @@ class MapView(Gtk.DrawingArea):
             verd = {}
             for f in p["flows"]:
                 verd[f["verdict"]] = verd.get(f["verdict"], 0) + 1
-            return (f"{cc_flag(p['country'])} {p['name'] or '?'} — {len(p['flows'])} conexiones\n"
+            return (f"{cc_flag(p['country'])} {p['name'] or '?'} · {len(p['flows'])} conexiones\n"
                     + " · ".join(f"{k}: {v}" for k, v in verd.items()) + "\n"
                     + _("Programas: {names}", names=", ".join(f"{k} ({v})" for k, v in sorted(procs.items(), key=lambda kv: -kv[1])[:5]))
                     + "\nIPs: " + ", ".join(ips[:5]) + (" …" if len(ips) > 5 else "")
@@ -984,7 +984,7 @@ class Window(Adw.ApplicationWindow):
         brand.set_margin_top(4)
         brand.set_margin_start(16)
         brand.set_margin_bottom(14)
-        brand.set_tooltip_text(f"VELA — {ACRONYM}\n{_(TAGLINE)}")
+        brand.set_tooltip_text(f"VELA · {ACRONYM}\n{_(TAGLINE)}")
         logo = Gtk.Image.new_from_file(str(BRAND_DIR / "vela-symbol-128.png"))
         logo.set_pixel_size(36)
         logo.set_accessible_role(Gtk.AccessibleRole.PRESENTATION)
@@ -1059,7 +1059,7 @@ class Window(Adw.ApplicationWindow):
         self.toasts = Adw.ToastOverlay(child=self.stack)
         content_tv = Adw.ToolbarView()
         content_tv.add_top_bar(header)
-        self.banner = Adw.Banner(title=_("MODO EMERGENCIA ACTIVO — rotaciones detenidas"), button_label="Reanudar")
+        self.banner = Adw.Banner(title=_("MODO EMERGENCIA ACTIVO · rotaciones detenidas"), button_label="Reanudar")
         self.banner.connect("button-clicked", lambda *_ign: self.call_bg("resume", {}, lambda r: self.toast(_("Emergencia desactivada"))))
         content_tv.add_top_bar(self.banner)
         content_tv.set_content(self.toasts)
@@ -2642,19 +2642,18 @@ class Window(Adw.ApplicationWindow):
         head.append(titles)
         box.append(card(None, head))
         left = card(_("Creador"))
-        self.about_avatar = Gtk.Picture()
-        self.about_avatar.set_size_request(128, 128)
-        self.about_avatar.set_content_fit(Gtk.ContentFit.COVER)
-        self.about_avatar.set_can_shrink(True)
-        try:
-            self.about_avatar.set_filename(str(about_mod.BUNDLED_AVATAR
-                                               if about_mod.BUNDLED_AVATAR.exists()
-                                               else BRAND_DIR / "vela-symbol-256.png"))
-        except Exception:  # noqa: BLE001
-            pass
-        left.append(self.about_avatar)
+        # avatar redondo de tamaño fijo: la imagen se ve entera escalada (antes se estiraba al ancho y se recortaba)
+        self.about_avatar = Adw.Avatar(size=112, show_initials=True, text=about_mod.PROFILE.get("name") or about_mod.PROFILE.get("login") or "VELA",
+                                       halign=Gtk.Align.START, valign=Gtk.Align.START)
+        self._set_avatar(about_mod.BUNDLED_AVATAR if about_mod.BUNDLED_AVATAR.exists()
+                         else BRAND_DIR / "vela-symbol-256.png")
+        prof_row = hbox(16)
+        prof_row.append(self.about_avatar)
         self.about_profile_lbl = lbl("", "td", wrap=True)
-        left.append(self.about_profile_lbl)
+        self.about_profile_lbl.set_valign(Gtk.Align.CENTER)
+        self.about_profile_lbl.set_hexpand(True)
+        prof_row.append(self.about_profile_lbl)
+        left.append(prof_row)
         links = hbox(8)
         gh = Gtk.Button(label="GitHub")
         gh.connect("clicked", lambda *_ign: self._open_url(about_mod.PROFILE["github"]))
@@ -2701,11 +2700,16 @@ class Window(Adw.ApplicationWindow):
         avatar = prof.get("avatar")
         if not avatar and about_mod.BUNDLED_AVATAR.exists():
             avatar = str(about_mod.BUNDLED_AVATAR)
+        if prof.get("name") or prof.get("login"):
+            self.about_avatar.set_text(prof.get("name") or prof.get("login"))
         if avatar and Path(avatar).exists():
-            try:
-                self.about_avatar.set_filename(avatar)
-            except Exception:  # noqa: BLE001
-                pass
+            self._set_avatar(avatar)
+
+    def _set_avatar(self, path):
+        try:
+            self.about_avatar.set_custom_image(Gdk.Texture.new_from_filename(str(path)))
+        except Exception:  # noqa: BLE001
+            self.about_avatar.set_custom_image(None)        # sin imagen: iniciales
 
     def _about_sync(self):
         from .. import config as config_mod

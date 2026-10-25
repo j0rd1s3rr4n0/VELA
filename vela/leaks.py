@@ -442,7 +442,7 @@ def check_realtime(lw: dict | None, public: dict | None, profile: dict) -> list[
                                "pass" if not mm else "warn", "activa",
                                _("eco de IP ({v1}) cada {v3} por el túnel", v1=pub.get('endpoint'), v3=pub.get('interval', '60s')), pub,
                                f"{pub['ip']} ({(pub.get('geo') or {}).get('country') or '?'})"
-                               + (_(" — se esperaba {expected}", expected=mm['expected']) if mm else ""),
+                               + (_(" · se esperaba {expected}", expected=mm['expected']) if mm else ""),
                                _("Solo se puede afirmar que no es tu IP real si la conoces (known_real_ips / learn_real_ip).")
                                if not pub.get("own_known") else "—", "media" if not pub.get("own_known") else "alta",
                                "Ninguna." if not mm else _("La GeoIP local puede estar desfasada; verifica el servidor.")))

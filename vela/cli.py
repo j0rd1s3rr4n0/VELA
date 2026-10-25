@@ -54,7 +54,7 @@ def cmd_status(b, a):
     obs = s["obs"] or {}
     net = s["net"]
     e4 = net["egress"].get("ipv4") or {}
-    print(bold(_("VELA — perfil «{profile}»", profile=s['profile'])) +
+    print(bold(_("VELA · perfil «{profile}»", profile=s['profile'])) +
           (c("  [MODO EMERGENCIA]", "1;31") if s["emergency"] else "") +
           ("" if b.remote else c(_("  (motor local: arranca `vela daemon start` para monitorizar)"), "90")))
     ex = s["exposure"]
@@ -108,7 +108,7 @@ def cmd_status(b, a):
     if s["findings"]:
         print(f"\n{bold(_('Alertas'))}")
         for f in s["findings"]:
-            print(f"  {c(f['severity'].upper(), SEV_COLOR[f['severity']])} {f['title']} — {f['observed']}")
+            print(f"  {c(f['severity'].upper(), SEV_COLOR[f['severity']])} {f['title']} · {f['observed']}")
     return None
 
 
@@ -517,10 +517,10 @@ def cmd_audit(b, a):
     if a.json:
         return r
     ex = r["summary"]["exposure"]
-    print(bold(_("Auditoría de privacidad — perfil {profile}", profile=r['profile'])) + _(" · exposición {score}/100 ({level})", score=ex['score'], level=ex['level']))
+    print(bold(_("Auditoría de privacidad · perfil {profile}", profile=r['profile'])) + _(" · exposición {score}/100 ({level})", score=ex['score'], level=ex['level']))
     for i in ex["indicators"]:
         mark = c("●", "31") if i["present"] else (c("○", "90") if i["present"] is False else c("?", "36"))
-        print(f"  {mark} {i['label']} (peso {i['weight']}) — {i['explanation']}")
+        print(f"  {mark} {i['label']} (peso {i['weight']}) · {i['explanation']}")
     print(c(ex["disclaimer"], "90"))
     _print_findings(r["risks"])
     print(bold(_("\nPruebas realizadas")))
@@ -656,8 +656,8 @@ def cmd_deps(b, a):
         items = [r] if a.feature else r
         for x in items:
             print(f"{'OK ' if x['ok'] else 'FALTA'} {x['title']}"
-                  + (f" — faltan: {', '.join(x['missing'])}" if x["missing"] else "")
-                  + (f" — {x['note']}" if x.get("note") else ""))
+                  + (f" · faltan: {', '.join(x['missing'])}" if x["missing"] else "")
+                  + (f" · {x['note']}" if x.get("note") else ""))
         return None
     if a.action == "install":
         if not a.feature:
@@ -838,7 +838,7 @@ def cmd_refresh(b, a):
     print(_("estado actualizado · revisión {n} · {alerts} alertas",
             n=r.get("revision", "?"), alerts=len(st.get("findings") or [])))
     for f in st.get("findings") or []:
-        print(f"  {c(f['severity'].upper(), SEV_COLOR.get(f['severity'], '37'))} {f['title']} — {f['observed']}")
+        print(f"  {c(f['severity'].upper(), SEV_COLOR.get(f['severity'], '37'))} {f['title']} · {f['observed']}")
     return None
 
 
@@ -1011,7 +1011,7 @@ def cmd_intel(b, a):
     print(bold(f"Escaneando {len(lst)} IPs") + " con " + ", ".join(f"{p} ({st[p]})" for p in providers)
           + (c(_(" · vía Tor"), "35") if cfg["intel"].get("via_tor") else ""))
     if skipped:
-        print(c(_("Excluidas (tuyas o en intel.exclude): {v1} — usa --include-own para incluirlas", v1=', '.join(skipped)), "90"))
+        print(c(_("Excluidas (tuyas o en intel.exclude): {v1} · usa --include-own para incluirlas", v1=', '.join(skipped)), "90"))
     if "virustotal" in providers and not st["virustotal"].startswith("falta"):
         print(c(_("VirusTotal gratuito: 4 consultas/min → ~{v1} min (las cacheadas no cuentan)", v1=len(lst) * 15 // 60), "90"))
     from .store import Store
@@ -1313,7 +1313,7 @@ use_tor = false
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(prog="vela", description=_("VELA — Vigilant Egress & Leak Analyst. {TAGLINE}", TAGLINE=_(TAGLINE)))
+    p = argparse.ArgumentParser(prog="vela", description=_("VELA · Vigilant Egress & Leak Analyst. {TAGLINE}", TAGLINE=_(TAGLINE)))
     p.add_argument("--version", action="version", version=f"vela {__version__}")
     p.add_argument("--json", action="store_true", help=_("salida JSON"))
     p.add_argument("--lang", choices=["es", "en", "ca", "pt", "fr", "de"],

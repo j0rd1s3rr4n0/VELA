@@ -73,11 +73,11 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
                 "verify": f"cat /sys/class/net/{iface}/addr_assign_type   # 3 = fijada por NM, 1 = aleatoria"}
 
     if chk == "dns_third_party":
-        steps = [step(_("Opción A — usar el DNS de Proton (NetShield activo): desconecta WARP; restaura resolv.conf"),
+        steps = [step(_("Opción A · usar el DNS de Proton (NetShield activo): desconecta WARP; restaura resolv.conf"),
                       "warp-cli --accept-tos disconnect", disruptive=True),
                  step(_("Comprobar los modos disponibles de tu versión de WARP (doh, warp, warp+doh…)"),
                       "warp-cli --accept-tos mode --help"),
-                 step(_("Opción B — mantener Cloudflare de forma consciente: no hay nada que corregir, solo asumir que "
+                 step(_("Opción B · mantener Cloudflare de forma consciente: no hay nada que corregir, solo asumir que "
                       "Cloudflare ve los dominios (y los asocia a tu registro de WARP)"), manual=True)]
         return {"title": _("Elegir quién resuelve tus DNS"), "steps": steps,
                 "verify": "vela dns check   # 'Resolver efectivo' debe mostrar el DNS de la VPN"}
@@ -189,7 +189,7 @@ def fix_for(f: dict, ctx: dict) -> dict | None:
                  "arrancar o si cierras la app): ProtonVPN → Configuración → Kill switch → Permanente"), manual=True),
             step(_("Desactiva el split tunneling de ProtonVPN si no lo necesitas (deja programas fuera del túnel)"),
                  manual=True),
-            step(_("Alternativa/refuerzo: kill-switch propio (solo deja salir por túneles, Tor y LAN) — revisa las reglas"),
+            step(_("Alternativa/refuerzo: kill-switch propio (solo deja salir por túneles, Tor y LAN) · revisa las reglas"),
                  "vela killswitch preview"),
             step(_("Permitirlo y aplicarlo automáticamente al detectar una fuga: [consent] allow_killswitch = true y "
                  "[leakwatch] on_leak = \"killswitch\""), "vela config edit"),

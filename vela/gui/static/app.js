@@ -334,7 +334,7 @@ async function loadRotation() {
 }
 async function doRotate(layer, dry) {
   if (!dry && !(await confirmBox(tr("¿Rotar {p0} ahora? Se seguirá el ciclo seguro (verificación y rollback).", { p0: layer })))) return;
-  try { const r = await api("rotate", { layer, dry_run: dry, force: true }); toast(`Rotación ${layer}: ${r.result} — ${r.steps.map((p) => (p.ok ? "✔" : "✘") + p.name + (p.ok ? "" : ` (${p.detail})`)).join(" · ")}`, !["ok", "dry_run_ok"].includes(r.result)); }
+  try { const r = await api("rotate", { layer, dry_run: dry, force: true }); toast(`Rotación ${layer}: ${r.result} · ${r.steps.map((p) => (p.ok ? "✔" : "✘") + p.name + (p.ok ? "" : ` (${p.detail})`)).join(" · ")}`, !["ok", "dry_run_ok"].includes(r.result)); }
   catch (e) { toast(e.message, true); }
   loadRotation(); refreshStatus();
 }

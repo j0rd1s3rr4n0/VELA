@@ -836,7 +836,7 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     for l in env.get("listening", []):
         if l["port"] in kinds and not ipaddress.ip_address(l["addr"]).is_loopback:
             what = _("Servidor web") if kinds[l["port"]] == "http-server" else "Proxy"
-            note("warn", "Proxy", _("{what} en el puerto {port} escucha en {addr} (todas las interfaces): accesible desde la LAN", what=what, port=l['port'], addr=l['addr']) + (f" — {l['owner']}" if l.get("owner") else ""))
+            note("warn", "Proxy", _("{what} en el puerto {port} escucha en {addr} (todas las interfaces): accesible desde la LAN", what=what, port=l['port'], addr=l['addr']) + (f" · {l['owner']}" if l.get("owner") else ""))
         if kinds.get(l["port"]) == "http-server":
             note("info", "Proxy", _("127.0.0.1:{port} es un servidor web, no un proxy (no acepta CONNECT)", port=l['port']))
     for p in px["local"]:
@@ -891,7 +891,7 @@ def recommend(env: dict) -> tuple[list[dict], dict]:
     ksx = env.get("killswitch") or {}
     if ksx.get("declared_by") and ksx.get("verified_ipv4"):
         rp = ksx["route_protection"]
-        note("ok", "Kill-switch", _("{v0}: verificado — si el túnel cae, IPv4 {detail}; IPv6 {detail2}", v0=', '.join(ksx['declared_by']), detail=rp['ipv4']['detail'], detail2=rp['ipv6']['detail']))
+        note("ok", "Kill-switch", _("{v0}: verificado · si el túnel cae, IPv4 {detail}; IPv6 {detail2}", v0=', '.join(ksx['declared_by']), detail=rp['ipv4']['detail'], detail2=rp['ipv6']['detail']))
         for c in ksx["clients"]:
             if (c.get("declared") or {}).get("killswitch") == 1:
                 note("info", "Kill-switch", _("{client} en modo estándar: no protege si cierras la app o al reiniciar; el modo permanente sí", client=c['client']))
@@ -1043,7 +1043,7 @@ def capabilities(env: dict) -> list[dict]:
         c = tor["control"][0]
         cookie_ok = c.get("cookie_readable", True) or "HASHEDPASSWORD" in c["auth"]
         cap("tor.control", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
-            f"{c['target']} Tor {c.get('version')}" + ("" if cookie_ok else _(" — cookie no legible")))
+            f"{c['target']} Tor {c.get('version')}" + ("" if cookie_ok else _(" · cookie no legible")))
         cap("tor.circuits", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
             _("circuitos, streams y relays guard/middle/exit observables"))
         cap("tor.newnym", "Tor", OPERATIVA if cookie_ok else SIN_PERMISOS,
@@ -1105,7 +1105,7 @@ def capabilities(env: dict) -> list[dict]:
     fw = env["binaries"]["firewall"]
     if "nft" in fw or "iptables" in fw:
         cap("killswitch.own", "Protección", OPERATIVA if root else SIN_PERMISOS,
-            ("nftables" if "nft" in fw else "iptables") + ("" if root else _(" — requiere sudo/pkexec con confirmación")))
+            ("nftables" if "nft" in fw else "iptables") + ("" if root else _(" · requiere sudo/pkexec con confirmación")))
     else:
         cap("killswitch.own", "Protección", NO_DISPONIBLE, _("sin nft ni iptables"))
 

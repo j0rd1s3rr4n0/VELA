@@ -368,7 +368,7 @@ WEB_VARS = {"--bg": "bg", "--panel": "surface", "--panel2": "elevated", "--line"
 
 def web_css(theme: str | None) -> str:
     """Hoja de estilo con las variables del tema para la GUI web (modo claro y oscuro)."""
-    out = [f"/* {get(theme)['name']} — generado por vela/themes.py */"]
+    out = [f"/* {get(theme)['name']} · generado por vela/themes.py */"]
     for mode in ("dark", "light"):
         t = tokens(theme, mode == "dark")
         sel = ":root, :root[data-theme=\"dark\"]" if mode == "dark" else ":root[data-theme=\"light\"]"

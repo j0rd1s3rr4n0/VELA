@@ -170,7 +170,7 @@ def to_html(engine, data: dict, audit: dict | None = None) -> str:
                 for s in data["sessions"][:500]]
     counters = [{**c, "total": fmt_duration(c["total"])} for c in data["counters"][:300]]
     events = [{**e, "ts": iso(e["ts"]), "data": json.dumps(e["data"], ensure_ascii=False)[:200]} for e in data["events"][:500]]
-    parts = [f"<h1>VELA — informe</h1><p>Generado {iso(data['generated'])} · perfil "
+    parts = [f"<h1>VELA · informe</h1><p>Generado {iso(data['generated'])} · perfil "
              f"<b>{html.escape(data['profile'])}</b></p>"]
     if audit:
         ex = audit["summary"]["exposure"]

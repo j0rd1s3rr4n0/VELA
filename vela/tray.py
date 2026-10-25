@@ -301,7 +301,7 @@ class Tray:
         def done(r):
             notify(_("Tor"), f"{_('Simulación') if dry else 'NEWNYM'}: {r['result']}"
                    + ("" if r["result"] in ("ok", "dry_run_ok") else
-                      " — " + "; ".join(s["detail"] for s in r["steps"] if not s["ok"])))
+                      " · " + "; ".join(s["detail"] for s in r["steps"] if not s["ok"])))
         self.bg(lambda: self.client.call("rotate", layer="tor", dry_run=dry, force=True), done)
 
     def toggle_emergency(self):

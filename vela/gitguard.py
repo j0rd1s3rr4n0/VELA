@@ -145,7 +145,7 @@ def scan(items, reader, exact=None) -> list[tuple[str, int, str]]:
 def report(found, what: str) -> int:
     if not found:
         return 0
-    print(f"\n✖ gitguard: {what} bloqueado — {len(found)} problema(s):", file=sys.stderr)
+    print(f"\n✖ gitguard: {what} bloqueado · {len(found)} problema(s):", file=sys.stderr)
     for path, line, kind in found[:60]:
         print(f"   {path}{':' + str(line) if line else ''}  →  {kind}", file=sys.stderr)
     if len(found) > 60:
@@ -192,7 +192,7 @@ def pre_push(stdin_lines) -> int:
     for e in sorted(emails):
         problem = email_problem(e)
         if problem:
-            print(_("✖ gitguard: push bloqueado — {problem}", problem=problem), file=sys.stderr)
+            print(_("✖ gitguard: push bloqueado · {problem}", problem=problem), file=sys.stderr)
             rc = 1
     return rc
 
