@@ -151,8 +151,11 @@ The README banners are in `docs/brand/`.
 * **TUI (curses):** keeps the 8 ANSI colors with the same meanings (Tor magenta, failures red, OK green;
   ANSI has no orange, so direct traffic and warnings use yellow).
 * **CLI:** output colors are unchanged. They are only used on a TTY and respect `NO_COLOR`.
-* **Tray:** the indicator keeps its state icons (ok, warning, alert, off), because they convey state.
-  Notifications use the brand icon.
+* **Tray:** by default the indicator shows the VELA emblem with a status badge that changes colour *and*
+  shape (✔ protected, ▲ medium exposure, ✖ alert, — daemon stopped), drawn with the same state colours
+  and a white + navy ring so it reads on light and dark panels (`vela/trayicons.py`). Settings → Window →
+  *Tray icon* can switch to the emblem alone or to the system's generic state symbols. Notifications use
+  the brand icon.
 
 ## Known limitations
 

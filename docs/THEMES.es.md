@@ -154,8 +154,11 @@ Los banners del README están en `docs/brand/`.
 * **TUI (curses):** mantiene los 8 colores ANSI con los mismos significados (Tor magenta, fallos en rojo,
   correcto en verde; ANSI no tiene naranja, así que las conexiones directas y los avisos usan amarillo).
 * **CLI:** los colores de la salida no cambian. Solo se usan en un TTY y respetan `NO_COLOR`.
-* **Bandeja:** el indicador conserva sus iconos de estado (ok, aviso, alerta, apagado), porque comunican
-  el estado. Las notificaciones usan el icono de la marca.
+* **Bandeja:** por defecto el indicador muestra el emblema de VELA con una insignia de estado que cambia de
+  color *y* de forma (✔ protegido, ▲ exposición media, ✖ alerta, — daemon detenido), con los mismos colores
+  de estado y un anillo blanco y marino para verse en paneles claros y oscuros (`vela/trayicons.py`). En
+  Ajustes → Ventana → *Icono de la bandeja* se puede cambiar por solo el emblema o por los símbolos de
+  estado genéricos del sistema. Las notificaciones usan el icono de la marca.
 
 ## Limitaciones conocidas
 

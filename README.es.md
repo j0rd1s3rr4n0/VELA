@@ -1,15 +1,13 @@
-<p align="center">
+<!-- <p align="center">
   <img src="docs/brand/logo.svg" width="96" alt="VELA — Vigilant Egress &amp; Leak Analyst">
-</p>
+</p>-->
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: light)" srcset="docs/brand/banner-light.png">
-    <img src="docs/brand/banner-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
+    <source media="(prefers-color-scheme: light)" srcset="vela/data/brand/vela-wordmark-on-light.png">
+    <img src="vela/data/brand/vela-wordmark-on-dark.png" width="640" alt="VELA — Vigilant Egress & Leak Analyst">
   </picture>
 </p>
-
-<h1 align="center">VELA</h1>
 
 <p align="center">
   <a href="README.md">English</a> · <b>Español</b> · <a href="README.ca.md">Català</a> · <a href="README.pt.md">Português</a> · <a href="README.fr.md">Français</a> · <a href="README.de.md">Deutsch</a>
@@ -25,7 +23,7 @@
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-3987e5?logo=python&logoColor=white">
   <img alt="Sin dependencias" src="https://img.shields.io/badge/dependencias-ninguna-0ca30c">
   <img alt="GTK 4 + libadwaita" src="https://img.shields.io/badge/GUI-GTK%204%20%2B%20libadwaita-3987e5">
-  <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-259%20OK-0ca30c">
+  <img alt="Pruebas" src="https://img.shields.io/badge/pruebas-283%20OK-0ca30c">
   <img alt="License" src="https://img.shields.io/badge/license-Proprietary-red">
   <img alt="6 idiomas" src="https://img.shields.io/badge/idiomas-ES%20·%20EN%20·%20CA%20·%20PT%20·%20FR%20·%20DE-3987e5">
   <img alt="Datos del mapa ODbL" src="https://img.shields.io/badge/mapa-OpenStreetMap%20(ODbL)-d95926">
@@ -113,7 +111,7 @@ consultas salen solo por la VPN o por Tor; las claves se guardan en `~/.config/v
 <p align="center"><img src="docs/screenshots/es/ajustes.png" alt="Ajustes" width="100%"></p>
 </details>
 
-También incluye **icono en la bandeja** (estado, perfil, Tor, emergencia y notificaciones), **TUI** en
+También incluye **icono en la bandeja** (estado, perfil, Tor, emergencia y notificaciones; muestra el emblema de VELA con una insignia de estado ✔ ▲ ✖, solo el emblema o los símbolos del sistema, a elegir en Ajustes → Ventana, donde también decides si al cerrar la ventana VELA sigue en la bandeja), **TUI** en
 terminal, **GUI web** local (solo 127.0.0.1, con token) y una **CLI** completa con salida `--json`.
 
 ### Herramientas
@@ -223,7 +221,7 @@ git clone https://github.com/j0rd1s3rr4n0/VELA.git && cd VELA
 
 Puedes ejecutar `./install.sh` o `sudo ./install.sh`: en ambos casos instala para el usuario que lo invocó (con sudo se redirige a `$SUDO_USER`). Los comandos también funcionan con o sin sudo: `sudo vela …` vuelve a ejecutarse como tu usuario para que los datos sigan en tu home y la app pueda usar tu sesión gráfica; las acciones privilegiadas siguen usando `pkexec`/`sudo`. Usa `VELA_KEEP_ROOT=1 sudo vela …` si de verdad quieres conservar root. Detecta los paquetes del sistema que falten (apt, dnf, pacman, zypper) y pregunta antes de instalarlos; ver `./install.sh --help`.
 
-Actualizar: **Ajustes → Actualizaciones** en la app o `vela update` (consulta el remoto de tu clon por Tor o por la VPN, nunca por su cuenta, enseña los commits nuevos y solo avanza; `vela update --check` no cambia nada) · Desinstalar: **Ajustes → Desinstalar**, clic derecho en VELA en el menú de aplicaciones → *Desinstalar VELA*, o `vela uninstall` (`--dry-run` enseña qué quitaría; `--purge` borra también tus datos; tu repositorio git no se toca).
+Actualizar: **Ajustes → Actualizaciones** en la app o `vela update` (consulta el remoto de tu clon por Tor o por la VPN, nunca por su cuenta, enseña los commits nuevos y solo avanza; `vela update --check` no cambia nada). Ejecutar `./install.sh` encima de un VELA instalado también es una actualización: primero se descarga todo con VELA vigilando y después pregunta cómo cambiar de versión: con el **kill-switch hasta que arranque la versión nueva** (solo VPN, Tor y LAN) o **cerrando y volviendo a abrir sin protección** (posible fuga de IP unos segundos) · Desinstalar: **Ajustes → Desinstalar**, clic derecho en VELA en el menú de aplicaciones → *Desinstalar VELA*, o `vela uninstall` (`--dry-run` enseña qué quitaría; `--purge` borra también tus datos; tu repositorio git no se toca).
 
 También funciona sin instalar, con `python3 -m vela <comando>`.
 
@@ -266,7 +264,7 @@ vela tui               # terminal interactiva
 | `vela fix` | Comandos concretos para corregir cada problema detectado (no ejecuta nada) |
 | `vela intel scan [IP…] [--file f] [--history]` | GreyNoise / VirusTotal / Shodan / Censys sobre tu historial o un listado (`intel keys`, `intel set-key`, `intel show`, `intel targets`) |
 | `vela map [status\|build]` | **Mapa propio de OpenStreetMap, incorporado en la app** (`vela/data/`, funciona sin conexión en la app nativa, la TUI y la GUI web). `build` lo actualiza con datos recientes: descarga por Tor o la VPN (`--via direct` solo si lo pides, `--file` para un zip ya descargado); mirar el mapa no pide teselas a nadie |
-| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct]` | Actualizar desde tu clon git: solo cuando lo pides, por Tor o la VPN, solo avanzando y enseñando antes los commits nuevos |
+| `vela update [--check\|--status] [--via auto\|tor\|vpn\|direct] [--protect killswitch\|restart]` | Actualizar desde tu clon git: solo cuando lo pides, por Tor o la VPN, solo avanzando y enseñando antes los commits nuevos; `--protect killswitch` mantiene el kill-switch mientras VELA está parado para cambiar de versión |
 | `vela network` | Interfaces, direcciones clasificadas (privada, CGNAT, ULA…), rutas y policy routing |
 | `vela vpn list` / `vela proxy list` | VPN y proxies detectados, con su estado |
 | `vela tor status` | Circuitos con guard, middle y exit; guards; comprobación externa |
@@ -401,7 +399,7 @@ Leyenda:
 python3 -m unittest discover -s tests -t .
 ```
 
-259 pruebas con mocks y backends simulados (servidor de control de Tor falso con SAFECOOKIE real,
+283 pruebas con mocks y backends simulados (servidor de control de Tor falso con SAFECOOKIE real,
 rotación con fallos y rollback, fugas simuladas, IPC, seguridad de la GUI, proxy SOCKS5 falso, mapa OSM,
 migración, guardián de git y traducciones). Ninguna toca la conectividad real.
 
