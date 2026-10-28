@@ -105,10 +105,14 @@ VPN ou pelo Tor; as chaves são guardadas em `~/.config/vela/secrets.toml` (0600
 | **Histórico** | **Perfis** |
 | <img src="docs/screenshots/pt/historial.png" alt="Histórico de sessões"> | <img src="docs/screenshots/pt/perfiles.png" alt="Perfis OPSEC"> |
 | Sessões de saída com duração, interface, VPN, IP público e motivo do fecho | Perfis gerados conforme o que existe no seu sistema (diário, privado, anónimo, alto risco, laboratório) |
+| **Utilitários** | **Erros e auditoria** |
+| <img src="docs/screenshots/pt/utilidades.png" alt="Utilitários: tradutor, DNS cifrado, fuso horário, MAC"> | <img src="docs/screenshots/pt/errores.png" alt="Registo de erros e auditoria"> |
+| Ferramentas locais: tradutor + OCR (LLM local), DNS cifrado (DoT/DoH), abrir uma app noutro fuso horário, alterador de MAC, dependências opcionais e exportar/importar dados | Registo local de erros do VELA e auditoria de cada ação (quem fez o quê e quando); não é enviado para lado nenhum |
 
 <details>
-<summary><b>Definições e consentimentos</b></summary>
-<p align="center"><img src="docs/screenshots/pt/ajustes.png" alt="Definições" width="100%"></p>
+<summary><b>Definições, aparência, janela e bandeja, sobre</b></summary>
+<p align="center"><img src="docs/screenshots/pt/ajustes.png" alt="Definições: temas, janela e ícone da bandeja, idioma, notificações, consentimentos, atualizações e desinstalação" width="100%"></p>
+<p align="center"><img src="docs/screenshots/pt/acerca-de.png" alt="Sobre o VELA" width="100%"></p>
 </details>
 
 Inclui também **ícone na bandeja** (estado, perfil, Tor, emergência e notificações; mostra o emblema do VELA com uma insígnia de estado ✔ ▲ ✖, só o emblema ou os símbolos do sistema, a escolher em Definições → Janela, onde também decide se ao fechar a janela o VELA fica na bandeja), **TUI** no terminal, **GUI

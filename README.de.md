@@ -106,10 +106,14 @@ GreyNoise, VirusTotal, Shodan und Censys für deinen Verlauf oder eine IP-Liste,
 | **Verlauf** | **Profile** |
 | <img src="docs/screenshots/de/historial.png" alt="Sitzungsverlauf"> | <img src="docs/screenshots/de/perfiles.png" alt="OPSEC-Profile"> |
 | Ausgangssitzungen mit Dauer, Schnittstelle, VPN, öffentlicher IP und Grund des Endes | Profile, erzeugt aus dem, was auf deinem System vorhanden ist (Alltag, privat, anonym, hohes Risiko, Labor) |
+| **Werkzeuge** | **Fehler und Audit** |
+| <img src="docs/screenshots/de/utilidades.png" alt="Werkzeuge: Übersetzer, verschlüsseltes DNS, Zeitzone, MAC"> | <img src="docs/screenshots/de/errores.png" alt="Fehlerprotokoll und Audit"> |
+| Lokale Werkzeuge: Übersetzer + OCR (lokales LLM), verschlüsseltes DNS (DoT/DoH), App in einer anderen Zeitzone öffnen, MAC-Wechsler, optionale Abhängigkeiten und Datenexport/-import | Lokales Fehlerprotokoll von VELA und Audit jeder Aktion (wer hat was wann getan); nichts wird irgendwohin gesendet |
 
 <details>
-<summary><b>Einstellungen und Zustimmungen</b></summary>
-<p align="center"><img src="docs/screenshots/de/ajustes.png" alt="Einstellungen" width="100%"></p>
+<summary><b>Einstellungen, Erscheinungsbild, Fenster und Tray, Über</b></summary>
+<p align="center"><img src="docs/screenshots/de/ajustes.png" alt="Einstellungen: Themes, Fenster und Tray-Symbol, Sprache, Benachrichtigungen, Einwilligungen, Updates und Deinstallation" width="100%"></p>
+<p align="center"><img src="docs/screenshots/de/acerca-de.png" alt="Über VELA" width="100%"></p>
 </details>
 
 Dazu kommen ein **Tray-Symbol** (Status, Profil, Tor, Notfall und Benachrichtigungen; es zeigt das VELA-Emblem mit einem Status-Abzeichen ✔ ▲ ✖, nur das Emblem oder die Systemsymbole, wählbar unter Einstellungen → Fenster, wo du auch festlegst, ob VELA beim Schließen des Fensters im Tray bleibt), eine **TUI** im Terminal,

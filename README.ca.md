@@ -105,10 +105,14 @@ surten per la VPN o per Tor; les claus es desen a `~/.config/vela/secrets.toml` 
 | **Historial** | **Perfils** |
 | <img src="docs/screenshots/ca/historial.png" alt="Historial de sessions"> | <img src="docs/screenshots/ca/perfiles.png" alt="Perfils OPSEC"> |
 | Sessions de sortida amb durada, interfície, VPN, IP pública i motiu del tancament | Perfils generats segons el que hi ha al teu sistema (diari, privat, anònim, alt risc, laboratori) |
+| **Utilitats** | **Errors i auditoria** |
+| <img src="docs/screenshots/ca/utilidades.png" alt="Utilitats: traductor, DNS xifrat, zona horària, MAC"> | <img src="docs/screenshots/ca/errores.png" alt="Registre d'errors i auditoria"> |
+| Eines locals: traductor + OCR (LLM local), DNS xifrat (DoT/DoH), obrir una app amb una altra zona horària, canviador de MAC, dependències opcionals i exportar/importar dades | Registre local d'errors de VELA i auditoria de cada acció (qui va fer què i quan); no s'envia enlloc |
 
 <details>
-<summary><b>Configuració i consentiments</b></summary>
-<p align="center"><img src="docs/screenshots/ca/ajustes.png" alt="Configuració" width="100%"></p>
+<summary><b>Configuració, aparença, finestra i safata, quant a</b></summary>
+<p align="center"><img src="docs/screenshots/ca/ajustes.png" alt="Configuració: temes, finestra i icona de la safata, idioma, notificacions, consentiments, actualitzacions i desinstal·lació" width="100%"></p>
+<p align="center"><img src="docs/screenshots/ca/acerca-de.png" alt="Quant a VELA" width="100%"></p>
 </details>
 
 També inclou **icona a la safata** (estat, perfil, Tor, emergència i notificacions; mostra l'emblema de VELA amb una insígnia d'estat ✔ ▲ ✖, només l'emblema o els símbols del sistema, a triar a Ajustos → Finestra, on també decideixes si en tancar la finestra VELA es queda a la safata), **TUI** al terminal,

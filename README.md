@@ -105,10 +105,14 @@ VPN or Tor; keys are stored in `~/.config/vela/secrets.toml` (0600).
 | **History** | **Profiles** |
 | <img src="docs/screenshots/en/historial.png" alt="Session history"> | <img src="docs/screenshots/en/perfiles.png" alt="OPSEC profiles"> |
 | Egress sessions with duration, interface, VPN, public IP and why they ended | Profiles generated from what's on your system (daily, private, anonymous, high risk, lab) |
+| **Tools** | **Errors and audit** |
+| <img src="docs/screenshots/en/utilidades.png" alt="Utilities: translator, encrypted DNS, time zone, MAC"> | <img src="docs/screenshots/en/errores.png" alt="Error log and audit"> |
+| Local tools: translator + OCR (local LLM), encrypted DNS (DoT/DoH), open an app in another time zone, MAC changer, optional dependencies and data export/import | VELA's local error log and audit trail of every action (who did what and when); nothing is sent anywhere |
 
 <details>
-<summary><b>Settings and consents</b></summary>
-<p align="center"><img src="docs/screenshots/en/ajustes.png" alt="Settings" width="100%"></p>
+<summary><b>Settings, appearance, window and tray, about</b></summary>
+<p align="center"><img src="docs/screenshots/en/ajustes.png" alt="Settings: themes, window and tray icon, language, notifications, consents, updates and uninstall" width="100%"></p>
+<p align="center"><img src="docs/screenshots/en/acerca-de.png" alt="About VELA" width="100%"></p>
 </details>
 
 It also includes a **tray icon** (status, profile, Tor, emergency and notifications; it shows the VELA emblem with a ✔ ▲ ✖ status badge, the emblem alone or the system symbols, chosen in Settings → Window, where you also decide whether closing the window keeps VELA in the tray), a terminal **TUI**, a

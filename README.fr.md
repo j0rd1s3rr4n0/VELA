@@ -106,10 +106,14 @@ ne sortent que via le VPN ou Tor ; les clés sont stockées dans `~/.config/vela
 | **Historique** | **Profils** |
 | <img src="docs/screenshots/fr/historial.png" alt="Historique des sessions"> | <img src="docs/screenshots/fr/perfiles.png" alt="Profils OPSEC"> |
 | Sessions de sortie avec durée, interface, VPN, IP publique et motif de fermeture | Profils générés selon ce qui se trouve sur votre système (quotidien, privé, anonyme, haut risque, labo) |
+| **Utilitaires** | **Erreurs et audit** |
+| <img src="docs/screenshots/fr/utilidades.png" alt="Utilitaires : traducteur, DNS chiffré, fuseau horaire, MAC"> | <img src="docs/screenshots/fr/errores.png" alt="Journal des erreurs et audit"> |
+| Outils locaux : traducteur + OCR (LLM local), DNS chiffré (DoT/DoH), ouvrir une app dans un autre fuseau horaire, changeur de MAC, dépendances optionnelles et export/import des données | Journal local des erreurs de VELA et audit de chaque action (qui a fait quoi et quand) ; rien n'est envoyé nulle part |
 
 <details>
-<summary><b>Réglages et consentements</b></summary>
-<p align="center"><img src="docs/screenshots/fr/ajustes.png" alt="Réglages" width="100%"></p>
+<summary><b>Réglages, apparence, fenêtre et barre, à propos</b></summary>
+<p align="center"><img src="docs/screenshots/fr/ajustes.png" alt="Réglages : thèmes, fenêtre et icône de la barre, langue, notifications, consentements, mises à jour et désinstallation" width="100%"></p>
+<p align="center"><img src="docs/screenshots/fr/acerca-de.png" alt="À propos de VELA" width="100%"></p>
 </details>
 
 Il inclut aussi une **icône dans la barre** (état, profil, Tor, urgence et notifications ; elle affiche l'emblème de VELA avec un badge d'état ✔ ▲ ✖, l'emblème seul ou les symboles du système, au choix dans Réglages → Fenêtre, où vous décidez aussi si la fermeture de la fenêtre garde VELA dans la barre), une **TUI** en terminal,
